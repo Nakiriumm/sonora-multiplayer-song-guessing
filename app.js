@@ -4,6 +4,7 @@ const selectedModeLabel = document.querySelector('.selected-mode-label');
 const copyStatus = document.querySelector('.copy-status');
 let selectedMode = 'Quickfire';
 const availableModes = new Set(['Quickfire']);
+const modeDisplayNames = { Quickfire: 'Classic' };
 const artistQuotes = [
   { en: 'Music is the strongest form of magic.', th: 'ดนตรีคือเวทมนตร์รูปแบบที่ทรงพลังที่สุด', artist: 'Marilyn Manson' },
   { en: 'Music is the shorthand of emotion.', th: 'ดนตรีคือภาษาย่อของอารมณ์', artist: 'Leo Tolstoy' },
@@ -39,6 +40,9 @@ modeCards.forEach((card) => {
     modeCards.forEach((item) => item.classList.remove('selected'));
     card.classList.add('selected');
     selectedMode = card.dataset.mode;
+    const room = getRoomState();
+    room.mode = selectedMode;
+    saveRoomState(room);
     openModal();
   });
 });
@@ -117,6 +121,7 @@ document.querySelector('.copy-button').addEventListener('click', async (event) =
 });
 
 document.querySelector('.launch-button').addEventListener('click', (event) => {
+  if (event.currentTarget.disabled) return;
   event.currentTarget.innerHTML = 'Room is ready <span>✓</span>';
   document.querySelector('.setup-footer > span').innerHTML = '<i class="status-dot"></i> Waiting for players';
 });
@@ -131,7 +136,7 @@ document.querySelectorAll('.room-setting').forEach((select) => {
     genreField.classList.add('genre-setting-field');
     const genreGrid = document.createElement('div');
     genreGrid.className = 'genre-grid';
-    Array.from(select.options).filter((option) => option.text !== 'Everything').forEach((option) => {
+    Array.from(select.options).forEach((option) => {
       const genre = document.createElement('button');
       genre.type = 'button';
       genre.className = 'genre-option';
@@ -214,7 +219,7 @@ joinedPanel.innerHTML = '<div><p class="eyebrow">The room</p><h3>Who is <em>in?<
 document.querySelector('.setup-modal').appendChild(joinedPanel);
 
 const roomStateKey = 'sonora-room-state';
-const defaultRoomState = { hostName: '', maxPlayers: 8, mode: 'Quickfire', genre: '', time: '30 seconds', active: true, players: [{ name: '', role: 'Host' }] };
+const defaultRoomState = { hostName: '', maxPlayers: 8, mode: 'Quickfire', choices: 4, difficulty: 'Normal', genre: '', time: '30 seconds', active: true, players: [{ name: '', role: 'Host' }] };
 
 function getRoomState() {
   try {
@@ -229,6 +234,17 @@ function getRoomState() {
 function saveRoomState(room) {
   localStorage.setItem(roomStateKey, JSON.stringify(room));
   renderRoomRosters();
+  updateLaunchAvailability();
+}
+
+function updateLaunchAvailability() {
+  const launchButton = document.querySelector('.launch-button');
+  if (!launchButton) return;
+  const room = getRoomState();
+  const ready = Boolean(room.hostName?.trim() && room.mode && room.choices && room.difficulty && room.maxPlayers && room.genre && room.time);
+  launchButton.disabled = !ready;
+  launchButton.setAttribute('aria-disabled', String(!ready));
+  launchButton.title = ready ? 'Start the room' : 'Complete the room settings first';
 }
 
 function escapeRoomText(value) {
@@ -248,7 +264,7 @@ function renderRoomRosters() {
   renderRoster(document.querySelector('.joined-room-list'), room, 'Waiting for players');
   const hostSettings = document.querySelectorAll('.host-settings strong');
   if (hostSettings.length === 4) {
-    hostSettings[0].textContent = room.mode;
+    hostSettings[0].textContent = modeDisplayNames[room.mode] || room.mode;
     hostSettings[1].textContent = `${room.maxPlayers} max`;
     hostSettings[2].textContent = room.genre;
     hostSettings[3].textContent = room.time.replace(' seconds', ' sec');
@@ -310,7 +326,7 @@ let currentLanguage = 'EN';
     choice.disabled = true;
     choice.classList.add('locked');
   }
-  choice.textContent = mode;
+  choice.textContent = modeDisplayNames[mode] || mode;
   choice.addEventListener('click', () => {
     selectedMode = mode;
     updateModeSelection(true);
@@ -322,9 +338,37 @@ let currentLanguage = 'EN';
 });
 modeField.appendChild(modeChoices);
 
+const choicesField = document.createElement('div');
+choicesField.className = 'setup-field choices-setting-field';
+choicesField.innerHTML = '<span>Choices per song</span><div class="choice-options" role="group" aria-label="Choices per song"><button type="button" data-choices="4" class="selected">4</button><button type="button" data-choices="5">5</button><button type="button" data-choices="6">6</button></div><small>How many answers players can choose from</small>';
+modeField.parentElement.insertBefore(choicesField, modeField.nextElementSibling);
+choicesField.querySelectorAll('[data-choices]').forEach((choice) => {
+  choice.addEventListener('click', () => {
+    choicesField.querySelectorAll('[data-choices]').forEach((item) => item.classList.remove('selected'));
+    choice.classList.add('selected');
+    const room = getRoomState();
+    room.choices = Number(choice.dataset.choices);
+    saveRoomState(room);
+  });
+});
+
+const difficultyField = document.createElement('div');
+difficultyField.className = 'setup-field difficulty-setting-field';
+difficultyField.innerHTML = '<span>Difficulty</span><div class="difficulty-options" role="group" aria-label="Difficulty"><button type="button" data-difficulty="Easy">Easy</button><button type="button" data-difficulty="Normal" class="selected normal">Normal</button><button type="button" data-difficulty="Hard">Hard</button><button type="button" data-difficulty="Extreme">Extreme</button></div><small>Set how forgiving the guesses will be</small>';
+modeField.parentElement.insertBefore(difficultyField, modeField.nextElementSibling);
+difficultyField.querySelectorAll('[data-difficulty]').forEach((choice) => {
+  choice.addEventListener('click', () => {
+    difficultyField.querySelectorAll('[data-difficulty]').forEach((item) => item.className = '');
+    choice.classList.add('selected', choice.dataset.difficulty.toLowerCase());
+    const room = getRoomState();
+    room.difficulty = choice.dataset.difficulty;
+    saveRoomState(room);
+  });
+});
+
 function updateModeSelection(showSetupSelection = false) {
   const modeIndex = ['Quickfire', 'Decades', 'Head to head', 'Blind spot'].indexOf(selectedMode);
-  selectedModeLabel.textContent = modeIndex >= 0 ? languageCopy[currentLanguage].modes[modeIndex][0] : selectedMode;
+  selectedModeLabel.textContent = modeIndex >= 0 ? modeDisplayNames[selectedMode] || languageCopy[currentLanguage].modes[modeIndex][0] : selectedMode;
   modeChoices.querySelectorAll('.mode-choice').forEach((choice) => {
     choice.classList.toggle('selected', showSetupSelection && choice.dataset.mode === selectedMode);
   });
@@ -333,9 +377,17 @@ function updateModeSelection(showSetupSelection = false) {
 
 const vinylArtwork = document.querySelector('.hero-art');
 const vinylParts = [vinylArtwork.querySelector('.record'), vinylArtwork.querySelector('.record-label')];
+const hoverPreviewAudio = new Audio();
+hoverPreviewAudio.preload = 'none';
+hoverPreviewAudio.volume = 0.7;
+let hoverTargetVolume = 0.7;
+let hoverPreviewLoading;
+let isVinylHovering = false;
+let hoverFadeFrame;
 let vinylResetFrame;
 
-vinylArtwork.addEventListener('mouseenter', () => {
+vinylArtwork.addEventListener('mouseenter', async () => {
+  isVinylHovering = true;
   cancelAnimationFrame(vinylResetFrame);
   vinylArtwork.classList.add('is-vinyl-hovering');
   vinylParts.forEach((part) => {
@@ -343,9 +395,28 @@ vinylArtwork.addEventListener('mouseenter', () => {
     part.style.removeProperty('rotate');
     part.style.removeProperty('transition');
   });
+  if (!hoverPreviewLoading) hoverPreviewLoading = loadRandomPreview();
+  try {
+    const previewUrl = await hoverPreviewLoading;
+    if (isVinylHovering && previewUrl) {
+      hoverPreviewAudio.src = previewUrl;
+      hoverPreviewAudio.volume = 0;
+      await hoverPreviewAudio.play();
+      fadePreviewIn();
+    }
+  } catch {
+    // Audio preview access can be blocked by the browser or the network.
+  } finally {
+    hoverPreviewLoading = null;
+  }
 });
 
 vinylArtwork.addEventListener('mouseleave', () => {
+  isVinylHovering = false;
+  cancelAnimationFrame(hoverFadeFrame);
+  hoverPreviewAudio.pause();
+  hoverPreviewAudio.currentTime = 0;
+  hoverPreviewAudio.volume = 0;
   vinylParts.forEach((part) => {
     const currentRotation = getComputedStyle(part).rotate;
     part.style.setProperty('animation', 'none', 'important');
@@ -359,8 +430,37 @@ vinylArtwork.addEventListener('mouseleave', () => {
   });
 });
 
+function fadePreviewIn() {
+  const fadeStartedAt = performance.now();
+  const fadeDuration = 900;
+  const animateVolume = (now) => {
+    const progress = Math.min((now - fadeStartedAt) / fadeDuration, 1);
+    hoverPreviewAudio.volume = hoverTargetVolume * progress;
+    if (progress < 1 && isVinylHovering) hoverFadeFrame = requestAnimationFrame(animateVolume);
+  };
+  cancelAnimationFrame(hoverFadeFrame);
+  hoverFadeFrame = requestAnimationFrame(animateVolume);
+}
+
+async function loadRandomPreview() {
+  const terms = ['pop', 'rock', 'indie', 'dance', 'r&b', 'alternative'];
+  const term = terms[Math.floor(Math.random() * terms.length)];
+  const endpoint = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&country=US&limit=50`;
+  const response = await fetch(endpoint);
+  if (!response.ok) throw new Error(`iTunes Search failed: ${response.status}`);
+  const data = await response.json();
+  const previews = data.results.filter((track) => track.previewUrl).map((track) => track.previewUrl);
+  return previews[Math.floor(Math.random() * previews.length)];
+}
+
 function openModal(requireName = false) {
-  updateModeSelection();
+  updateModeSelection(true);
+  const room = getRoomState();
+  choicesField.querySelectorAll('[data-choices]').forEach((choice) => choice.classList.toggle('selected', Number(choice.dataset.choices) === (room.choices || 4)));
+  difficultyField.querySelectorAll('[data-difficulty]').forEach((choice) => {
+    const isSelected = choice.dataset.difficulty === (room.difficulty || 'Normal');
+    choice.className = isSelected ? `selected ${choice.dataset.difficulty.toLowerCase()}` : '';
+  });
   modal.hidden = false;
   modal.classList.add('page-view');
   document.body.style.overflow = 'hidden';
@@ -369,6 +469,7 @@ function openModal(requireName = false) {
     nameGateInput.value = '';
     nameGateInput.focus();
   }
+  updateLaunchAvailability();
 }
 
 function closeModal() {
@@ -427,14 +528,42 @@ soundButton.type = 'button';
 soundButton.setAttribute('aria-label', 'Adjust volume');
 soundButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6l-5 4H4zM17 9.5a4 4 0 0 1 0 5M19.5 7a7.5 7.5 0 0 1 0 10"></path></svg><input class="volume-slider" type="range" min="0" max="100" value="70" aria-label="Volume" />';
 userTools.insertBefore(soundButton, languageButton);
-soundButton.addEventListener('mouseenter', () => soundButton.classList.add('is-expanded'));
-soundButton.addEventListener('mouseleave', () => soundButton.classList.remove('is-expanded'));
+const volumeSlider = soundButton.querySelector('.volume-slider');
+const soundIcon = soundButton.querySelector('svg');
+const volumeHoverBridge = document.createElement('span');
+volumeHoverBridge.setAttribute('aria-hidden', 'true');
+volumeHoverBridge.style.position = 'absolute';
+volumeHoverBridge.style.left = '-145px';
+volumeHoverBridge.style.top = '-10px';
+volumeHoverBridge.style.width = '145px';
+volumeHoverBridge.style.height = '48px';
+volumeHoverBridge.style.zIndex = '0';
+volumeHoverBridge.style.pointerEvents = 'none';
+soundButton.appendChild(volumeHoverBridge);
+function setSoundExpanded(expanded) {
+  soundButton.classList.toggle('is-expanded', expanded);
+  volumeHoverBridge.style.pointerEvents = expanded ? 'auto' : 'none';
+  soundIcon.style.setProperty('left', 'auto', 'important');
+  soundIcon.style.setProperty('right', '0', 'important');
+  soundIcon.style.setProperty('transform', 'none', 'important');
+  volumeSlider.style.setProperty('left', expanded ? '-132px' : 'auto', 'important');
+  volumeSlider.style.setProperty('right', expanded ? 'auto' : '0', 'important');
+  volumeSlider.style.setProperty('width', expanded ? '110px' : '0px', 'important');
+  volumeSlider.style.setProperty('max-width', expanded ? '110px' : '0px', 'important');
+  volumeSlider.style.setProperty('opacity', expanded ? '1' : '0', 'important');
+  volumeSlider.style.setProperty('pointer-events', expanded ? 'auto' : 'none', 'important');
+  volumeSlider.style.setProperty('z-index', expanded ? '2' : 'auto', 'important');
+}
+soundButton.addEventListener('mouseenter', () => setSoundExpanded(true));
+soundButton.addEventListener('mouseleave', () => setSoundExpanded(false));
 soundButton.addEventListener('focusout', (event) => {
-  if (!soundButton.contains(event.relatedTarget)) soundButton.classList.remove('is-expanded');
+  if (!soundButton.contains(event.relatedTarget)) setSoundExpanded(false);
 });
-soundButton.addEventListener('focusin', () => soundButton.classList.add('is-expanded'));
-soundButton.querySelector('.volume-slider').addEventListener('input', (event) => {
+soundButton.addEventListener('focusin', () => setSoundExpanded(true));
+volumeSlider.addEventListener('input', (event) => {
   document.documentElement.style.setProperty('--volume-level', `${event.target.value}%`);
+  hoverTargetVolume = Number(event.target.value) / 100;
+  if (!hoverPreviewAudio.paused) hoverPreviewAudio.volume = hoverTargetVolume;
 });
 const profilePanel = document.createElement('div');
 profilePanel.className = 'profile-panel';
@@ -486,7 +615,7 @@ const languageCopy = {
     navModes: 'Game modes', navHow: 'How it works', warmup: 'The room is warming up',
     heroTitle: 'Hear it.<br /><em>Know it.</em><br />Name it.', heroDescription: 'A fast, friendly music guessing game for the people who can identify a song from the first three seconds.',
     create: '＋ Create a room', join: 'Join with a code', guessed: 'players guessed today', pick: 'Pick your poison', choose: 'Choose a mode',
-    modes: [['Quickfire', '10 songs · 60 seconds'], ['Decades', 'Travel through time'], ['Head to head', 'One song. One winner.'], ['Blind spot', 'No hints. No mercy.']], genres: ['Pop anthems', 'Indie & alternative', 'Hip-hop & R&B', 'Throwback classics'],
+    modes: [['Classic', '10 songs · 60 seconds'], ['Decades', 'Travel through time'], ['Head to head', 'One song. One winner.'], ['Blind spot', 'No hints. No mercy.']], genres: ['Pop anthems', 'Indie & alternative', 'Hip-hop & R&B', 'Throwback classics'],
     zero: 'ZERO FRICTION', howTitle: 'Built for the<br /><em>perfect chorus.</em>', howText: 'Make a room, send the code, and let the music do the talking. No accounts. No setup. Just your people and a playlist.',
     profile: 'Your profile', display: 'Display name', save: 'Save name', saved: 'Name saved', setup: 'Room setup', make: 'Make it <em>yours.</em>',
     gameMode: 'Game mode', modeHint: 'Set by the mode you picked', max: 'Max players', maxHint: 'Everyone gets a turn to guess', genre: 'Song genre', genreHint: 'Keep the playlist unpredictable', time: 'Time per song', timeHint: 'How long players have to lock in', invite: 'Invite your people', sendCode: 'Send them<br /><em>the code.</em>', inviteHint: 'They can join from any device. No account needed.', copy: 'Copy room code', private: 'Room is private', start: 'Start the room', room: 'The room', who: 'Who is <em>in?</em>', roomHint: 'Share the code above and watch your crew appear here.', host: 'Room host', joined: 'Joined just now', waiting: 'Waiting for players', waitingHint: 'Send the invite code to your crew',
@@ -496,7 +625,7 @@ const languageCopy = {
     navModes: 'โหมดเกม', navHow: 'วิธีเล่น', warmup: 'ห้องกำลังเตรียมพร้อม',
     heroTitle: 'ฟังให้ดี<br /><em>รู้ให้ทัน</em><br />ทายชื่อเพลง', heroDescription: 'เกมทายเพลงแบบรวดเร็วและเป็นกันเอง สำหรับคนที่จำเพลงได้ตั้งแต่สามวินาทีแรก',
     create: '＋ สร้างห้อง', join: 'เข้าร่วมด้วยรหัส', guessed: 'ผู้เล่นทายเพลงแล้ววันนี้', pick: 'เลือกโหมดของคุณ', choose: 'เลือกโหมด',
-    modes: [['ทายเร็ว', '10 เพลง · 60 วินาที'], ['ย้อนวันวาน', 'เดินทางผ่านยุคสมัย'], ['ดวลตัวต่อตัว', 'เพลงเดียว ผู้ชนะหนึ่งคน'], ['จุดบอด', 'ไม่มีคำใบ้ ไม่มีปรานี']], genres: ['เพลงป๊อป', 'อินดี้และอัลเทอร์เนทีฟ', 'ฮิปฮอปและอาร์แอนด์บี', 'เพลงคลาสสิกย้อนยุค'],
+    modes: [['คลาสสิก', '10 เพลง · 60 วินาที'], ['ย้อนวันวาน', 'เดินทางผ่านยุคสมัย'], ['ดวลตัวต่อตัว', 'เพลงเดียว ผู้ชนะหนึ่งคน'], ['จุดบอด', 'ไม่มีคำใบ้ ไม่มีปรานี']], genres: ['เพลงป๊อป', 'อินดี้และอัลเทอร์เนทีฟ', 'ฮิปฮอปและอาร์แอนด์บี', 'เพลงคลาสสิกย้อนยุค'],
     zero: 'เล่นได้ทันที', howTitle: 'สร้างมาเพื่อ<br /><em>ท่อนฮุกที่ใช่</em>', howText: 'สร้างห้อง ส่งรหัส แล้วให้เสียงเพลงเป็นคนพูด ไม่ต้องสมัคร ไม่ต้องตั้งค่า มีแค่เพื่อนและเพลย์ลิสต์ของคุณ',
     profile: 'โปรไฟล์ของคุณ', display: 'ชื่อที่แสดง', save: 'บันทึกชื่อ', saved: 'บันทึกชื่อแล้ว', setup: 'ตั้งค่าห้อง', make: 'จัดห้องในแบบ<br /><em>ของคุณ</em>',
     gameMode: 'โหมดเกม', modeHint: 'เลือกจากโหมดที่คุณต้องการ', max: 'ผู้เล่นสูงสุด', maxHint: 'ทุกคนจะได้มีโอกาสทาย', genre: 'แนวเพลง', genreHint: 'ทำให้เพลย์ลิสต์คาดเดาไม่ได้', time: 'เวลาต่อเพลง', timeHint: 'เวลาที่ใช้ล็อกคำตอบ', invite: 'ชวนเพื่อนของคุณ', sendCode: 'ส่งรหัส<br /><em>ให้เพื่อน</em>', inviteHint: 'เข้าร่วมได้จากทุกอุปกรณ์ ไม่ต้องสมัครบัญชี', copy: 'คัดลอกรหัสห้อง', private: 'ห้องส่วนตัว', start: 'เริ่มห้อง', room: 'ในห้องนี้', who: 'ใคร<em>เข้าร่วมแล้ว?</em>', roomHint: 'แชร์รหัสด้านบน แล้วดูเพื่อนของคุณเข้าร่วมที่นี่', host: 'เจ้าของห้อง', joined: 'เข้าร่วมเมื่อครู่', waiting: 'รอผู้เล่น', waitingHint: 'ส่งรหัสเชิญให้เพื่อนของคุณ',
@@ -520,10 +649,10 @@ function applyLanguage(language) {
   setHtml('.hero h1', copy.heroTitle); setText('.hero-description', copy.heroDescription); setText('.js-create-room', copy.create); setText('.js-join-room', copy.join + ' →'); renderArtistQuote(language);
   setText('.section-heading .eyebrow', copy.pick); setText('.section-heading h2', copy.choose); setText('.how-label', `01 ${copy.zero}`); setHtml('.how-copy h2', copy.howTitle); setText('.how-copy p', copy.howText);
   document.querySelectorAll('.mode-card').forEach((card, index) => { setTextFor(card, '.mode-name', copy.modes[index][0]); setTextFor(card, '.mode-detail', copy.modes[index][1]); });
-  modeChoices.querySelectorAll('.mode-choice').forEach((choice, index) => { choice.textContent = copy.modes[index][0]; });
+  modeChoices.querySelectorAll('.mode-choice').forEach((choice, index) => { choice.textContent = index === 0 ? modeDisplayNames.Quickfire : copy.modes[index][0]; });
   document.querySelectorAll('.genre-option').forEach((choice, index) => { choice.textContent = copy.genres[index]; });
   const selectedModeIndex = ['Quickfire', 'Decades', 'Head to head', 'Blind spot'].indexOf(selectedMode);
-  if (selectedModeIndex >= 0) setText('.selected-mode-label', copy.modes[selectedModeIndex][0]);
+  if (selectedModeIndex >= 0) setText('.selected-mode-label', modeDisplayNames[selectedMode] || copy.modes[selectedModeIndex][0]);
   setText('.profile-panel .eyebrow', copy.profile); setText('.profile-panel label', copy.display); setText('.profile-save', copy.save);
   setText('.setup-header .eyebrow', copy.setup); setHtml('.setup-header h2', copy.make); setText('.setup-fields .setup-field:nth-child(1)>span', copy.yourName); setText('.setup-fields .setup-field:nth-child(2)>span', copy.gameMode); setText('.setup-fields .setup-field:nth-child(2) small', copy.modeHint); setText('.setup-fields .player-setting-field>span', copy.max); setText('.setup-fields .player-setting-field small', copy.maxHint); setText('.setup-fields .genre-setting-field>span', copy.genre); setText('.setup-fields .genre-setting-field small', copy.genreHint); setText('.setup-fields .time-setting-field>span', copy.time); setText('.setup-fields .time-setting-field small', copy.timeHint);
   setText('.invite-panel .eyebrow', copy.invite); setHtml('.invite-panel h3', copy.sendCode); setText('.invite-panel p:not(.eyebrow):not(.copy-status)', copy.inviteHint); setText('.copy-button', copy.copy); setText('.setup-footer>span', copy.private); setText('.launch-button', copy.start);
