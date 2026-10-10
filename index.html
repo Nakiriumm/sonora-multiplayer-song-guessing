@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SONORA | Multiplayer music guessing</title>
+    <meta name="description" content="A multiplayer song guessing room for people who know every chorus." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <nav class="topbar" aria-label="Main navigation">
+        <a class="wordmark" href="#top" aria-label="Sonora home"><span class="wordmark-mark">S</span>SONORA</a>
+        <div class="topbar-links">
+          <a href="#modes">Game modes</a>
+          <a href="#how-it-works">How it works</a>
+        </div>
+        <button class="avatar-button" type="button" aria-label="Open profile">JD</button>
+      </nav>
+
+      <section class="hero" id="top">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="live-dot"></span> The room is warming up</p>
+          <h1>Hear it.<br /><em>Know it.</em><br />Name it.</h1>
+          <p class="hero-description">A fast, friendly music guessing game for the people who can identify a song from the first three seconds.</p>
+          <div class="hero-actions">
+            <button class="primary-button js-create-room" type="button"><span>＋</span> Create a room</button>
+            <button class="text-button js-join-room" type="button">Join with a code <span>→</span></button>
+          </div>
+          <div class="social-proof"><div class="mini-avatars"><span>MK</span><span>AL</span><span>RP</span><span>+</span></div><span><strong>12,480</strong> players guessed today</span></div>
+        </div>
+        <div class="hero-art" aria-label="Abstract illustration of a record player">
+          <div class="sun-ring"></div>
+          <div class="record-shadow"></div>
+          <div class="record"><div class="record-label"><span>SONORA</span><small>STEREO</small></div><div class="record-hole"></div></div>
+          <div class="tonearm"><div class="tonearm-head"></div></div>
+          <div class="music-notes" aria-hidden="true"><span>♪</span><span>♫</span><span>♩</span></div>
+          <div class="art-caption"><span class="caption-line"></span><span>PLAY SOMETHING<br /><strong>ICONIC</strong></span></div>
+        </div>
+      </section>
+
+      <section class="mode-section" id="modes">
+        <div class="section-heading"><div><p class="eyebrow">Pick your poison</p><h2>Choose a mode</h2></div><span class="mode-count">04 / 04</span></div>
+        <div class="mode-grid">
+          <button class="mode-card selected" data-mode="Quickfire" type="button"><span class="mode-icon">⚡︎</span><span class="mode-name">Quickfire</span><span class="mode-detail">10 songs · 60 seconds</span><span class="mode-arrow">↗</span></button>
+          <button class="mode-card" data-mode="Decades" type="button"><span class="mode-icon">◷</span><span class="mode-name">Decades</span><span class="mode-detail">Travel through time</span><span class="mode-arrow">↗</span></button>
+          <button class="mode-card" data-mode="Head to head" type="button"><span class="mode-icon">♟</span><span class="mode-name">Head to head</span><span class="mode-detail">One song. One winner.</span><span class="mode-arrow">↗</span></button>
+          <button class="mode-card" data-mode="Blind spot" type="button"><span class="mode-icon">◉</span><span class="mode-name">Blind spot</span><span class="mode-detail">No hints. No mercy.</span><span class="mode-arrow">↗</span></button>
+        </div>
+      </section>
+
+      <section class="how-section" id="how-it-works"><div class="how-label"><span>01</span> ZERO FRICTION</div><div class="how-copy"><h2>Built for the<br /><em>perfect chorus.</em></h2><p>Make a room, send the code, and let the music do the talking. No accounts. No setup. Just your people and a playlist.</p></div><div class="signal-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></section>
+    </main>
+
+    <div class="modal-backdrop" hidden><section class="room-modal setup-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><button class="modal-close" type="button" aria-label="Close">×</button><div class="setup-header"><div><p class="eyebrow">Room setup</p><h2 id="modal-title">Make it <em>yours.</em></h2></div><span class="setup-step">01 / 01</span></div><div class="setup-layout"><div class="setup-fields"><label class="setup-field"><span>Game mode</span><strong class="selected-mode-label">Quickfire</strong><small>Set by the mode you picked</small></label><label class="setup-field"><span>Max players</span><select class="room-setting" data-setting="players"><option>4 players</option><option selected>8 players</option><option>12 players</option><option>20 players</option></select><small>Everyone gets a turn to guess</small></label><label class="setup-field"><span>Song genre</span><select class="room-setting" data-setting="genre"><option selected>Everything</option><option>Pop anthems</option><option>Indie &amp; alternative</option><option>Hip-hop &amp; R&amp;B</option><option>Throwback classics</option></select><small>Keep the playlist unpredictable</small></label><label class="setup-field"><span>Time per song</span><select class="room-setting" data-setting="time"><option>15 seconds</option><option selected>30 seconds</option><option>45 seconds</option><option>60 seconds</option></select><small>How long players have to lock in</small></label></div><aside class="invite-panel"><p class="eyebrow">Invite your people</p><h3>Send them<br /><em>the code.</em></h3><p>They can join from any device. No account needed.</p><div class="room-code">SONORA-<strong>7K4P</strong></div><button class="copy-button secondary-button" type="button">Copy room code <span>↗</span></button><p class="copy-status" aria-live="polite"></p></aside></div><div class="setup-footer"><span><i class="status-dot"></i> Room is private</span><button class="primary-button launch-button" type="button">Start the room <span>→</span></button></div></section></div>
+    <script src="app.js"></script>
+  </body>
+</html>
