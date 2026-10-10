@@ -116,10 +116,9 @@ document.querySelectorAll('.room-setting').forEach((select) => {
     select.replaceWith(playerStepper);
 
     function changePlayers(direction) {
-      const currentIndex = select.selectedIndex;
-      const nextIndex = Math.max(0, Math.min(select.options.length - 1, currentIndex + direction));
-      select.selectedIndex = nextIndex;
-      value.textContent = select.options[nextIndex].text;
+      const currentPlayers = Number.parseInt(value.textContent, 10) || 8;
+      const nextPlayers = Math.max(2, Math.min(20, currentPlayers + direction));
+      value.textContent = `${nextPlayers} players`;
     }
     return;
   }
@@ -146,6 +145,16 @@ const joinedPanel = document.createElement('section');
 joinedPanel.className = 'joined-panel';
 joinedPanel.innerHTML = '<div><p class="eyebrow">The room</p><h3>Who is <em>in?</em></h3><p class="joined-subtitle">Share the code above and watch your crew appear here.</p></div><div class="joined-list"><div class="joined-player"><span class="joined-avatar avatar-yellow">JD</span><span><strong>Jordan</strong><small>Room host</small></span><i>✓</i></div><div class="joined-player"><span class="joined-avatar avatar-blue">MK</span><span><strong>Mika</strong><small>Joined just now</small></span><i>✓</i></div><div class="joined-player waiting"><span class="joined-avatar">+</span><span><strong>Waiting for players</strong><small>Send the invite code to your crew</small></span></div></div>';
 document.querySelector('.setup-modal').appendChild(joinedPanel);
+
+const hostNameField = document.createElement('label');
+hostNameField.className = 'setup-field host-name-field';
+hostNameField.innerHTML = '<span>Your name</span><input class="host-name-input" type="text" value="Jordan" maxlength="20" autocomplete="name" /><small>This is how your crew will see you</small>';
+document.querySelector('.setup-fields').prepend(hostNameField);
+const hostNameInput = hostNameField.querySelector('.host-name-input');
+const hostRosterName = joinedPanel.querySelector('.joined-player strong');
+hostNameInput.addEventListener('input', () => {
+  hostRosterName.textContent = hostNameInput.value.trim() || 'Jordan';
+});
 
 const vinylArtwork = document.querySelector('.hero-art');
 const vinylParts = [vinylArtwork.querySelector('.record'), vinylArtwork.querySelector('.record-label')];
