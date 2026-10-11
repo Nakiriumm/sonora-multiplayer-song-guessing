@@ -685,8 +685,7 @@
         location.assign(url.href);
         return;
       }
-      const savedName = localStorage.getItem('sonora-profile-name') || '';
-      const name = $('.host-name-input')?.value.trim() || savedName;
+      const name = $('.host-name-input')?.value.trim() || '';
       if (state.session?.host && state.room?.phase === 'lobby') {
         if (document.body.dataset.roomPage !== 'true') {
           location.assign('room.html');
