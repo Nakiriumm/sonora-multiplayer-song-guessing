@@ -101,3 +101,4 @@
 .song-choice .cover-art{width:6px;height:44px;border-radius:3px;box-shadow:none;font-size:0}.song-choice .cover-art:before,.song-choice .cover-art:after{display:none}
 .song-choice .cover-art{width:6px;min-width:6px;max-width:6px;flex:0 0 6px;background-size:auto 44px!important;background-position:center!important;overflow:hidden}
 .song-choice .cover-art{height:52px;background-size:auto 52px!important}
+.mode-required-status{margin:14px 0 0;color:#e58e7d;font-size:12px;font-weight:600}.mode-required-status[hidden]{display:none}

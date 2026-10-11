@@ -96,9 +96,10 @@
   function currentSettings(name) {
     const saved = getRoomState();
     const playersLabel = $('.player-stepper strong')?.textContent || `${DEFAULT_MAX_PLAYERS} players`;
-    const genre = $('.genre-option.selected')?.textContent || saved.genre || 'Everything';
+    const genre = $('.genre-option.selected')?.dataset.genre || saved.genre || 'Everything';
     return {
       name,
+      mode: window.getSelectedGameMode?.() || null,
       maxPlayers: Number.parseInt(playersLabel, 10) || DEFAULT_MAX_PLAYERS,
       genre,
       difficulty: $('.difficulty-option.selected')?.dataset.difficulty || saved.difficulty || 'medium',
@@ -108,13 +109,18 @@
   }
 
   async function createRoom(name) {
-    sessionStorage.setItem(PENDING_ROOM_KEY, JSON.stringify({ name, settings: currentSettings(name) }));
+    const mode = window.getSelectedGameMode?.();
+    if (!mode) throw new Error('Choose a game mode before creating a room.');
+    if (mode !== 'Quickfire') throw new Error('Solo play does not create a room.');
+    const settings = currentSettings(name);
+    settings.mode = mode;
+    sessionStorage.setItem(PENDING_ROOM_KEY, JSON.stringify({ name, settings }));
     location.assign(new URL('room.html', location.href).href);
   }
 
   async function finishRoomCreation(name, settings) {
     const result = await api('/api/rooms', settings);
-    sessionStore.set({ code: result.code, playerId: result.playerId, token: result.token, host: true });
+    sessionStore.set({ code: result.code, playerId: result.playerId, token: result.token, host: true, mode: settings.mode || null });
     sessionStorage.removeItem(PENDING_ROOM_KEY);
     setRoomCode(result.code);
     openSetup(name);
@@ -215,7 +221,7 @@
     if (joinPanel) joinPanel.hidden = false;
     const launch = $('.launch-button');
     if (launch) {
-      launch.disabled = !state.session?.host || room.phase !== 'lobby';
+      launch.disabled = !state.session?.host || room.phase !== 'lobby' || !window.getSelectedGameMode?.();
       launch.setAttribute('aria-disabled', String(launch.disabled));
       launch.title = launch.disabled ? 'Only the host can start the room' : 'Start the room';
     }
@@ -565,6 +571,7 @@
 
   async function startGame() {
     if (!state.session?.host) return showNotice('Only the host can start the room.', true);
+    if (!window.getSelectedGameMode?.()) return showNotice('Choose a game mode on the home page before starting.', true);
     const button = $('.launch-button');
     button.disabled = true;
     button.textContent = 'Preparing songs…';
@@ -629,9 +636,26 @@
 
     if (target.matches('.mode-card[data-mode="Solo"]')) return;
 
-    if (target.matches('.js-create-room, .mode-card')) {
+    if (target.matches('.js-create-room') && !window.getSelectedGameMode?.()) {
+      if (document.body.dataset.roomPage !== 'true') {
+        location.assign(new URL('room.html?setup=1', location.href).href);
+        return;
+      }
+      return;
+    }
+
+    // Choosing a mode only opens its setup. Room creation happens when the
+    // user presses Create a room after configuring that mode.
+    if (target.matches('.js-create-room')) {
       event.preventDefault();
       event.stopImmediatePropagation();
+      if (document.body.dataset.roomPage !== 'true') {
+        const mode = window.getSelectedGameMode?.();
+        const url = new URL('room.html?setup=1', location.href);
+        if (mode) url.searchParams.set('mode', mode);
+        location.assign(url.href);
+        return;
+      }
       const savedName = localStorage.getItem('sonora-profile-name') || '';
       const name = $('.host-name-input')?.value.trim() || savedName;
       if (state.session?.host && state.room?.phase === 'lobby') {
@@ -708,6 +732,18 @@
     if (target.matches('.launch-button')) {
       event.preventDefault();
       event.stopImmediatePropagation();
+      if (!state.session && window.getSelectedGameMode?.() === 'Quickfire') {
+        const name = $('.host-name-input')?.value.trim() || localStorage.getItem('sonora-profile-name') || '';
+        if (!name) {
+          state.pendingHost = true;
+          $('.name-gate').hidden = false;
+          $('.name-gate-input').value = '';
+          $('.name-gate-input').focus();
+          return;
+        }
+        try { await createRoom(name); } catch (error) { showNotice(error.message, true); }
+        return;
+      }
       await startGame();
       return;
     }
@@ -798,7 +834,10 @@
   } else if (!inviteCode && document.body.dataset.roomPage === 'true') {
     let pendingRoom = null;
     try { pendingRoom = JSON.parse(sessionStorage.getItem(PENDING_ROOM_KEY) || 'null'); } catch {}
-    if (!pendingRoom?.name || !pendingRoom?.settings) {
+    if (new URLSearchParams(location.search).get('setup') === '1') {
+      window.selectSetupGenre?.('Everything');
+      openSetup(localStorage.getItem('sonora-profile-name') || '');
+    } else if (!pendingRoom?.name || !pendingRoom?.settings) {
       location.replace('index.html');
     } else {
       openSetup(pendingRoom.name);

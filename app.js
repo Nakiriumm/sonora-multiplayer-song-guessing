@@ -2,9 +2,27 @@ const modeCards = document.querySelectorAll('.mode-card');
 const modal = document.querySelector('.modal-backdrop');
 const selectedModeLabel = document.querySelector('.selected-mode-label');
 const copyStatus = document.querySelector('.copy-status');
-let selectedMode = 'Quickfire';
 const availableModes = new Set(['Quickfire', 'Solo']);
 const modeDisplayNames = { Quickfire: 'Classic', Solo: 'Solo play' };
+let selectedMode = null;
+try {
+  // A saved session must not select Solo on the home page. Only restore the
+  // multiplayer mode when arriving at the room setup page.
+  if (document.body.dataset.roomPage === 'true') {
+    const pendingMode = JSON.parse(sessionStorage.getItem('sonora-pending-room') || 'null')?.settings?.mode;
+    const sessionMode = JSON.parse(sessionStorage.getItem('sonora-cloudflare-session') || 'null')?.mode;
+    const requestedMode = new URLSearchParams(location.search).get('mode');
+    if (availableModes.has(requestedMode)) selectedMode = requestedMode;
+    else if (pendingMode === 'Quickfire' || sessionMode === 'Quickfire') selectedMode = 'Quickfire';
+  }
+} catch {}
+window.getSelectedGameMode = () => selectedMode;
+const modeRequiredStatus = document.createElement('p');
+modeRequiredStatus.className = 'mode-required-status';
+modeRequiredStatus.setAttribute('role', 'status');
+modeRequiredStatus.textContent = 'Choose a game mode before creating a room.';
+modeRequiredStatus.hidden = true;
+document.querySelector('.js-create-room')?.parentElement.after(modeRequiredStatus);
 
 modeCards.forEach((card) => {
   card.addEventListener('click', () => {
@@ -12,6 +30,7 @@ modeCards.forEach((card) => {
     modeCards.forEach((item) => item.classList.remove('selected'));
     card.classList.add('selected');
     selectedMode = card.dataset.mode;
+    modeRequiredStatus.hidden = true;
     const room = getRoomState();
     room.mode = selectedMode;
     saveRoomState(room);
@@ -305,15 +324,19 @@ gameView.querySelector('.song-choices').addEventListener('click',e=>{const b=e.t
 winnerResult.querySelector('.winner-exit').addEventListener('click',()=>gameView.querySelector('.game-exit').click());
 gameView.querySelector('.game-exit').addEventListener('click',()=>{clearInterval(roundTick);clearInterval(attemptTick);clearInterval(breakTick);playRequest++;pauseCurrentPlayback();winnerResult.hidden=true;roundResult.hidden=true;gameView.hidden=true;document.querySelector('main').hidden=false;document.querySelector('.site-footer').hidden=false;window.scrollTo(0,0);});
 document.querySelector('.launch-button').addEventListener('click',()=>{
+  if (!selectedMode) {
+    modeRequiredStatus.hidden = false;
+    return;
+  }
   if (selectedMode === 'Solo') {
     const room = getRoomState();
     const name = localStorage.getItem(profileNameKey) || room.hostName || 'You';
     room.players = [{ name, role: 'Player', score: 0 }];
     room.maxPlayers = 1;
     saveRoomState(room);
+    closeModal();
+    launchGame();
   }
-  closeModal();
-  launchGame();
 });
 
 document.querySelectorAll('.room-setting').forEach((select) => {
@@ -341,6 +364,7 @@ document.querySelectorAll('.room-setting').forEach((select) => {
       const genre = document.createElement('button');
       genre.type = 'button';
       genre.className = 'genre-option';
+      genre.dataset.genre = option.value || option.text;
       genre.textContent = option.text;
       genre.addEventListener('click', (event) => {
         event.preventDefault();
@@ -349,7 +373,7 @@ document.querySelectorAll('.room-setting').forEach((select) => {
         genreGrid.querySelectorAll('.genre-option').forEach((item) => item.classList.remove('selected'));
         genre.classList.add('selected');
         const room = getRoomState();
-        room.genre = option.text;
+        room.genre = genre.dataset.genre;
         saveRoomState(room);
       });
       genreGrid.appendChild(genre);
@@ -475,10 +499,11 @@ function updateLaunchAvailability() {
   const launchButton = document.querySelector('.launch-button');
   if (!launchButton) return;
   const room = getRoomState();
-  const solo = room.mode === 'Solo';
+  const solo = selectedMode === 'Solo';
   const ready = Boolean(
-    (solo || room.hostName?.trim())
-    && room.mode
+    selectedMode
+    && room.mode === selectedMode
+    && (solo || room.hostName?.trim())
     && (solo || modeChoices.querySelector('.mode-choice.selected'))
     && document.querySelector('.genre-option.selected')
     && (solo || (Number.parseInt(document.querySelector('.player-stepper strong')?.textContent, 10) && room.maxPlayers))
@@ -582,7 +607,7 @@ let currentLanguage = 'EN';
 modeField.appendChild(modeChoices);
 
 function updateModeSelection(showSetupSelection = false) {
-  selectedModeLabel.textContent = modeDisplayNames[selectedMode] || 'Classic';
+  selectedModeLabel.textContent = modeDisplayNames[selectedMode] || 'Select a mode';
   modal.classList.toggle('solo-setup', selectedMode === 'Solo');
   document.querySelector('.setup-header .eyebrow').textContent = selectedMode === 'Solo' ? 'Solo game setup' : 'Room setup';
   document.querySelector('.launch-button').innerHTML = selectedMode === 'Solo' ? 'Start solo play <span>&rarr;</span>' : 'Start the room <span>&rarr;</span>';
@@ -592,6 +617,9 @@ function updateModeSelection(showSetupSelection = false) {
   });
   modeCards.forEach((card) => card.classList.toggle('selected', card.dataset.mode === selectedMode));
 }
+
+updateModeSelection(selectedMode !== null);
+updateLaunchAvailability();
 
 const vinylArtwork = document.querySelector('.hero-art');
 const vinylParts = [vinylArtwork.querySelector('.record'), vinylArtwork.querySelector('.record-label')];
@@ -726,7 +754,7 @@ function openModal(requireName = false) {
   updateModeSelection(true);
   const room = getRoomState();
   document.querySelectorAll('.genre-option').forEach((choice) => {
-    choice.classList.toggle('selected', choice.textContent === room.genre);
+    choice.classList.toggle('selected', choice.dataset.genre === room.genre);
   });
   modal.hidden = false;
   modal.classList.toggle('solo-setup', selectedMode === 'Solo');
@@ -742,6 +770,16 @@ function openModal(requireName = false) {
   }
   updateLaunchAvailability();
 }
+
+window.selectSetupGenre = (genreName = 'Everything') => {
+  const choices = [...document.querySelectorAll('.genre-option')];
+  const selected = choices.find((choice) => choice.dataset.genre === genreName) || choices[0];
+  if (!selected) return;
+  choices.forEach((choice) => choice.classList.toggle('selected', choice === selected));
+  const room = getRoomState();
+  room.genre = selected.dataset.genre;
+  saveRoomState(room);
+};
 
 function closeModal() {
   modal.hidden = true;
@@ -1059,8 +1097,10 @@ function applyLanguage(language) {
   setText('.section-heading .eyebrow', copy.pick); setText('.section-heading h2', copy.choose); setText('.how-label', `01 ${copy.zero}`); setHtml('.how-copy h2', copy.howTitle); setText('.how-copy p', copy.howText);
   document.querySelectorAll('.mode-card').forEach((card, index) => { setTextFor(card, '.mode-name', copy.modes[index][0]); setTextFor(card, '.mode-detail', copy.modes[index][1]); });
   modeChoices.querySelectorAll('.mode-choice').forEach((choice) => { choice.textContent = modeDisplayNames[choice.dataset.mode] || choice.dataset.mode; });
-  document.querySelectorAll('.genre-option').forEach((choice, index) => { choice.textContent = copy.genres[index]; });
-  setText('.selected-mode-label', modeDisplayNames[selectedMode] || 'Classic');
+  document.querySelectorAll('.genre-option').forEach((choice, index) => {
+    choice.textContent = index === 0 ? (language === 'TH' ? 'ทุกแนว' : 'Everything') : (copy.genres[index - 1] || choice.textContent);
+  });
+  setText('.selected-mode-label', modeDisplayNames[selectedMode] || 'Select a mode');
   setText('.profile-panel .eyebrow', copy.profile); setText('.profile-panel label', copy.display); setText('.profile-save', copy.save);
   setText('.setup-header .eyebrow', selectedMode === 'Solo' ? (language === 'TH' ? '\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\u0e40\u0e25\u0e48\u0e19\u0e04\u0e19\u0e40\u0e14\u0e35\u0e22\u0e27' : 'Solo game setup') : copy.setup); setHtml('.setup-header h2', copy.make); setText('.setup-fields .setup-field:nth-child(1)>span', copy.yourName); setText('.setup-fields .setup-field:nth-child(2)>span', copy.gameMode); setText('.setup-fields .setup-field:nth-child(2) small', copy.modeHint); setText('.setup-fields .player-setting-field>span', copy.max); setText('.setup-fields .player-setting-field small', copy.maxHint); setText('.setup-fields .genre-setting-field>span', copy.genre); setText('.setup-fields .genre-setting-field small', copy.genreHint);
   setText('.invite-panel .eyebrow', copy.invite); setHtml('.invite-panel h3', copy.sendCode); setText('.invite-panel p:not(.eyebrow):not(.copy-status)', copy.inviteHint); setHtml('.copy-button', language === 'TH' ? 'คัดลอกลิงก์ห้อง <span aria-hidden="true">↗</span>' : 'Copy room link <span aria-hidden="true">↗</span>'); setText('.setup-footer>span', copy.private); setText('.launch-button', selectedMode === 'Solo' ? (language === 'TH' ? '\u0e40\u0e23\u0e34\u0e48\u0e21\u0e40\u0e25\u0e48\u0e19' : 'Start solo play') : copy.start);
