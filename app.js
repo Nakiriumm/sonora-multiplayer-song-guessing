@@ -3,8 +3,8 @@ const modal = document.querySelector('.modal-backdrop');
 const selectedModeLabel = document.querySelector('.selected-mode-label');
 const copyStatus = document.querySelector('.copy-status');
 let selectedMode = 'Quickfire';
-const availableModes = new Set(['Quickfire']);
-const modeDisplayNames = { Quickfire: 'Classic' };
+const availableModes = new Set(['Quickfire', 'Solo']);
+const modeDisplayNames = { Quickfire: 'Classic', Solo: 'Solo play' };
 
 modeCards.forEach((card) => {
   card.addEventListener('click', () => {
@@ -284,7 +284,7 @@ async function nextRound(){clearInterval(roundTick);clearInterval(attemptTick);c
 function endRound(message){clearInterval(roundTick);clearInterval(attemptTick);playRequest++;pauseCurrentPlayback();if(gameAudio){gameAudio.pause();gameAudio=null;}const feedback=gameView.querySelector('.round-feedback');let seconds=5;const song=activeRoundSong;roundResult.querySelector('.result-vinyl').style.setProperty('--result-cover',`var(--cover-${(roundNo-1)%4})`);roundResult.querySelector('.result-vinyl').className=`result-vinyl cover-${(roundNo-1)%4}`;roundResult.querySelector('#round-result-title').textContent=song[0];roundResult.querySelector('.result-artist').textContent=song[1];roundResult.querySelector('.continue-round').textContent=`Continue (0/${roundPlayers.length})`;roundResult.querySelector('.result-countdown b').textContent=seconds;roundResult.hidden=false;feedback.textContent=message;gameView.querySelectorAll('.song-choice').forEach(b=>b.disabled=true);const continueButton=roundResult.querySelector('.continue-round');continueButton.onclick=()=>{const room=getRoomState();const playerName=localStorage.getItem(profileNameKey)||room.players[0]?.name||roundPlayers[0].name;const ready=continueNames();if(!ready.includes(playerName)){ready.push(playerName);localStorage.setItem(continueKey(),JSON.stringify(ready));}updateContinueStatus(continueButton);};breakTick=setInterval(()=>{seconds--;const count=roundResult.querySelector('.result-countdown b');if(count)count.textContent=seconds;if(seconds<=0){clearInterval(breakTick);nextRound();}},1000);}
 function setPlayButton(playing){const button=gameView.querySelector('.game-play');button.classList.toggle('is-playing',playing);button.setAttribute('aria-label',playing?'Pause current section':'Play current section');}
 function pauseCurrentPlayback(){if(gameAudio)gameAudio.pause();cancelAnimationFrame(progressFrame);setPlayButton(false);}
-async function playCurrentSection(restartFromBeginning=false){const requestedRound=roundNo,requestedStage=stageNo,request=++playRequest,song=activeRoundSong;if(!song)return;const boundaries=[0,.1,.5,2,8,15],points=[0,8,20,46,74,100],end=boundaries[requestedStage+1];let asset=null;if(!gameAudio||gameAudio.dataset.songKey!==`${song[0]}|${song[1]}`){asset=await loadSongAsset(song);if(request!==playRequest||requestedRound!==roundNo||requestedStage!==stageNo)return;if(!asset?.previewUrl){gameView.querySelector('.round-feedback').textContent=`No matching preview is available for ${song[0]}.`;return;}if(gameAudio)gameAudio.pause();gameAudio=new Audio(asset.previewUrl);gameAudio.dataset.trackId=String(asset.trackId);gameAudio.dataset.songKey=`${song[0]}|${song[1]}`;gameAudio.preload='auto';}const activeAudio=gameAudio;if(request!==playRequest||requestedRound!==roundNo||requestedStage!==stageNo)return;activeAudio.volume=Number(gameView.querySelector('[aria-label="Volume"]').value)/100;if(restartFromBeginning||activeAudio.currentTime>=end)activeAudio.currentTime=0;const updateProgress=()=>{const time=Math.max(0,Math.min(end,activeAudio.currentTime));let marker=0;while(marker<boundaries.length-2&&time>boundaries[marker+1])marker++;const fraction=Math.max(0,Math.min(1,(time-boundaries[marker])/(boundaries[marker+1]-boundaries[marker])));gameView.querySelector('.track-line i').style.width=`${points[marker]+fraction*(points[marker+1]-points[marker])}%`;};updateProgress();const animate=()=>{if(activeAudio!==gameAudio||activeAudio.paused||requestedRound!==roundNo||requestedStage!==stageNo)return;updateProgress();if(activeAudio.currentTime>=end){activeAudio.pause();activeAudio.currentTime=end;gameView.querySelector('.track-line i').style.width=`${points[requestedStage+1]}%`;setPlayButton(false);return;}progressFrame=requestAnimationFrame(animate);};try{await activeAudio.play();if(request!==playRequest)return;setPlayButton(true);cancelAnimationFrame(progressFrame);progressFrame=requestAnimationFrame(animate);}catch{setPlayButton(false);}}
+async function playCurrentSection(restartFromBeginning=false,startAt=null){const requestedRound=roundNo,requestedStage=stageNo,request=++playRequest,song=activeRoundSong;if(!song)return;const boundaries=[0,.1,.5,2,8,15],points=[0,3,11,34,70,100],start=requestedStage===0?0:boundaries[requestedStage],end=boundaries[requestedStage+1];let asset=null;if(!gameAudio||gameAudio.dataset.songKey!==`${song[0]}|${song[1]}`){asset=await loadSongAsset(song);if(request!==playRequest||requestedRound!==roundNo||requestedStage!==stageNo)return;if(!asset?.previewUrl){gameView.querySelector('.round-feedback').textContent=`No matching preview is available for ${song[0]}.`;return;}if(gameAudio)gameAudio.pause();gameAudio=new Audio(asset.previewUrl);gameAudio.dataset.trackId=String(asset.trackId);gameAudio.dataset.songKey=`${song[0]}|${song[1]}`;gameAudio.preload='auto';}const activeAudio=gameAudio;if(request!==playRequest||requestedRound!==roundNo||requestedStage!==stageNo)return;activeAudio.volume=Number(gameView.querySelector('[aria-label="Volume"]').value)/100;if(startAt!==null)activeAudio.currentTime=startAt;else if(restartFromBeginning||activeAudio.currentTime>=end)activeAudio.currentTime=0;const updateProgress=()=>{const time=Math.max(0,Math.min(end,activeAudio.currentTime));let marker=0;while(marker<boundaries.length-2&&time>boundaries[marker+1])marker++;const fraction=Math.max(0,Math.min(1,(time-boundaries[marker])/(boundaries[marker+1]-boundaries[marker])));gameView.querySelector('.track-line i').style.width=`${points[marker]+fraction*(points[marker+1]-points[marker])}%`;};updateProgress();const animate=()=>{if(activeAudio!==gameAudio||activeAudio.paused||requestedRound!==roundNo||requestedStage!==stageNo)return;updateProgress();if(activeAudio.currentTime>=end){activeAudio.pause();activeAudio.currentTime=end;gameView.querySelector('.track-line i').style.width=`${points[requestedStage+1]}%`;setPlayButton(false);return;}progressFrame=requestAnimationFrame(animate);};try{await activeAudio.play();if(request!==playRequest)return;setPlayButton(true);cancelAnimationFrame(progressFrame);progressFrame=requestAnimationFrame(animate);}catch{setPlayButton(false);}}
 gameView.querySelector('.game-play').addEventListener('click',()=>{if(gameAudio&&!gameAudio.paused){playRequest++;pauseCurrentPlayback();return;}void playCurrentSection();});
 gameView.querySelector('[aria-label="Volume"]').addEventListener('input',event=>{event.currentTarget.style.setProperty('--volume-level',`${event.currentTarget.value}%`);if(gameAudio)gameAudio.volume=Number(event.currentTarget.value)/100;});
 gameVolumeInput.addEventListener('input', event => {
@@ -296,13 +296,23 @@ gameVolumeInput.addEventListener('input', event => {
   const homeVolumeInput = document.querySelector('.volume-slider');
   if (homeVolumeInput) homeVolumeInput.value = value;
 });
-gameView.querySelector('.game-skip').addEventListener('click',async()=>{if(stageNo>=4)return;playRequest++;pauseCurrentPlayback();stageNo++;gameView.querySelector('.track-line i').style.width='0%';gameView.querySelectorAll('.track-marks span').forEach((m,i)=>m.classList.toggle('active',i<=stageNo));gameView.querySelector('.round-feedback').textContent=`Skipped ahead to the ${['0.1','0.5','2','8','15'][stageNo]} second preview. Fewer points are available now.`;await playCurrentSection(true);if(stageNo===4)gameView.querySelector('.game-skip').disabled=true;});
+gameView.querySelector('.game-skip').addEventListener('click',async()=>{if(stageNo>=4)return;const boundaries=[0,.1,.5,2,8,15];playRequest++;pauseCurrentPlayback();const markTime=boundaries[stageNo+1];stageNo++;gameView.querySelectorAll('.track-marks span').forEach((m,i)=>m.classList.toggle('active',i<=stageNo));gameView.querySelector('.round-feedback').textContent=`Continuing to the ${boundaries[stageNo+1]} second mark. Fewer points are available now.`;await playCurrentSection(false,markTime);if(stageNo===4)gameView.querySelector('.game-skip').disabled=true;});
 function sprayNoteConfetti(options={}){const winner=Boolean(options.winner),burst=document.createElement('div');burst.className=`note-confetti-burst${winner?' winner-confetti':''}`;const count=winner?220:72,symbols=winner?['♫','♪','♬','✦','★','✧','◆','●']:['♫','♪','♬'];for(let i=0;i<count;i++){const note=document.createElement('span');note.textContent=symbols[i%symbols.length];note.style.left=`${Math.random()*100}%`;note.style.setProperty('--note-x',`${(Math.random()-.5)*(winner?420:260)}px`);note.style.setProperty('--note-r',`${(Math.random()-.5)*(winner?720:360)}deg`);note.style.setProperty('--note-delay',`${Math.random()*(winner?450:180)}ms`);note.style.setProperty('--confetti-size',`${18+Math.random()*(winner?28:18)}px`);burst.appendChild(note);}document.body.appendChild(burst);setTimeout(()=>burst.remove(),winner?3700:1450);}
 function triggerWrongMark(){const button=gameView.querySelector('.game-play'),rect=button.getBoundingClientRect(),mark=document.createElement('div');mark.className='wrong-guess-mark';mark.style.setProperty('--cross-x',`${rect.left+rect.width/2}px`);mark.style.setProperty('--cross-y',`${rect.top+rect.height/2}px`);mark.setAttribute('aria-hidden','true');mark.innerHTML='<span></span><span></span>';document.body.appendChild(mark);setTimeout(()=>mark.remove(),950);}
-gameView.querySelector('.song-choices').addEventListener('click',e=>{const b=e.target.closest('.song-choice');if(!b||b.disabled)return;if(b.dataset.correct==='true'){const pts=Math.max(5,[100,80,60,35,20][stageNo]-Math.min(25,Math.floor(elapsed/4)*5));roundPlayers[0].score+=pts;scoreBoard();b.classList.add('correct');gameView.querySelector('.song-choices').classList.add('locked');gameView.querySelectorAll('.song-choice').forEach(x=>x.disabled=true);gameView.querySelector('.guess-status').textContent='You got it · waiting for everyone';gameView.querySelector('.round-feedback').textContent=`Correct! +${pts} points. You’re locked in until the round ends.`;sprayNoteConfetti();if(roundPlayers.length===1)endRound('Correct answer!');}else{triggerWrongMark();roundPlayers[0].score=Math.max(0,roundPlayers[0].score-5);scoreBoard();gameView.querySelector('.song-choices').classList.add('wrong-locked');gameView.querySelectorAll('.song-choice').forEach(x=>{x.disabled=true;x.classList.add('blackout');});gameView.querySelector('.round-feedback').textContent='Wrong guess — 5 points deducted. Choices are locked until the next round.';}});
+gameView.querySelector('.song-choices').addEventListener('click',e=>{const b=e.target.closest('.song-choice');if(!b||b.disabled)return;if(b.dataset.correct==='true'){const pts=Math.max(5,[100,80,60,35,20][stageNo]-Math.min(25,Math.floor(elapsed/4)*5));roundPlayers[0].score+=pts;scoreBoard();b.classList.add('correct');gameView.querySelector('.song-choices').classList.add('locked');gameView.querySelectorAll('.song-choice').forEach(x=>x.disabled=true);gameView.querySelector('.guess-status').textContent='You got it · waiting for everyone';gameView.querySelector('.round-feedback').textContent=`Correct! +${pts} points. You’re locked in until the round ends.`;sprayNoteConfetti();if(roundPlayers.length===1)endRound('Correct answer!');}else{triggerWrongMark();roundPlayers[0].score=Math.max(0,roundPlayers[0].score-5);scoreBoard();gameView.querySelector('.song-choices').classList.add('wrong-locked');gameView.querySelectorAll('.song-choice').forEach(x=>{x.disabled=true;x.classList.add('blackout');});gameView.querySelector('.round-feedback').textContent='Wrong guess — 5 points deducted. Choices are locked until the next round.';if(roundPlayers.length===1)endRound(`No correct guesses. It was ${activeRoundSong[0]}.`);}});
 winnerResult.querySelector('.winner-exit').addEventListener('click',()=>gameView.querySelector('.game-exit').click());
 gameView.querySelector('.game-exit').addEventListener('click',()=>{clearInterval(roundTick);clearInterval(attemptTick);clearInterval(breakTick);playRequest++;pauseCurrentPlayback();winnerResult.hidden=true;roundResult.hidden=true;gameView.hidden=true;document.querySelector('main').hidden=false;document.querySelector('.site-footer').hidden=false;window.scrollTo(0,0);});
-document.querySelector('.launch-button').addEventListener('click',()=>{closeModal();launchGame();});
+document.querySelector('.launch-button').addEventListener('click',()=>{
+  if (selectedMode === 'Solo') {
+    const room = getRoomState();
+    const name = localStorage.getItem(profileNameKey) || room.hostName || 'You';
+    room.players = [{ name, role: 'Player', score: 0 }];
+    room.maxPlayers = 1;
+    saveRoomState(room);
+  }
+  closeModal();
+  launchGame();
+});
 
 document.querySelectorAll('.room-setting').forEach((select) => {
   if (select.dataset.setting === 'duration') {
@@ -463,18 +473,18 @@ function updateLaunchAvailability() {
   const launchButton = document.querySelector('.launch-button');
   if (!launchButton) return;
   const room = getRoomState();
+  const solo = room.mode === 'Solo';
   const ready = Boolean(
-    room.hostName?.trim()
+    (solo || room.hostName?.trim())
     && room.mode
-    && modeChoices.querySelector('.mode-choice.selected')
+    && (solo || modeChoices.querySelector('.mode-choice.selected'))
     && document.querySelector('.genre-option.selected')
-    && Number.parseInt(document.querySelector('.player-stepper strong')?.textContent, 10)
-    && room.maxPlayers
+    && (solo || (Number.parseInt(document.querySelector('.player-stepper strong')?.textContent, 10) && room.maxPlayers))
     && room.genre
   );
   launchButton.disabled = !ready;
   launchButton.setAttribute('aria-disabled', String(!ready));
-  launchButton.title = ready ? 'Start the room' : 'Complete the room settings first';
+  launchButton.title = ready ? (solo ? 'Start solo play' : 'Start the room') : 'Complete the game settings first';
 }
 
 function escapeRoomText(value) {
@@ -571,6 +581,10 @@ modeField.appendChild(modeChoices);
 
 function updateModeSelection(showSetupSelection = false) {
   selectedModeLabel.textContent = modeDisplayNames[selectedMode] || 'Classic';
+  modal.classList.toggle('solo-setup', selectedMode === 'Solo');
+  document.querySelector('.setup-header .eyebrow').textContent = selectedMode === 'Solo' ? 'Solo game setup' : 'Room setup';
+  document.querySelector('.launch-button').innerHTML = selectedMode === 'Solo' ? 'Start solo play <span>&rarr;</span>' : 'Start the room <span>&rarr;</span>';
+  document.querySelector('.setup-footer>span').innerHTML = selectedMode === 'Solo' ? '<i class="status-dot"></i> Single player' : '<i class="status-dot"></i> Cloudflare room';
   modeChoices.querySelectorAll('.mode-choice').forEach((choice) => {
     choice.classList.toggle('selected', showSetupSelection && choice.dataset.mode === selectedMode);
   });
@@ -713,6 +727,10 @@ function openModal(requireName = false) {
     choice.classList.toggle('selected', choice.textContent === room.genre);
   });
   modal.hidden = false;
+  modal.classList.toggle('solo-setup', selectedMode === 'Solo');
+  document.querySelector('.setup-header .eyebrow').textContent = selectedMode === 'Solo' ? 'Solo game setup' : 'Room setup';
+  document.querySelector('.launch-button').innerHTML = selectedMode === 'Solo' ? 'Start solo play <span>&rarr;</span>' : 'Start the room <span>&rarr;</span>';
+  document.querySelector('.setup-footer>span').innerHTML = selectedMode === 'Solo' ? '<i class="status-dot"></i> Single player' : '<i class="status-dot"></i> Cloudflare room';
   modal.classList.add('page-view');
   document.body.style.overflow = 'hidden';
   if (requireName && !hostNameInput.value.trim()) {
@@ -815,12 +833,20 @@ function setSoundExpanded(expanded) {
   volumeSlider.style.setProperty('pointer-events', expanded ? 'auto' : 'none', 'important');
   volumeSlider.style.setProperty('z-index', expanded ? '2' : 'auto', 'important');
 }
-soundButton.addEventListener('mouseenter', () => setSoundExpanded(true));
-soundButton.addEventListener('mouseleave', () => setSoundExpanded(false));
+const supportsHoverVolume = window.matchMedia('(hover: hover)').matches;
+soundButton.addEventListener('mouseenter', () => { if (supportsHoverVolume) setSoundExpanded(true); });
+soundButton.addEventListener('mouseleave', () => { if (supportsHoverVolume) setSoundExpanded(false); });
 soundButton.addEventListener('focusout', (event) => {
-  if (!soundButton.contains(event.relatedTarget)) setSoundExpanded(false);
+  if (supportsHoverVolume && !soundButton.contains(event.relatedTarget)) setSoundExpanded(false);
 });
-soundButton.addEventListener('focusin', () => setSoundExpanded(true));
+soundButton.addEventListener('focusin', () => { if (supportsHoverVolume) setSoundExpanded(true); });
+soundButton.addEventListener('click', (event) => {
+  if (supportsHoverVolume || event.target.closest('.volume-slider')) return;
+  setSoundExpanded(!soundButton.classList.contains('is-expanded'));
+});
+document.addEventListener('pointerdown', (event) => {
+  if (!supportsHoverVolume && !soundButton.contains(event.target)) setSoundExpanded(false);
+});
 volumeSlider.addEventListener('input', (event) => {
   document.documentElement.style.setProperty('--volume-level', `${event.target.value}%`);
   hoverTargetVolume = Number(event.target.value) / 100;
@@ -907,7 +933,7 @@ const languageCopy = {
     navModes: 'Game modes', navHow: 'How it works', warmup: 'The room is warming up',
     heroTitle: 'Hear it.<br /><em>Know it.</em><br />Name it.', heroDescription: 'A fast, friendly music guessing game for the people who can identify a song from the first three seconds.',
     create: '＋ Create a room', join: 'Join with a code', pick: 'Pick your poison', choose: 'Choose a mode',
-    modes: [['Classic', '10 songs - 30 seconds']], genres: ['Pop anthems', 'Indie & alternative', 'Hip-hop & R&B', 'Throwback classics', 'Thai songs', 'J-Pop'],
+    modes: [['Classic', '10 songs - 30 seconds'], ['Solo play', 'Play on your own']], genres: ['Pop anthems', 'Indie & alternative', 'Hip-hop & R&B', 'Throwback classics', 'Thai songs', 'J-Pop'],
     zero: 'ZERO FRICTION', howTitle: 'Built for the<br /><em>perfect chorus.</em>', howText: 'Make a room, send the code, and let the music do the talking. No accounts. No setup. Just your people and a playlist.',
     profile: 'Your profile', display: 'Display name', save: 'Save name', saved: 'Name saved', setup: 'Room setup', make: 'Make it <em>yours.</em>',
     gameMode: 'Game mode', modeHint: 'Set by the mode you picked', max: 'Max players', maxHint: 'Everyone gets a turn to guess', genre: 'Song genre', genreHint: 'Keep the playlist unpredictable', time: 'Time per song', timeHint: 'How long players have to lock in', invite: 'Invite your people', sendCode: 'Send them<br /><em>the code.</em>', inviteHint: 'Players can join from any device using the room code.', copy: 'Copy room code', private: 'Cloudflare room', start: 'Start the room', room: 'The room', who: 'Who is <em>in?</em>', roomHint: 'Share the code above and watch your crew appear here.', host: 'Room host', joined: 'Joined just now', waiting: 'Waiting for players', waitingHint: 'Send the invite code to your crew',
@@ -917,7 +943,7 @@ const languageCopy = {
     navModes: 'โหมดเกม', navHow: 'วิธีเล่น', warmup: 'ห้องกำลังเตรียมพร้อม',
     heroTitle: 'ฟังให้ดี<br /><em>รู้ให้ทัน</em><br />ทายชื่อเพลง', heroDescription: 'เกมทายเพลงแบบรวดเร็วและเป็นกันเอง สำหรับคนที่จำเพลงได้ตั้งแต่สามวินาทีแรก',
     create: '＋ สร้างห้อง', join: 'เข้าร่วมด้วยรหัส', guessed: 'ผู้เล่นทายเพลงแล้ววันนี้', pick: 'เลือกโหมดของคุณ', choose: 'เลือกโหมด',
-    modes: [['Classic', '10 songs - 30 seconds']], genres: ['เพลงป๊อป', 'อินดี้และอัลเทอร์เนทีฟ', 'ฮิปฮอปและอาร์แอนด์บี', 'เพลงคลาสสิกย้อนยุค', 'เพลงไทย', 'เจป๊อป'],
+    modes: [['Classic', '10 songs - 30 seconds'], ['\u0e40\u0e25\u0e48\u0e19\u0e04\u0e19\u0e40\u0e14\u0e35\u0e22\u0e27', '\u0e40\u0e25\u0e48\u0e19\u0e40\u0e01\u0e21\u0e14\u0e49\u0e27\u0e22\u0e15\u0e31\u0e27\u0e40\u0e2d\u0e07']], genres: ['เพลงป๊อป', 'อินดี้และอัลเทอร์เนทีฟ', 'ฮิปฮอปและอาร์แอนด์บี', 'เพลงคลาสสิกย้อนยุค', 'เพลงไทย', 'เจป๊อป'],
     zero: 'เล่นได้ทันที', howTitle: 'สร้างมาเพื่อ<br /><em>ท่อนฮุกที่ใช่</em>', howText: 'สร้างห้อง ส่งรหัส แล้วให้เสียงเพลงเป็นคนพูด ไม่ต้องสมัคร ไม่ต้องตั้งค่า มีแค่เพื่อนและเพลย์ลิสต์ของคุณ',
     profile: 'โปรไฟล์ของคุณ', display: 'ชื่อที่แสดง', save: 'บันทึกชื่อ', saved: 'บันทึกชื่อแล้ว', setup: 'ตั้งค่าห้อง', make: 'จัดห้องในแบบ<br /><em>ของคุณ</em>',
     gameMode: 'โหมดเกม', modeHint: 'เลือกจากโหมดที่คุณต้องการ', max: 'ผู้เล่นสูงสุด', maxHint: 'ทุกคนจะได้มีโอกาสทาย', genre: 'แนวเพลง', genreHint: 'ทำให้เพลย์ลิสต์คาดเดาไม่ได้', time: 'เวลาต่อเพลง', timeHint: 'เวลาที่ใช้ล็อกคำตอบ', invite: 'ชวนเพื่อนของคุณ', sendCode: 'ส่งรหัส<br /><em>ให้เพื่อน</em>', inviteHint: 'เข้าร่วมได้จากทุกอุปกรณ์ ไม่ต้องสมัครบัญชี', copy: 'คัดลอกรหัสห้อง', private: 'ห้องส่วนตัว', start: 'เริ่มห้อง', room: 'ในห้องนี้', who: 'ใคร<em>เข้าร่วมแล้ว?</em>', roomHint: 'แชร์รหัสด้านบน แล้วดูเพื่อนของคุณเข้าร่วมที่นี่', host: 'เจ้าของห้อง', joined: 'เข้าร่วมเมื่อครู่', waiting: 'รอผู้เล่น', waitingHint: 'ส่งรหัสเชิญให้เพื่อนของคุณ',
@@ -934,12 +960,12 @@ function applyLanguage(language) {
   setHtml('.hero h1', copy.heroTitle); setText('.hero-description', copy.heroDescription); setText('.js-create-room', copy.create); setText('.js-join-room', copy.join + ' →');
   setText('.section-heading .eyebrow', copy.pick); setText('.section-heading h2', copy.choose); setText('.how-label', `01 ${copy.zero}`); setHtml('.how-copy h2', copy.howTitle); setText('.how-copy p', copy.howText);
   document.querySelectorAll('.mode-card').forEach((card, index) => { setTextFor(card, '.mode-name', copy.modes[index][0]); setTextFor(card, '.mode-detail', copy.modes[index][1]); });
-  modeChoices.querySelectorAll('.mode-choice').forEach((choice) => { choice.textContent = modeDisplayNames.Quickfire; });
+  modeChoices.querySelectorAll('.mode-choice').forEach((choice) => { choice.textContent = modeDisplayNames[choice.dataset.mode] || choice.dataset.mode; });
   document.querySelectorAll('.genre-option').forEach((choice, index) => { choice.textContent = copy.genres[index]; });
   setText('.selected-mode-label', modeDisplayNames[selectedMode] || 'Classic');
   setText('.profile-panel .eyebrow', copy.profile); setText('.profile-panel label', copy.display); setText('.profile-save', copy.save);
-  setText('.setup-header .eyebrow', copy.setup); setHtml('.setup-header h2', copy.make); setText('.setup-fields .setup-field:nth-child(1)>span', copy.yourName); setText('.setup-fields .setup-field:nth-child(2)>span', copy.gameMode); setText('.setup-fields .setup-field:nth-child(2) small', copy.modeHint); setText('.setup-fields .player-setting-field>span', copy.max); setText('.setup-fields .player-setting-field small', copy.maxHint); setText('.setup-fields .genre-setting-field>span', copy.genre); setText('.setup-fields .genre-setting-field small', copy.genreHint);
-  setText('.invite-panel .eyebrow', copy.invite); setHtml('.invite-panel h3', copy.sendCode); setText('.invite-panel p:not(.eyebrow):not(.copy-status)', copy.inviteHint); setHtml('.copy-button', language === 'TH' ? 'คัดลอกลิงก์ห้อง <span aria-hidden="true">↗</span>' : 'Copy room link <span aria-hidden="true">↗</span>'); setText('.setup-footer>span', copy.private); setText('.launch-button', copy.start);
+  setText('.setup-header .eyebrow', selectedMode === 'Solo' ? (language === 'TH' ? '\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\u0e40\u0e25\u0e48\u0e19\u0e04\u0e19\u0e40\u0e14\u0e35\u0e22\u0e27' : 'Solo game setup') : copy.setup); setHtml('.setup-header h2', copy.make); setText('.setup-fields .setup-field:nth-child(1)>span', copy.yourName); setText('.setup-fields .setup-field:nth-child(2)>span', copy.gameMode); setText('.setup-fields .setup-field:nth-child(2) small', copy.modeHint); setText('.setup-fields .player-setting-field>span', copy.max); setText('.setup-fields .player-setting-field small', copy.maxHint); setText('.setup-fields .genre-setting-field>span', copy.genre); setText('.setup-fields .genre-setting-field small', copy.genreHint);
+  setText('.invite-panel .eyebrow', copy.invite); setHtml('.invite-panel h3', copy.sendCode); setText('.invite-panel p:not(.eyebrow):not(.copy-status)', copy.inviteHint); setHtml('.copy-button', language === 'TH' ? 'คัดลอกลิงก์ห้อง <span aria-hidden="true">↗</span>' : 'Copy room link <span aria-hidden="true">↗</span>'); setText('.setup-footer>span', copy.private); setText('.launch-button', selectedMode === 'Solo' ? (language === 'TH' ? '\u0e40\u0e23\u0e34\u0e48\u0e21\u0e40\u0e25\u0e48\u0e19' : 'Start solo play') : copy.start);
   setText('.join-content .eyebrow', copy.joinRoom); setHtml('.join-content h2', copy.joinTitle); setText('.join-content>p:not(.eyebrow)', copy.joinText); setText('label[for="player-name"]', copy.yourName); setText('label[for="join-code"]', copy.roomCode); setText('.join-form .primary-button', copy.joinButton);
   setText('.joined-room-heading .eyebrow', copy.live); setHtml('.joined-room-heading h3', copy.crew); setText('.joined-room-heading .host-settings span:nth-child(1) small', copy.modeLabel); setText('.joined-room-heading .host-settings span:nth-child(2) small', copy.playersLabel); setText('.joined-room-heading .host-settings span:nth-child(3) small', copy.genreLabel); setText('.joined-room-heading .host-settings span:nth-child(4) small', copy.perSong);
   const playerValue = document.querySelector('.player-stepper strong');

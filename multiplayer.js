@@ -282,8 +282,9 @@
 
   function renderLocalProgress(audio) {
     const boundaries = [0, ...STAGE_ENDS];
-    const marks = [0, 8, 20, 46, 74, 100];
-    const time = Math.max(0, Math.min(STAGE_ENDS[state.localStage], audio.currentTime));
+    const marks = [0, 3, 11, 34, 70, 100];
+    const end = STAGE_ENDS[state.localStage];
+    const time = Math.max(0, Math.min(end, audio.currentTime));
     let segment = 0;
     while (segment < STAGE_ENDS.length - 1 && time > boundaries[segment + 1]) segment += 1;
     const span = boundaries[segment + 1] - boundaries[segment];
@@ -291,7 +292,7 @@
     $('.track-line i').style.width = `${marks[segment] + fraction * (marks[segment + 1] - marks[segment])}%`;
   }
 
-  async function playLocalSection(restart = false) {
+  async function playLocalSection(restart = false, startAt = null) {
     const source = state.room?.currentRound?.previewUrl;
     if (!source) return;
     const sourceUrl = new URL(source, location.href).href;
@@ -304,9 +305,11 @@
     const operation = ++state.audioOperation;
     const roundNumber = state.localRound;
     const stageNumber = state.localStage;
+    const start = state.localStage === 0 ? 0 : STAGE_ENDS[state.localStage - 1];
     const end = STAGE_ENDS[state.localStage];
     audio.volume = Number($('.game-view [aria-label="Volume"]')?.value || 65) / 100;
-    if (restart || audio.currentTime >= end) audio.currentTime = 0;
+    if (startAt !== null) audio.currentTime = startAt;
+    else if (restart || audio.currentTime >= end) audio.currentTime = 0;
     if (!audio.paused) {
       audio.pause();
       cancelAnimationFrame(state.audioFrame);
@@ -342,19 +345,19 @@
 
   function skipLocalClue() {
     if (state.localStage >= STAGE_ENDS.length - 1) return;
+    const markTime = STAGE_ENDS[state.localStage];
     state.localStage += 1;
     $('.song-choices').dataset.stage = String(state.localStage);
     const audio = state.activeAudio;
     if (audio) {
       audio.pause();
-      audio.currentTime = 0;
+      audio.currentTime = markTime;
     }
     cancelAnimationFrame(state.audioFrame);
     $$('.track-marks span').forEach((mark, index) => mark.classList.toggle('active', index <= state.localStage));
     $('.game-skip').disabled = state.localStage >= STAGE_ENDS.length - 1;
-    $('.track-line i').style.width = '0%';
-    $('.round-feedback').textContent = `Skipped ahead to the ${STAGE_ENDS[state.localStage]} second preview. It will replay from the beginning.`;
-    void playLocalSection(true);
+    $('.round-feedback').textContent = `Continuing to the ${STAGE_ENDS[state.localStage]} second mark.`;
+    void playLocalSection(false, markTime);
   }
 
   function renderGame(room) {
@@ -622,7 +625,9 @@
   document.addEventListener('click', async (event) => {
     const target = event.target.closest('button');
     if (!target) return;
-    if (!state.session && target.matches('.game-play, .game-skip, .song-choice')) return;
+    if (!state.session && target.matches('.game-play, .game-skip, .song-choice, .continue-round')) return;
+
+    if (target.matches('.mode-card[data-mode="Solo"]')) return;
 
     if (target.matches('.js-create-room, .mode-card')) {
       event.preventDefault();
@@ -697,6 +702,8 @@
       catch { showNotice(`Copy this room link: ${link.href}`, true); }
       return;
     }
+
+    if (target.matches('.launch-button') && document.querySelector('.modal-backdrop').classList.contains('solo-setup')) return;
 
     if (target.matches('.launch-button')) {
       event.preventDefault();
