@@ -249,7 +249,15 @@ export class GameRoom extends DurableObject {
     }
 
     if (action.type === 'leave') {
-      const wasHost = player.id === room.hostId;
+      if (room.phase === 'lobby' && player.id === room.hostId) {
+        room.phase = 'closed';
+        await this.save();
+        this.broadcast({ type: 'closed' });
+        await this.ctx.storage.deleteAll();
+        this.state = null;
+        for (const socket of this.ctx.getWebSockets()) socket.close(1000, 'Host closed the room');
+        return;
+      }
       if (room.phase === 'finished' && !room.winner) room.winner = this.getWinner(room);
       room.players = room.players.filter((item) => item.id !== player.id);
       if (!room.players.length) {
@@ -257,7 +265,6 @@ export class GameRoom extends DurableObject {
         this.state = null;
         return;
       }
-      if (wasHost && room.phase === 'lobby') room.hostId = room.players[0].id;
       await this.save();
       if (room.phase === 'game' && room.players.every((item) => item.status !== 'playing')) await this.endRound(room);
       else if (room.phase === 'break' && room.players.every((item) => item.continueReady)) await this.beginNextRound(room);
@@ -283,6 +290,17 @@ export class GameRoom extends DurableObject {
       room.difficulty = difficulty;
       room.choiceCount = choiceCount;
       room.durationSeconds = durationSeconds;
+      await this.save();
+      this.broadcast({ type: 'lobby' });
+      return;
+    }
+
+    if (action.type === 'rename' && room.phase === 'lobby') {
+      if (!validName(action.name)) {
+        this.send(ws, { type: 'error', error: 'Enter a name up to 20 characters.' });
+        return;
+      }
+      player.name = action.name.trim();
       await this.save();
       this.broadcast({ type: 'lobby' });
       return;

@@ -210,8 +210,12 @@
     $('.joined-room-panel').hidden = false;
     setRoomCode(result.code);
     const form = $('.join-form');
-    form.querySelectorAll('input,button').forEach((element) => { element.disabled = true; });
-    $('.join-status').textContent = 'Joined. Waiting for the host to start…';
+    $('#player-name').disabled = false;
+    $('#join-code').disabled = true;
+    const saveNameButton = form.querySelector('button[type="submit"]');
+    saveNameButton.disabled = false;
+    saveNameButton.innerHTML = 'Save name <span>→</span>';
+    $('.join-status').textContent = 'Joined. You can edit your name while waiting.';
     $('.join-status').className = 'join-status success';
     renderLobby(result.room);
     connect();
@@ -295,6 +299,15 @@
     if (joinRoster) joinRoster.innerHTML = combined;
     const joinPanel = $('.joined-room-panel');
     if (joinPanel) joinPanel.hidden = false;
+    if (state.session && !state.session.host) {
+      $('#player-name').disabled = room.phase !== 'lobby';
+      $('#join-code').disabled = true;
+      const saveNameButton = $('.join-form button[type="submit"]');
+      if (saveNameButton) {
+        saveNameButton.disabled = room.phase !== 'lobby';
+        saveNameButton.innerHTML = room.phase === 'lobby' ? 'Save name <span>→</span>' : 'Match in progress';
+      }
+    }
     const launch = $('.launch-button');
     if (launch) {
       launch.disabled = !state.session?.host || room.phase !== 'lobby' || !window.getSelectedGameMode?.();
@@ -543,6 +556,11 @@
 
   function handleMessage(message) {
     if (message.type === 'error') {
+      if (state.session && !state.session.host) {
+        $('.join-status').textContent = message.error;
+        $('.join-status').className = 'join-status error';
+        return;
+      }
       if (state.session?.host && state.room?.phase === 'lobby') {
         $('.game-view').hidden = true;
         $('main').hidden = false;
@@ -921,6 +939,24 @@
     event.preventDefault();
     event.stopImmediatePropagation();
     const name = $('#player-name').value.trim();
+    if (state.session && !state.session.host) {
+      if (!name) { $('.join-status').textContent = 'Enter your name first.'; $('.join-status').className = 'join-status error'; return; }
+      if (state.room?.phase !== 'lobby') { $('.join-status').textContent = 'Names can only be changed while waiting in the lobby.'; $('.join-status').className = 'join-status error'; return; }
+      const button = $('.join-form .primary-button');
+      button.disabled = true;
+      if (send('rename', { name })) {
+        localStorage.setItem('sonora-profile-name', name);
+        const hostNameInput = $('.host-name-input');
+        if (hostNameInput) {
+          hostNameInput.value = name;
+          hostNameInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        $('.join-status').textContent = 'Name saved.';
+        $('.join-status').className = 'join-status success';
+      }
+      button.disabled = false;
+      return;
+    }
     const code = $('#join-code').value.trim();
     if (!name) { $('.join-status').textContent = 'Add your name to join the room.'; $('.join-status').className = 'join-status error'; return; }
     if (!code) { $('.join-status').textContent = 'Enter the room code from your host.'; $('.join-status').className = 'join-status error'; return; }
@@ -1003,7 +1039,10 @@
       document.body.style.overflow = 'hidden';
     } else {
       $('.join-page').hidden = false;
-      $('.join-form').querySelectorAll('input,button').forEach((element) => { element.disabled = true; });
+      $('#player-name').disabled = false;
+      $('#join-code').disabled = true;
+      $('.join-form button[type="submit"]').disabled = true;
+      $('.join-form button[type="submit"]').innerHTML = 'Save name <span>→</span>';
       document.body.style.overflow = 'hidden';
     }
     connect();
