@@ -19,25 +19,14 @@ modeCards.forEach((card) => {
   });
 });
 
-document.querySelector('.js-create-room').addEventListener('click', () => {
-  const room = getRoomState();
-  const savedProfileName = localStorage.getItem(profileNameKey) || '';
-  room.hostName = savedProfileName;
-  if (room.players[0]) room.players[0].name = savedProfileName;
-  saveRoomState(room);
-  hostNameInput.value = savedProfileName;
-  hostNameInput.dispatchEvent(new Event('input'));
-  openModal(true);
-});
-
 const joinPage = document.createElement('div');
 joinPage.className = 'join-page';
 joinPage.hidden = true;
-joinPage.innerHTML = '<button class="join-back" type="button">← Back to home</button><div class="join-content"><p class="eyebrow">Join the room</p><h2>Find your<br /><em>music people.</em></h2><p>Enter your name and the local room code. Open this site in another tab on this device to join.</p><form class="join-form"><label for="player-name">Your name</label><input id="player-name" type="text" placeholder="e.g. Jamie" autocomplete="name" maxlength="20" /><label for="join-code">Room code</label><input id="join-code" type="text" placeholder="SONORA-7K4P" autocomplete="off" maxlength="11" /><button class="primary-button" type="submit">Join room <span>→</span></button><small class="join-status" aria-live="polite"></small></form></div><div class="join-note"><span class="wordmark-mark">S</span><strong>SONORA</strong><span>Make some noise.</span></div>';
+joinPage.innerHTML = '<button class="join-back" type="button">← Back to home</button><div class="join-content"><p class="eyebrow">Join the room</p><h2>Find your<br /><em>music people.</em></h2><p>Enter your name and the room code shared by the host.</p><form class="join-form"><label for="player-name">Your name</label><input id="player-name" type="text" placeholder="e.g. Jamie" autocomplete="name" maxlength="20" /><label for="join-code">Room code</label><input id="join-code" type="text" placeholder="SONORA-XXXXXXX" autocomplete="off" maxlength="32" /><button class="primary-button" type="submit">Join room <span>→</span></button><small class="join-status" aria-live="polite"></small></form></div><div class="join-note"><span class="wordmark-mark">S</span><strong>SONORA</strong><span>Make some noise.</span></div>';
 document.body.appendChild(joinPage);
 const joinedRoomPanel = document.createElement('div');
 joinedRoomPanel.className = 'joined-room-panel';
-joinedRoomPanel.innerHTML = '<div class="joined-room-heading"><p class="eyebrow">Local room</p><h3>Your crew is <em>here.</em></h3><div class="host-settings"><span><small>Mode</small><strong>Classic</strong></span><span><small>Players</small><strong>8 max</strong></span><span><small>Genre</small><strong>Everything</strong></span><span><small>Per song</small><strong>30 sec</strong></span></div></div><div class="joined-room-list"></div>';
+joinedRoomPanel.innerHTML = '<div class="joined-room-heading"><p class="eyebrow">Cloudflare room</p><h3>Your crew is <em>here.</em></h3><div class="host-settings"><span><small>Mode</small><strong>Classic</strong></span><span><small>Players</small><strong>8 max</strong></span><span><small>Genre</small><strong>Everything</strong></span><span><small>Per song</small><strong>30 sec</strong></span></div></div><div class="joined-room-list"></div>';
 joinedRoomPanel.hidden = true;
 joinPage.querySelector('.join-content').appendChild(joinedRoomPanel);
 
@@ -48,58 +37,12 @@ document.querySelector('.js-join-room').addEventListener('click', () => {
 });
 
 joinPage.querySelector('.join-back').addEventListener('click', closeJoinPage);
-joinPage.querySelector('.join-form').addEventListener('submit', (event) => {
-  event.preventDefault();
-  const nameInput = document.querySelector('#player-name');
-  const input = document.querySelector('#join-code');
-  const status = joinPage.querySelector('.join-status');
-  const playerName = nameInput.value.trim();
-  const code = input.value.trim().toUpperCase();
-  if (!playerName) {
-    status.textContent = 'Add your name so the room knows who joined.';
-    status.className = 'join-status error';
-    nameInput.focus();
-    return;
-  }
-  if (code !== 'SONORA-7K4P') {
-    status.textContent = 'That code does not match the local room in this browser.';
-    status.className = 'join-status error';
-    return;
-  }
-  const room = getRoomState();
-  const alreadyJoined = room.players.some((player) => player.name.toLowerCase() === playerName.toLowerCase());
-  if (!alreadyJoined && room.players.length >= room.maxPlayers) {
-    status.textContent = 'This room is full.';
-    status.className = 'join-status error';
-    return;
-  }
-  if (!alreadyJoined) room.players.push({ name: playerName, role: 'Joined' });
-  saveRoomState(room);
-  status.textContent = 'Joined this browser’s local room.';
-  status.className = 'join-status success';
-  nameInput.disabled = true;
-  input.disabled = true;
-  joinPage.querySelector('.join-form .primary-button').disabled = true;
-  joinedRoomPanel.hidden = false;
-});
-
 document.querySelector('.modal-close').addEventListener('click', closeModal);
 modal.addEventListener('click', (event) => {
   if (event.target === modal) closeModal();
 });
 
-document.querySelector('.copy-button').addEventListener('click', async (event) => {
-  const button = event.currentTarget;
-  try {
-    await navigator.clipboard.writeText('SONORA-7K4P');
-    copyStatus.textContent = 'Copied to clipboard';
-    button.firstChild.textContent = 'Code copied ';
-  } catch {
-    copyStatus.textContent = 'Room code: SONORA-7K4P';
-  }
-});
-
-// Round UI and local scoring for the room game.
+// Round UI and synced room game state.
 const gameView = document.createElement('section');
 gameView.className = 'game-view'; gameView.hidden = true;
 gameView.innerHTML = `<header class="game-topbar"><button class="game-exit" type="button">← Leave room</button><b>SONORA</b><span>ROUND <strong class="game-round">1</strong> / 10</span></header><div class="game-layout"><section class="round-play"><div class="round-heading"><div><p class="eyebrow">Listen close</p><h1>Name that <em>track.</em></h1></div><div class="round-clock"><strong>30</strong><small>SECONDS LEFT</small></div></div><div class="vinyl-stage"><div class="game-vinyl"><span>?</span></div><p>THE NEXT SONG IS READY</p></div><div class="track-progress"><div class="track-line"><i></i></div><div class="track-marks"><span class="active">0.1s</span><span>0.5s</span><span>2s</span><span>8s</span><span>15s</span></div></div><div class="player-controls"><label><span class="speaker-icon">◖))</span><input aria-label="Volume" type="range" min="0" max="100" value="65"></label><button class="game-play" type="button" aria-label="Play current section"><span class="play-icon" aria-hidden="true"></span></button><button class="game-skip" type="button">Skip <span>→</span></button></div><div class="answer-heading"><strong>Pick the song</strong><span class="guess-status">4 choices</span></div><div class="song-choices"></div><p class="round-feedback" aria-live="polite">Choose quickly for the highest score.</p></section><aside class="game-leaderboard"><p class="eyebrow">Live scores</p><h2>Leaderboard</h2><div class="score-list"></div><div class="scoring-note"><b>How scoring works</b><p>Correct at 0.1s earns the most. Wrong guesses, later clues, and slower answers reduce your points.</p></div></aside></div>`;
@@ -271,7 +214,7 @@ document.querySelectorAll('.room-setting').forEach((select) => {
 
 const joinedPanel = document.createElement('section');
 joinedPanel.className = 'joined-panel';
-joinedPanel.innerHTML = '<div><p class="eyebrow">The room</p><h3>Who is <em>in?</em></h3><p class="joined-subtitle">Invite players in another tab in this browser.</p></div><div class="joined-list"></div>';
+joinedPanel.innerHTML = '<div><p class="eyebrow">The room</p><h3>Who is <em>in?</em></h3><p class="joined-subtitle">Invite players in on any device.</p></div><div class="joined-list"></div>';
 document.querySelector('.setup-modal').appendChild(joinedPanel);
 
 const roomStateKey = 'sonora-room-state';
@@ -738,8 +681,8 @@ const languageCopy = {
     modes: [['Classic', '10 songs - 30 seconds']], genres: ['Pop anthems', 'Indie & alternative', 'Hip-hop & R&B', 'Throwback classics', 'Thai songs', 'J-Pop'],
     zero: 'ZERO FRICTION', howTitle: 'Built for the<br /><em>perfect chorus.</em>', howText: 'Make a room, send the code, and let the music do the talking. No accounts. No setup. Just your people and a playlist.',
     profile: 'Your profile', display: 'Display name', save: 'Save name', saved: 'Name saved', setup: 'Room setup', make: 'Make it <em>yours.</em>',
-    gameMode: 'Game mode', modeHint: 'Set by the mode you picked', max: 'Max players', maxHint: 'Everyone gets a turn to guess', genre: 'Song genre', genreHint: 'Keep the playlist unpredictable', time: 'Time per song', timeHint: 'How long players have to lock in', invite: 'Invite your people', sendCode: 'Send them<br /><em>the code.</em>', inviteHint: 'Join from another tab in this browser. Room data stays on this device.', copy: 'Copy room code', private: 'Room is private', start: 'Start the room', room: 'The room', who: 'Who is <em>in?</em>', roomHint: 'Share the code above and watch your crew appear here.', host: 'Room host', joined: 'Joined just now', waiting: 'Waiting for players', waitingHint: 'Send the invite code to your crew',
-    joinRoom: 'Join the room', joinTitle: 'Find your<br /><em>music people.</em>', joinText: 'Enter your name and the local room code. Open this site in another tab on this device to join.', yourName: 'Your name', roomCode: 'Room code', joinButton: 'Join room', noName: 'Add your name so the room knows who joined.', badCode: 'That code does not match the local room in this browser.', joinedMessage: 'You joined the room. Waiting for the host to start...', live: 'Room live', crew: 'Your crew is <em>here.</em>', modeLabel: 'Mode', playersLabel: 'Players', genreLabel: 'Genre', perSong: 'Per song', you: 'You',
+    gameMode: 'Game mode', modeHint: 'Set by the mode you picked', max: 'Max players', maxHint: 'Everyone gets a turn to guess', genre: 'Song genre', genreHint: 'Keep the playlist unpredictable', time: 'Time per song', timeHint: 'How long players have to lock in', invite: 'Invite your people', sendCode: 'Send them<br /><em>the code.</em>', inviteHint: 'Players can join from any device using the room code.', copy: 'Copy room code', private: 'Cloudflare room', start: 'Start the room', room: 'The room', who: 'Who is <em>in?</em>', roomHint: 'Share the code above and watch your crew appear here.', host: 'Room host', joined: 'Joined just now', waiting: 'Waiting for players', waitingHint: 'Send the invite code to your crew',
+    joinRoom: 'Join the room', joinTitle: 'Find your<br /><em>music people.</em>', joinText: 'Enter your name and the room code shared by the host.', yourName: 'Your name', roomCode: 'Room code', joinButton: 'Join room', noName: 'Add your name so the room knows who joined.', badCode: 'That code does not match an active room.', joinedMessage: 'You joined the room. Waiting for the host to start...', live: 'Room live', crew: 'Your crew is <em>here.</em>', modeLabel: 'Mode', playersLabel: 'Players', genreLabel: 'Genre', perSong: 'Per song', you: 'You',
   },
   TH: {
     navModes: 'โหมดเกม', navHow: 'วิธีเล่น', warmup: 'ห้องกำลังเตรียมพร้อม',
