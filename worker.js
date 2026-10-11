@@ -7,7 +7,6 @@ const ROUND_COUNT = 10;
 const STAGES = [0.1, 0.5, 2, 8, 15];
 const STAGE_STARTS = [0, ...STAGES.slice(0, -1)];
 const ROUND_POINTS = [100, 80, 60, 35, 20];
-const PLAYBACK_SYNC_DELAY_MS = 350;
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -45,6 +44,7 @@ function cleanRound(round) {
     choices,
     answerIndex: round.answerIndex,
     difficulty: ['easy', 'medium', 'hard', 'extreme'].includes(round.difficulty) ? round.difficulty : 'medium',
+    genre: String(round.genre || 'Everything').slice(0, 60),
     answer: {
       title: String(answer.title).slice(0, 160),
       artist: String(answer.artist).slice(0, 160),
@@ -138,6 +138,7 @@ export class GameRoom extends DurableObject {
             previewUrl: room.rounds[room.roundIndex]?.answer.previewUrl || '',
             artwork: room.rounds[room.roundIndex]?.answer.artwork || '',
             difficulty: room.rounds[room.roundIndex]?.difficulty || 'medium',
+            genre: room.rounds[room.roundIndex]?.genre || room.genre || 'Everything',
           }
         : null,
       revealedSong: room.phase === 'break' || room.phase === 'finished' ? room.revealedSong : null,
@@ -263,7 +264,7 @@ export class GameRoom extends DurableObject {
         return;
       }
       await this.save();
-      if (room.phase === 'game' && room.players.every((item) => item.status === 'correct')) await this.endRound(room);
+      if (room.phase === 'game' && room.players.every((item) => item.status !== 'playing')) await this.endRound(room);
       else if (room.phase === 'break' && room.players.every((item) => item.continueReady)) await this.beginNextRound(room);
       else this.broadcast({ type: room.phase === 'lobby' ? 'lobby' : room.phase === 'game' ? 'game' : room.phase === 'break' ? 'round-ended' : 'game-ended' });
       ws.close(1000, 'Left room');
@@ -311,39 +312,16 @@ export class GameRoom extends DurableObject {
       return;
     }
 
-    if (action.type === 'skip' && room.phase === 'game' && room.stage < 4 && player.status === 'playing') {
-      room.stage += 1;
-      const playAt = Date.now() + PLAYBACK_SYNC_DELAY_MS;
-      room.playback = { playing: true, playAt, offset: STAGE_STARTS[room.stage], endsAt: playAt + (STAGES[room.stage] - STAGE_STARTS[room.stage]) * 1000 };
-      await this.scheduleGameAlarm(room);
-      await this.save();
-      this.broadcast({ type: 'game' });
-      return;
-    }
-
-    if (action.type === 'playback' && room.phase === 'game' && player.status === 'playing') {
-      if (action.playing) {
-        const playAt = Date.now() + PLAYBACK_SYNC_DELAY_MS;
-        room.playback = { playing: true, playAt, offset: STAGE_STARTS[room.stage], endsAt: playAt + (STAGES[room.stage] - STAGE_STARTS[room.stage]) * 1000 };
-        await this.scheduleGameAlarm(room);
-      } else {
-        room.playback = { playing: false, playAt: 0, offset: STAGE_STARTS[room.stage], endsAt: 0 };
-        await this.ctx.storage.setAlarm(room.roundEndsAt);
-      }
-      await this.save();
-      this.broadcast({ type: 'game' });
-      return;
-    }
-
     if (action.type === 'guess' && room.phase === 'game' && player.status === 'playing') {
       const round = room.rounds[room.roundIndex];
       const correct = Number(action.choiceIndex) === round.answerIndex;
       if (correct) {
         const correctBefore = room.players.filter((item) => item.status === 'correct').length;
         const elapsed = Math.max(0, Math.floor((Date.now() - room.roundStartedAt) / 1000));
+        const guessStage = Math.max(0, Math.min(4, Number.isInteger(Number(action.stage)) ? Number(action.stage) : room.stage));
         const timePenalty = Math.min(25, Math.floor(elapsed / 4) * 5);
         const orderPenalty = Math.min(25, correctBefore * 5);
-        const points = Math.max(5, ROUND_POINTS[room.stage] - timePenalty - orderPenalty);
+        const points = Math.max(5, ROUND_POINTS[guessStage] - timePenalty - orderPenalty);
         player.score += points;
         player.status = 'correct';
         this.broadcast({ type: 'guess-result', playerId: player.id, correct: true, points });
@@ -353,7 +331,7 @@ export class GameRoom extends DurableObject {
         this.broadcast({ type: 'guess-result', playerId: player.id, correct: false, points: -5 });
       }
       await this.save();
-      if (room.players.every((item) => item.status === 'correct')) await this.endRound(room);
+      if (room.players.every((item) => item.status !== 'playing')) await this.endRound(room);
       else this.broadcast({ type: 'game' });
       return;
     }
@@ -376,11 +354,6 @@ export class GameRoom extends DurableObject {
     room.playback = { playing: false, playAt: 0, offset: 0, endsAt: 0 };
     room.players.forEach((player) => { player.status = 'playing'; player.continueReady = false; });
     await this.ctx.storage.setAlarm(room.roundEndsAt);
-  }
-
-  async scheduleGameAlarm(room) {
-    const playbackEnd = room.playback.playing ? room.playback.endsAt : room.roundEndsAt;
-    await this.ctx.storage.setAlarm(Math.min(room.roundEndsAt, playbackEnd));
   }
 
   async endRound(room) {

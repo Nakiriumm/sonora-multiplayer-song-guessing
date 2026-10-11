@@ -82,3 +82,4 @@
 .setup-fields .choice-count-field{grid-column:1!important;max-width:none!important}.setup-fields .choice-count-field .choice-stepper{width:100%;max-width:none!important}
 .invite-panel .room-code-row{display:flex;align-items:stretch;gap:9px;margin-top:28px}.invite-panel .room-code-row .room-code{display:grid;flex:1;place-items:center;min-width:0;margin:0!important;padding:14px 10px}.invite-panel .copy-code-button{display:grid;place-items:center;flex:none;width:54px;min-height:56px;margin:0;padding:0}.copy-code-button svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.invite-panel .copy-button{margin-top:12px}
 .setup-fields .difficulty-setting-field{order:-2!important;grid-column:1/-1!important}
+.game-view .track-marks{margin-left:2px;margin-right:2px}.game-view .track-marks span:nth-child(1){transform:translateX(-50%)}

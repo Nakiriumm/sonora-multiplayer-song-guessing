@@ -110,6 +110,7 @@ const genreArtistSeeds={
 };
 const GENRE_CATALOG_SIZE=300;
 const genreCatalogCache=new Map();
+const everythingGenreCatalogs=new Map();
 let activeCatalog=roundSongs;
 const genreAliases={'เพลงป๊อป':'Pop anthems','อินดี้และอัลเทอร์เนทีฟ':'Indie & alternative','ฮิปฮอปและอาร์แอนด์บี':'Hip-hop & R&B','เพลงคลาสสิกย้อนยุค':'Throwback classics','เพลงไทย':'Thai songs','เจป๊อป':'J-Pop'};
 async function loadSingleGenreCatalog(genre) {
@@ -204,21 +205,24 @@ const combinedGenres=['Everything',...sourceGenres];
 async function loadGenreCatalog(genre) {
   genre=genreAliases[genre]||genre;
   if(genre!=='Everything')return loadSingleGenreCatalog(genre);
-  if(genreCatalogCache.has('Everything'))return genreCatalogCache.get('Everything');
+  if(genreCatalogCache.has('Everything')&&everythingGenreCatalogs.size)return genreCatalogCache.get('Everything');
   const cacheKey='sonora-song-catalog-v3-Everything';
+  let cachedSongs=[];
   try {
     const cached=JSON.parse(localStorage.getItem(cacheKey)||'null');
     const complete=cached?.counts&&combinedGenres.every((name)=>cached.counts[name]>=GENRE_CATALOG_SIZE);
-    if(complete&&Array.isArray(cached.songs)){genreCatalogCache.set('Everything',cached.songs);return cached.songs;}
+    if(complete&&Array.isArray(cached.songs))cachedSongs=cached.songs;
   } catch {}
   const existing=[];
   for(const key of ['sonora-song-catalog-v2-Everything','sonora-song-catalog-v1-Everything']){
     try {const saved=JSON.parse(localStorage.getItem(key)||'null');if(Array.isArray(saved))existing.push(...saved);} catch {}
   }
-  const catalogs=await Promise.all(combinedGenres.map(loadSingleGenreCatalog));
+  const catalogs=await Promise.all(sourceGenres.map(loadSingleGenreCatalog));
+  everythingGenreCatalogs.clear();
+  sourceGenres.forEach((name,index)=>everythingGenreCatalogs.set(name,catalogs[index]));
   const merged=[];
   const seen=new Set();
-  for(const song of [...roundSongs,...existing,...catalogs.flat()]){
+  for(const song of [...roundSongs,...existing,...cachedSongs,...catalogs.flat()]){
     if(!Array.isArray(song)||!song[0]||!song[1])continue;
     const key=normalizeSongText(song[0])+'|'+normalizeSongText(song[1]);
     if(seen.has(key))continue;
@@ -226,12 +230,21 @@ async function loadGenreCatalog(genre) {
     merged.push(song);
   }
   genreCatalogCache.set('Everything',merged);
-  const counts=Object.fromEntries(combinedGenres.map((name,index)=>[name,catalogs[index].length]));
+  const counts=Object.fromEntries(sourceGenres.map((name,index)=>[name,catalogs[index].length]));
+  counts.Everything=merged.length;
   if(combinedGenres.every((name)=>counts[name]>=GENRE_CATALOG_SIZE)){
     try {localStorage.setItem(cacheKey,JSON.stringify({counts,songs:merged}));} catch {}
   }
   return merged;
 }
+window.getRoundSongCatalogs=async(genre='Everything')=>{
+  genre=genreAliases[genre]||genre;
+  if(genre==='Everything'){
+    await loadGenreCatalog('Everything');
+    return [...everythingGenreCatalogs].map(([name,songs])=>({name,songs}));
+  }
+  return [{name:genre,songs:await loadSingleGenreCatalog(genre)}];
+};
 function getSongDifficulty(song,asset){
   const year=Number.parseInt(song?.[4]||asset?.releaseDate||'',10)||0;
   const rank=Number(song?.[5]||asset?.catalogRank||asset?.searchRank)||0;
@@ -257,17 +270,17 @@ const choiceArtworkObserver=new MutationObserver(()=>{const currentRound=roundNo
 choiceArtworkObserver.observe(gameView.querySelector('.song-choices'),{childList:true});
 const resultArtworkObserver=new MutationObserver(()=>{if(roundResult.hidden)return;const title=roundResult.querySelector('#round-result-title').textContent;const song=activeRoundSong||roundSongs.find(item=>item[0]===title);if(song)loadSongAsset(song).then(asset=>{if(!roundResult.hidden&&roundResult.querySelector('#round-result-title').textContent===title)applySongArtwork(roundResult.querySelector('.result-vinyl span'),asset);});});
 resultArtworkObserver.observe(roundResult,{attributes:true,attributeFilter:['hidden']});
-let roundNo=0,stageNo=0,roundLeft=30,elapsed=0,roundTick,attemptTick,breakTick,roundPlayers=[],gameAudio=null,audioUrlIndex=-1,progressFrame=0,activeRoundSong=null,playRequest=0;
+let roundNo=0,stageNo=0,roundLeft=30,elapsed=0,roundTick,attemptTick,breakTick,roundPlayers=[],gameAudio=null,audioUrlIndex=-1,progressFrame=0,activeRoundSong=null,activeRoundGenre='',playRequest=0;
 const usedRoundSongs=new Set();
 const unavailableSongs=new Set();
-async function pickPlayableChoices(){const choices=[],difficulty=getRoomState().difficulty||'medium',choiceCount=getRoomState().choiceCount||4,candidates=activeCatalog.filter(song=>getSongDifficulty(song)===difficulty&&!usedRoundSongs.has(song)&&!unavailableSongs.has(`${song[0]}|${song[1]}`)).sort(()=>Math.random()-.5);for(const song of candidates){const asset=await loadSongAsset(song);if(!asset?.previewUrl){unavailableSongs.add(`${song[0]}|${song[1]}`);continue;}if(!song[3])song[3]=asset.previewUrl;if(!song[4]&&asset.releaseDate)song[4]=asset.releaseDate;if(!song[5]&&(asset.catalogRank||asset.searchRank))song[5]=asset.catalogRank||asset.searchRank;choices.push(song);if(choices.length===choiceCount)break;}choices.forEach(song=>usedRoundSongs.add(song));return choices;}
+async function pickPlayableChoices(){const room=getRoomState(),difficulty=room.difficulty||'medium',choiceCount=room.choiceCount||4,catalogs=await window.getRoundSongCatalogs?.(room.genre||'Everything')||[{name:room.genre||'Everything',songs:activeCatalog}],pools=catalogs.map(({name,songs})=>({name,songs:songs.filter(song=>getSongDifficulty(song)===difficulty&&!usedRoundSongs.has(song)&&!unavailableSongs.has(`${song[0]}|${song[1]}`)).sort(()=>Math.random()-.5)})).filter(pool=>pool.songs.length>=choiceCount).sort(()=>Math.random()-.5);for(const pool of pools){const choices=[];for(const song of pool.songs){const asset=await loadSongAsset(song);if(!asset?.previewUrl){unavailableSongs.add(`${song[0]}|${song[1]}`);continue;}if(!song[3])song[3]=asset.previewUrl;if(!song[4]&&asset.releaseDate)song[4]=asset.releaseDate;if(!song[5]&&(asset.catalogRank||asset.searchRank))song[5]=asset.catalogRank||asset.searchRank;choices.push(song);if(choices.length===choiceCount)break;}if(choices.length===choiceCount){choices.forEach(song=>usedRoundSongs.add(song));activeRoundGenre=pool.name;return choices;}}activeRoundGenre=room.genre||'Everything';return [];}
 async function launchGame(){usedRoundSongs.clear();const r=getRoomState();roundPlayers=r.players.filter(p=>p.name).map(p=>({name:p.name,score:0}));if(!roundPlayers.length)roundPlayers=[{name:'You',score:0}];roundNo=0;roundResult.hidden=true;winnerResult.hidden=true;document.querySelector('main').hidden=true;document.querySelector('.site-footer').hidden=true;gameView.hidden=false;document.body.style.overflow='auto';gameView.querySelector('.round-feedback').textContent='Preparing the song list…';activeCatalog=await loadGenreCatalog(r.genre||'Everything');if(activeCatalog.length<4)activeCatalog=roundSongs;nextRound();}
 function scoreBoard(){gameView.querySelector('.score-list').innerHTML=[...roundPlayers].sort((a,b)=>b.score-a.score).map((p,i)=>`<div class="score-row"><span>0${i+1}</span><strong>${escapeRoomText(p.name)}</strong><b>${p.score}</b></div>`).join('');}
 function continueKey(){return `sonora-continue-${roundNo}`;}
 function continueNames(){try{return JSON.parse(localStorage.getItem(continueKey())||'[]');}catch{return [];}}
 function updateContinueStatus(button){const ready=continueNames();button.textContent=`Continue (${ready.length}/${roundPlayers.length})`;if(ready.length>=roundPlayers.length){clearInterval(breakTick);nextRound();}}
 window.addEventListener('storage',event=>{if(event.key===continueKey()){const button=roundResult.querySelector('.continue-round');if(button)updateContinueStatus(button);}});
-async function nextRound(){clearInterval(roundTick);clearInterval(attemptTick);clearInterval(breakTick);playRequest++;pauseCurrentPlayback();roundResult.hidden=true;if(gameAudio){gameAudio.pause();gameAudio=null;}if(roundNo>=10){const winner=[...roundPlayers].sort((a,b)=>b.score-a.score)[0]||{name:'You',score:0};winnerResult.querySelector('#winner-title').textContent=`${winner.name} wins!`;winnerResult.querySelector('.winner-score').textContent=`Final score · ${winner.score} points`;winnerResult.hidden=false;sprayNoteConfetti({winner:true});return;}roundNo++;const loadingRound=roundNo;localStorage.removeItem(continueKey());stageNo=0;elapsed=0;roundLeft=[30,45,60].includes(Number.parseInt(getRoomState().time,10))?Number.parseInt(getRoomState().time,10):30;gameView.querySelector('.round-feedback').textContent='Finding songs with playable previews…';const choices=await pickPlayableChoices();if(loadingRound!==roundNo)return;if(!choices.length){gameView.querySelector('.round-feedback').textContent='No playable preview songs are available. Check your connection and try again.';return;}const answerIndex=Math.floor(Math.random()*choices.length);const song=choices[answerIndex];activeRoundSong=song;updateDifficultyMeter(getSongDifficulty(song));gameView.dataset.answer=song[0];gameView.querySelector('.game-round').textContent=roundNo;gameView.querySelector('.round-clock strong').textContent=roundLeft;gameView.querySelector('.attempt-clock').textContent='';gameView.querySelector('.round-feedback').textContent='Choose quickly for the highest score.';gameView.querySelector('.track-line i').style.width='0';gameView.querySelector('.game-skip').disabled=false;gameView.querySelectorAll('.track-marks span').forEach((m,i)=>m.classList.toggle('active',i===0));gameView.querySelector('.song-choices').classList.remove('locked','wrong-locked');gameView.querySelector('.guess-status').textContent=`${choices.length} choices`;gameView.querySelector('.song-choices').innerHTML=choices.map((s,i)=>`<button class="song-choice" data-artist="${escapeRoomText(s[1])}" data-correct="${s===song}" type="button"><span class="cover-art cover-${(roundNo+i)%4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeRoomText(s[0])}</strong></span><i>${String.fromCharCode(65+i)}</i></button>`).join('');scoreBoard();roundTick=setInterval(()=>{roundLeft--;gameView.querySelector('.round-clock strong').textContent=roundLeft;if(roundLeft<=0)endRound(`Time is up. It was ${song[0]}.`);},1000);attemptTick=setInterval(()=>{if(!gameView.querySelector('.song-choices').classList.contains('locked'))elapsed++;gameView.querySelector('.attempt-clock').textContent=`00:${String(elapsed).padStart(2,'0')}`;},1000);}
+async function nextRound(){clearInterval(roundTick);clearInterval(attemptTick);clearInterval(breakTick);playRequest++;pauseCurrentPlayback();roundResult.hidden=true;if(gameAudio){gameAudio.pause();gameAudio=null;}if(roundNo>=10){const winner=[...roundPlayers].sort((a,b)=>b.score-a.score)[0]||{name:'You',score:0};winnerResult.querySelector('#winner-title').textContent=`${winner.name} wins!`;winnerResult.querySelector('.winner-score').textContent=`Final score · ${winner.score} points`;winnerResult.hidden=false;sprayNoteConfetti({winner:true});return;}roundNo++;const loadingRound=roundNo;localStorage.removeItem(continueKey());stageNo=0;elapsed=0;roundLeft=[30,45,60].includes(Number.parseInt(getRoomState().time,10))?Number.parseInt(getRoomState().time,10):30;gameView.querySelector('.round-feedback').textContent='Finding songs with playable previews…';const choices=await pickPlayableChoices();if(loadingRound!==roundNo)return;if(!choices.length){gameView.querySelector('.round-feedback').textContent='No playable preview songs are available. Check your connection and try again.';return;}const answerIndex=Math.floor(Math.random()*choices.length);const song=choices[answerIndex];activeRoundSong=song;updateDifficultyMeter(getSongDifficulty(song));gameView.dataset.answer=song[0];gameView.querySelector('.game-round').textContent=roundNo;gameView.querySelector('.round-clock strong').textContent=roundLeft;gameView.querySelector('.attempt-clock').textContent='';gameView.querySelector('.vinyl-stage p').textContent=`ROUND GENRE - ${activeRoundGenre.toUpperCase()}`;gameView.querySelector('.round-feedback').textContent='Choose quickly for the highest score.';gameView.querySelector('.track-line i').style.width='0';gameView.querySelector('.game-skip').disabled=false;gameView.querySelectorAll('.track-marks span').forEach((m,i)=>m.classList.toggle('active',i===0));gameView.querySelector('.song-choices').classList.remove('locked','wrong-locked');gameView.querySelector('.guess-status').textContent=`${choices.length} choices`;gameView.querySelector('.song-choices').innerHTML=choices.map((s,i)=>`<button class="song-choice" data-artist="${escapeRoomText(s[1])}" data-correct="${s===song}" type="button"><span class="cover-art cover-${(roundNo+i)%4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeRoomText(s[0])}</strong></span><i>${String.fromCharCode(65+i)}</i></button>`).join('');scoreBoard();roundTick=setInterval(()=>{roundLeft--;gameView.querySelector('.round-clock strong').textContent=roundLeft;if(roundLeft<=0)endRound(`Time is up. It was ${song[0]}.`);},1000);attemptTick=setInterval(()=>{if(!gameView.querySelector('.song-choices').classList.contains('locked'))elapsed++;gameView.querySelector('.attempt-clock').textContent=`00:${String(elapsed).padStart(2,'0')}`;},1000);}
 function endRound(message){clearInterval(roundTick);clearInterval(attemptTick);playRequest++;pauseCurrentPlayback();if(gameAudio){gameAudio.pause();gameAudio=null;}const feedback=gameView.querySelector('.round-feedback');let seconds=5;const song=activeRoundSong;roundResult.querySelector('.result-vinyl').style.setProperty('--result-cover',`var(--cover-${(roundNo-1)%4})`);roundResult.querySelector('.result-vinyl').className=`result-vinyl cover-${(roundNo-1)%4}`;roundResult.querySelector('#round-result-title').textContent=song[0];roundResult.querySelector('.result-artist').textContent=song[1];roundResult.querySelector('.continue-round').textContent=`Continue (0/${roundPlayers.length})`;roundResult.querySelector('.result-countdown b').textContent=seconds;roundResult.hidden=false;feedback.textContent=message;gameView.querySelectorAll('.song-choice').forEach(b=>b.disabled=true);const continueButton=roundResult.querySelector('.continue-round');continueButton.onclick=()=>{const room=getRoomState();const playerName=localStorage.getItem(profileNameKey)||room.players[0]?.name||roundPlayers[0].name;const ready=continueNames();if(!ready.includes(playerName)){ready.push(playerName);localStorage.setItem(continueKey(),JSON.stringify(ready));}updateContinueStatus(continueButton);};breakTick=setInterval(()=>{seconds--;const count=roundResult.querySelector('.result-countdown b');if(count)count.textContent=seconds;if(seconds<=0){clearInterval(breakTick);nextRound();}},1000);}
 function setPlayButton(playing){const button=gameView.querySelector('.game-play');button.classList.toggle('is-playing',playing);button.setAttribute('aria-label',playing?'Pause current section':'Play current section');}
 function pauseCurrentPlayback(){if(gameAudio)gameAudio.pause();cancelAnimationFrame(progressFrame);setPlayButton(false);}

@@ -11,13 +11,14 @@
     connectTimer: 0,
     heartbeat: 0,
     timer: 0,
-    playbackSignature: '',
     serverOffset: 0,
     pendingHost: false,
     manuallyClosed: false,
     activeAudio: null,
     audioFrame: 0,
-    audioTimeout: 0,
+    audioOperation: 0,
+    localStage: 0,
+    localRound: 0,
     prepareRequest: 0,
     timerKey: '',
     scoreboardKey: '',
@@ -270,69 +271,90 @@
   }
 
   function stopSyncedAudio() {
-    clearTimeout(state.audioTimeout);
+    state.audioOperation += 1;
     cancelAnimationFrame(state.audioFrame);
     state.audioFrame = 0;
     if (state.activeAudio) state.activeAudio.pause();
     state.activeAudio = null;
-    state.playbackSignature = '';
     $('.game-play')?.classList.remove('is-playing');
     $('.game-play')?.setAttribute('aria-label', 'Play current section');
   }
 
-  function applyPlayback(room) {
-    const playback = room.playback || { playing: false };
-    const signature = `${playback.playing}:${playback.playAt}:${playback.offset}`;
-    if (signature === state.playbackSignature) return;
-    if (!playback.playing) {
-      stopSyncedAudio();
-      state.playbackSignature = signature;
-      return;
-    }
-    state.playbackSignature = signature;
-    clearTimeout(state.audioTimeout);
-    cancelAnimationFrame(state.audioFrame);
-    const source = room.currentRound?.previewUrl;
+  function renderLocalProgress(audio) {
+    const boundaries = [0, ...STAGE_ENDS];
+    const marks = [0, 8, 20, 46, 74, 100];
+    const time = Math.max(0, Math.min(STAGE_ENDS[state.localStage], audio.currentTime));
+    let segment = 0;
+    while (segment < STAGE_ENDS.length - 1 && time > boundaries[segment + 1]) segment += 1;
+    const span = boundaries[segment + 1] - boundaries[segment];
+    const fraction = Math.max(0, Math.min(1, (time - boundaries[segment]) / span));
+    $('.track-line i').style.width = `${marks[segment] + fraction * (marks[segment + 1] - marks[segment])}%`;
+  }
+
+  async function playLocalSection(restart = false) {
+    const source = state.room?.currentRound?.previewUrl;
     if (!source) return;
-    if (!state.activeAudio || state.activeAudio.src !== source) {
+    const sourceUrl = new URL(source, location.href).href;
+    if (!state.activeAudio || state.activeAudio.src !== sourceUrl) {
       if (state.activeAudio) state.activeAudio.pause();
-      state.activeAudio = new Audio(source);
+      state.activeAudio = new Audio(sourceUrl);
       state.activeAudio.preload = 'auto';
-      state.activeAudio.volume = Number($('.game-view [aria-label="Volume"]')?.value || 65) / 100;
     }
     const audio = state.activeAudio;
-    const stageIndex = Math.max(0, Math.min(4, room.stage || 0));
-    const sectionEnd = STAGE_ENDS[stageIndex];
-    const targetLocalTime = playback.playAt - state.serverOffset;
-    const renderProgress = () => {
-      if (!audio || audio !== state.activeAudio || audio.paused) return;
-      const value = Math.max(0, Math.min(sectionEnd, audio.currentTime));
-      const marks = [0, 8, 20, 46, 74, 100];
-      const starts = [0, 0.1, 0.5, 2, 8];
-      const fraction = Math.max(0, Math.min(1, (value - starts[stageIndex]) / Math.max(0.001, sectionEnd - starts[stageIndex])));
-      $('.track-line i').style.width = `${marks[stageIndex] + fraction * (marks[stageIndex + 1] - marks[stageIndex])}%`;
-      if (audio.currentTime >= sectionEnd) {
-        audio.pause();
-        audio.currentTime = sectionEnd;
-        $('.game-play').classList.remove('is-playing');
-        $('.game-play').setAttribute('aria-label', 'Play current section');
-        return;
-      }
-      state.audioFrame = requestAnimationFrame(renderProgress);
-    };
-    state.audioTimeout = setTimeout(async () => {
-      if (audio !== state.activeAudio) return;
-      audio.currentTime = Math.max(playback.offset || 0, (Date.now() - targetLocalTime) / 1000 + (playback.offset || 0));
-      audio.volume = Number($('.game-view [aria-label="Volume"]')?.value || 65) / 100;
-      try {
-        await audio.play();
-        $('.game-play').classList.add('is-playing');
-        $('.game-play').setAttribute('aria-label', 'Pause current section');
-        renderProgress();
-      } catch {
-        $('.round-feedback').textContent = 'Your browser blocked audio. Press play to allow sound, then try again.';
-      }
-    }, Math.max(0, targetLocalTime - Date.now()));
+    const operation = ++state.audioOperation;
+    const roundNumber = state.localRound;
+    const stageNumber = state.localStage;
+    const end = STAGE_ENDS[state.localStage];
+    audio.volume = Number($('.game-view [aria-label="Volume"]')?.value || 65) / 100;
+    if (restart || audio.currentTime >= end) audio.currentTime = 0;
+    if (!audio.paused) {
+      audio.pause();
+      cancelAnimationFrame(state.audioFrame);
+      $('.game-play').classList.remove('is-playing');
+      $('.game-play').setAttribute('aria-label', 'Play current section');
+      renderLocalProgress(audio);
+      return;
+    }
+    try {
+      await audio.play();
+      if (operation !== state.audioOperation || audio !== state.activeAudio || roundNumber !== state.localRound || stageNumber !== state.localStage) return;
+      $('.game-play').classList.add('is-playing');
+      $('.game-play').setAttribute('aria-label', 'Pause current section');
+      const animate = () => {
+        if (audio !== state.activeAudio || audio.paused) return;
+        renderLocalProgress(audio);
+        if (audio.currentTime >= end) {
+          audio.pause();
+          audio.currentTime = end;
+          $('.game-play').classList.remove('is-playing');
+          $('.game-play').setAttribute('aria-label', 'Play current section');
+          renderLocalProgress(audio);
+          return;
+        }
+        state.audioFrame = requestAnimationFrame(animate);
+      };
+      cancelAnimationFrame(state.audioFrame);
+      state.audioFrame = requestAnimationFrame(animate);
+    } catch {
+      $('.round-feedback').textContent = 'Your browser blocked audio. Press play to allow sound, then try again.';
+    }
+  }
+
+  function skipLocalClue() {
+    if (state.localStage >= STAGE_ENDS.length - 1) return;
+    state.localStage += 1;
+    $('.song-choices').dataset.stage = String(state.localStage);
+    const audio = state.activeAudio;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+    cancelAnimationFrame(state.audioFrame);
+    $$('.track-marks span').forEach((mark, index) => mark.classList.toggle('active', index <= state.localStage));
+    $('.game-skip').disabled = state.localStage >= STAGE_ENDS.length - 1;
+    $('.track-line i').style.width = '0%';
+    $('.round-feedback').textContent = `Skipped ahead to the ${STAGE_ENDS[state.localStage]} second preview. It will replay from the beginning.`;
+    void playLocalSection(true);
   }
 
   function renderGame(room) {
@@ -343,14 +365,21 @@
     $('.winner-backdrop').hidden = true;
     updateScoreboard(room);
     const number = room.roundNumber || 1;
+    const isNewRound = state.localRound !== number;
+    if (isNewRound) {
+      stopSyncedAudio();
+      state.localRound = number;
+      state.localStage = 0;
+    }
     $('.game-round').textContent = String(number);
-    const stage = Math.max(0, room.stage || 0);
+    $('.vinyl-stage p').textContent = `ROUND GENRE · ${(room.currentRound?.genre || room.genre || 'Everything').toUpperCase()}`;
+    const stage = state.localStage;
     $$('.track-marks span').forEach((mark, index) => mark.classList.toggle('active', index <= stage));
     $('.game-skip').disabled = stage >= 4;
     const choicesContainer = $('.song-choices');
     if (Number(choicesContainer.dataset.stage || -1) !== stage) {
       choicesContainer.dataset.stage = String(stage);
-      $('.track-line i').style.width = `${[0, 8, 20, 46, 74, 100][stage]}%`;
+      if (isNewRound) $('.track-line i').style.width = '0%';
     }
     if (room.currentRound) {
       window.updateDifficultyMeter?.(room.currentRound.difficulty || 'medium');
@@ -359,10 +388,10 @@
       const choices = room.currentRound.choices || [];
       const container = choicesContainer;
       const wasRound = Number(container.dataset.roundNumber || 0);
-      const isNewRound = wasRound !== number;
+      const roundChanged = wasRound !== number;
       const renderChoices = container.dataset.renderedRound !== String(number);
       if (renderChoices) container.dataset.renderedRound = String(number);
-      if (isNewRound) {
+      if (roundChanged) {
         container.dataset.roundNumber = String(number);
         container.classList.remove('locked', 'wrong-locked');
         $('.track-line i').style.width = '0%';
@@ -379,6 +408,8 @@
       });
       const disabled = !mine || mine.status !== 'playing';
       container.querySelectorAll('.song-choice').forEach((button) => { button.disabled = disabled; });
+      $('.game-play').disabled = disabled;
+      $('.game-skip').disabled = disabled || stage >= 4;
       if (mine?.status === 'wrong') {
         container.classList.add('wrong-locked');
         container.querySelectorAll('.song-choice').forEach((button) => button.classList.add('blackout'));
@@ -390,7 +421,6 @@
         $('.guess-status').textContent = `${choices.length} choices`;
       }
       updateRoundTimer(room);
-      applyPlayback(room);
     }
   }
 
@@ -479,56 +509,53 @@
     const request = ++state.prepareRequest;
     usedRoundSongs.clear();
     const room = getRoomState();
-    showNotice('Loading the song catalog…');
+    showNotice('Loading the song catalog?');
     activeCatalog = await loadGenreCatalog(room.genre || 'Everything');
     if (!Array.isArray(activeCatalog) || activeCatalog.length < 4) activeCatalog = roundSongs;
     const desiredDifficulty = room.difficulty || 'medium';
-    const candidates = [...activeCatalog, ...roundSongs]
-      .filter((song, index, list) => list.findIndex((item) => item[0] === song[0] && item[1] === song[1]) === index)
-      .filter((song) => window.getSongDifficulty?.(song) === desiredDifficulty)
-      .sort(() => Math.random() - 0.5);
     const choiceCount = Math.max(4, Math.min(8, Number(room.choiceCount) || 4));
-    const neededSongs = ROUND_COUNT * choiceCount;
-    const playable = [];
-    for (let offset = 0; offset < candidates.length && playable.length < neededSongs; offset += 8) {
-      if (request !== state.prepareRequest) throw new Error('Song preparation was cancelled.');
-      const batch = candidates.slice(offset, offset + 8);
-      const results = await Promise.all(batch.map(async (song) => ({ song, asset: await loadSongAsset(song) })));
-      for (const { song, asset } of results) {
-        if (!asset?.previewUrl) {
-          unavailableSongs.add(`${song[0]}|${song[1]}`);
-          continue;
-        }
-        song[3] = song[3] || asset.previewUrl;
-        playable.push({ song, asset });
-        if (playable.length >= neededSongs) break;
-      }
-      showNotice(`Preparing songs · found ${Math.min(playable.length, neededSongs)} of ${neededSongs}`);
-    }
-    if (playable.length < neededSongs) {
-      throw new Error(`Found only ${playable.length} playable ${desiredDifficulty} songs. Try another difficulty or check your connection.`);
-    }
+    const catalogs = await window.getRoundSongCatalogs?.(room.genre || 'Everything') || [{ name: room.genre || 'Everything', songs: activeCatalog }];
+    const pools = catalogs.map(({ name, songs }) => ({
+      name,
+      songs: [...new Map(songs.filter((song) => window.getSongDifficulty?.(song) === desiredDifficulty)
+        .map((song) => [`${song[0]}|${song[1]}`, song])).values()].sort(() => Math.random() - 0.5),
+    }));
+    const usedKeys = new Set();
     const rounds = [];
-    for (let index = 0; index < ROUND_COUNT; index += 1) {
+    for (let roundIndex = 0; roundIndex < ROUND_COUNT; roundIndex += 1) {
       if (request !== state.prepareRequest) throw new Error('Song preparation was cancelled.');
-      const entries = playable.slice(index * choiceCount, index * choiceCount + choiceCount);
-      const choices = entries.map(({ song }) => song);
-      const choiceRecords = [];
-      for (const [choiceIndex, song] of choices.entries()) {
-        const asset = entries[choiceIndex].asset;
-        const record = { title: song[0], artwork: asset.artworkUrl100 || song[2] || '' };
-        choiceRecords.push(record);
+      const blocked = new Set();
+      let selected = null;
+      while (!selected) {
+        const eligible = pools.filter((pool) => !blocked.has(pool.name) && pool.songs.filter((song) => !usedKeys.has(`${song[0]}|${song[1]}`)).length >= choiceCount).sort(() => Math.random() - 0.5);
+        if (!eligible.length) break;
+        const pool = eligible[0];
+        const collected = [];
+        const candidates = pool.songs.filter((song) => !usedKeys.has(`${song[0]}|${song[1]}`));
+        for (let offset = 0; offset < candidates.length && collected.length < choiceCount; offset += 8) {
+          if (request !== state.prepareRequest) throw new Error('Song preparation was cancelled.');
+          const batch = candidates.slice(offset, offset + 8);
+          const results = await Promise.all(batch.map(async (song) => ({ song, asset: await loadSongAsset(song) })));
+          for (const { song, asset } of results) {
+            if (!asset?.previewUrl) { unavailableSongs.add(`${song[0]}|${song[1]}`); continue; }
+            song[3] = song[3] || asset.previewUrl;
+            collected.push({ song, asset });
+            if (collected.length >= choiceCount) break;
+          }
+          showNotice(`Preparing round ${roundIndex + 1}/${ROUND_COUNT} ? ${pool.name}`);
+        }
+        if (collected.length < choiceCount) { blocked.add(pool.name); continue; }
+        const entries = collected.slice(0, choiceCount);
+        entries.forEach(({ song }) => usedKeys.add(`${song[0]}|${song[1]}`));
+        selected = { genre: pool.name, entries };
       }
-      const answerIndex = Math.floor(Math.random() * choices.length);
-      const song = choices[answerIndex];
-      const asset = entries[answerIndex].asset;
-      const answer = {
-        title: song[0],
-        artist: song[1],
-        artwork: asset.artworkUrl100 || song[2] || '',
-        previewUrl: song[3] || asset.previewUrl,
-      };
-      rounds.push({ choices: choiceRecords, answerIndex, answer, difficulty: window.getSongDifficulty?.(song, asset) || 'medium' });
+      if (!selected) throw new Error(`Could not find ${choiceCount} playable ${desiredDifficulty} songs from one genre for round ${roundIndex + 1}. Try another difficulty or genre.`);
+      const { genre, entries } = selected;
+      const choiceRecords = entries.map(({ song, asset }) => ({ title: song[0], artwork: asset.artworkUrl100 || song[2] || '' }));
+      const answerIndex = Math.floor(Math.random() * entries.length);
+      const { song, asset } = entries[answerIndex];
+      const answer = { title: song[0], artist: song[1], artwork: asset.artworkUrl100 || song[2] || '', previewUrl: song[3] || asset.previewUrl };
+      rounds.push({ choices: choiceRecords, answerIndex, answer, difficulty: window.getSongDifficulty?.(song, asset) || 'medium', genre });
     }
     return rounds;
   }
@@ -595,6 +622,7 @@
   document.addEventListener('click', async (event) => {
     const target = event.target.closest('button');
     if (!target) return;
+    if (!state.session && target.matches('.game-play, .game-skip, .song-choice')) return;
 
     if (target.matches('.js-create-room, .mode-card')) {
       event.preventDefault();
@@ -680,21 +708,21 @@
     if (target.matches('.game-play')) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      send('playback', { playing: !state.room?.playback?.playing });
+      void playLocalSection();
       return;
     }
 
     if (target.matches('.game-skip')) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      send('skip');
+      skipLocalClue();
       return;
     }
 
     if (target.matches('.song-choice')) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      send('guess', { choiceIndex: Number(target.dataset.choiceIndex) });
+      send('guess', { choiceIndex: Number(target.dataset.choiceIndex), stage: state.localStage });
       return;
     }
 
