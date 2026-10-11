@@ -73,10 +73,16 @@
   }
 
   function setRoomCode(code) {
+    const roomCode = String(code || '').trim();
     const label = $('.room-code');
-    if (label) label.textContent = code;
+    if (label) label.textContent = roomCode || '-------';
+    const copyButton = $('.copy-code-button');
+    if (copyButton) {
+      copyButton.disabled = !roomCode;
+      copyButton.title = roomCode ? 'Copy room code' : 'Create the room to get an invite code';
+    }
     const input = $('#join-code');
-    if (input) input.placeholder = code;
+    if (input && roomCode) input.placeholder = roomCode;
   }
 
   function openSetup(name) {
@@ -87,6 +93,8 @@
       hostName.value = name;
       hostName.dispatchEvent(new Event('input', { bubbles: true }));
     }
+    const launch = $('.launch-button');
+    if (launch) launch.innerHTML = state.session?.host ? 'Start the room <span>→</span>' : 'Create room <span>→</span>';
     if (nameGate) nameGate.hidden = true;
     modal.hidden = false;
     modal.classList.add('page-view');
@@ -120,10 +128,13 @@
 
   async function finishRoomCreation(name, settings) {
     const result = await api('/api/rooms', settings);
-    sessionStore.set({ code: result.code, playerId: result.playerId, token: result.token, host: true, mode: settings.mode || null });
+    const code = result.code || result.room?.code;
+    if (!code) throw new Error('The room was created, but no invite code was returned. Try again.');
+    sessionStore.set({ code, playerId: result.playerId, token: result.token, host: true, mode: settings.mode || null });
     sessionStorage.removeItem(PENDING_ROOM_KEY);
-    setRoomCode(result.code);
+    setRoomCode(code);
     openSetup(name);
+    showNotice('Room created. Copy the code to invite players.');
     connect();
   }
 
@@ -733,7 +744,7 @@
       event.preventDefault();
       event.stopImmediatePropagation();
       if (!state.session && window.getSelectedGameMode?.() === 'Quickfire') {
-        const name = $('.host-name-input')?.value.trim() || localStorage.getItem('sonora-profile-name') || '';
+        const name = $('.host-name-input')?.value.trim() || '';
         if (!name) {
           state.pendingHost = true;
           $('.name-gate').hidden = false;
@@ -741,7 +752,8 @@
           $('.name-gate-input').focus();
           return;
         }
-        try { await createRoom(name); } catch (error) { showNotice(error.message, true); }
+        try { await finishRoomCreation(name, currentSettings(name)); }
+        catch (error) { showNotice(error.message, true); }
         return;
       }
       await startGame();
@@ -836,7 +848,13 @@
     try { pendingRoom = JSON.parse(sessionStorage.getItem(PENDING_ROOM_KEY) || 'null'); } catch {}
     if (new URLSearchParams(location.search).get('setup') === '1') {
       window.selectSetupGenre?.('Everything');
-      openSetup(localStorage.getItem('sonora-profile-name') || '');
+      setRoomCode('');
+      const savedRoom = getRoomState();
+      savedRoom.hostName = '';
+      if (savedRoom.players?.[0]) savedRoom.players[0].name = '';
+      saveRoomState(savedRoom);
+      openSetup('');
+      showNotice('Create the room to generate an invite code.');
     } else if (!pendingRoom?.name || !pendingRoom?.settings) {
       location.replace('index.html');
     } else {
