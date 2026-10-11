@@ -19,6 +19,9 @@
     audioFrame: 0,
     audioTimeout: 0,
     prepareRequest: 0,
+    timerKey: '',
+    scoreboardKey: '',
+    configureTimer: 0,
   };
 
   const $ = (selector) => document.querySelector(selector);
@@ -70,7 +73,7 @@
 
   function setRoomCode(code) {
     const label = $('.room-code');
-    if (label) label.textContent = `Room code: ${code}`;
+    if (label) label.textContent = code;
     const input = $('#join-code');
     if (input) input.placeholder = code;
   }
@@ -97,6 +100,8 @@
       name,
       maxPlayers: Number.parseInt(playersLabel, 10) || DEFAULT_MAX_PLAYERS,
       genre,
+      difficulty: $('.difficulty-option.selected')?.dataset.difficulty || saved.difficulty || 'medium',
+      choiceCount: Number.parseInt($('.choice-stepper strong')?.textContent, 10) || saved.choiceCount || 4,
       durationSeconds: Number.parseInt($('.duration-stepper strong')?.textContent, 10) || Number.parseInt(saved.time, 10) || 30,
     };
   }
@@ -116,8 +121,8 @@
   }
 
   async function joinRoom(name, code) {
-    const cleanCode = code.trim().toUpperCase().replace(/^SONORA[\s-]*/, '').replace(/[\s-]/g, '');
-    if (!/^[A-HJ-NP-Z2-9]{6,7}$/.test(cleanCode)) throw new Error('Enter the full room code.');
+    const cleanCode = code.trim().replace(/\D/g, '').slice(0, 7);
+    if (!/^\d{7}$/.test(cleanCode)) throw new Error('Enter the full 7 digit room code.');
     const result = await api(`/api/rooms/${encodeURIComponent(cleanCode)}/join`, { name });
     sessionStore.set({ code: result.code, playerId: result.playerId, token: result.token, host: false });
     state.room = result.room;
@@ -181,17 +186,21 @@
     const roomLabel = $('.joined-room-heading .eyebrow');
     if (roomLabel) roomLabel.textContent = 'Cloudflare room';
     const hostSettings = $$('.host-settings strong');
-    if (hostSettings.length >= 4) {
+    if (hostSettings.length >= 6) {
       hostSettings[0].textContent = 'Classic';
       hostSettings[1].textContent = `${room.maxPlayers} max`;
       hostSettings[2].textContent = room.genre;
       hostSettings[3].textContent = `${room.durationSeconds || 30} sec`;
+      hostSettings[4].textContent = (room.difficulty || 'medium').replace(/^./, (letter) => letter.toUpperCase());
+      hostSettings[5].textContent = `${room.choiceCount || 4} choices`;
     }
     if (state.session?.host) {
       const playerStepper = $('.player-stepper strong');
       if (playerStepper) playerStepper.textContent = `${room.maxPlayers} players`;
       const durationStepper = $('.duration-stepper strong');
       if (durationStepper) durationStepper.textContent = `${room.durationSeconds || 30} seconds`;
+      const choiceStepper = $('.choice-stepper strong');
+      if (choiceStepper) choiceStepper.textContent = `${room.choiceCount || 4} choices`;
     }
     const listMarkup = players.map((player, index) => `<div class="joined-player"><span class="joined-avatar ${index === 0 ? 'avatar-yellow' : 'avatar-blue'}">${escapeHtml(player.name.slice(0, 2).toUpperCase())}</span><span><strong>${escapeHtml(player.name)}</strong><small>${index === 0 ? 'Host' : 'Joined'}${player.connected ? '' : ' · reconnecting'}</small></span><i>${index === 0 ? '★' : '✓'}</i></div>`).join('');
     const free = Math.max(0, room.maxPlayers - players.length);
@@ -212,39 +221,52 @@
     if (state.session?.host && room.phase === 'lobby') {
       const settings = currentSettings($('.host-name-input')?.value.trim());
       const host = players.find((player) => player.id === state.session.playerId);
-      if (host && (settings.name !== host.name || settings.maxPlayers !== room.maxPlayers || settings.genre !== room.genre || settings.durationSeconds !== room.durationSeconds)) send('configure', settings);
+      if (host && (settings.name !== host.name || settings.maxPlayers !== room.maxPlayers || settings.genre !== room.genre || settings.difficulty !== (room.difficulty || 'medium') || settings.choiceCount !== (room.choiceCount || 4) || settings.durationSeconds !== room.durationSeconds)) send('configure', settings);
     }
   }
 
   function updateScoreboard(room) {
     const list = $('.score-list');
     if (!list) return;
-    list.innerHTML = [...(room.players || [])]
-      .sort((a, b) => b.score - a.score)
+    const players = [...(room.players || [])]
+      .sort((a, b) => b.score - a.score);
+    const key = players.map((player) => `${player.id}:${player.name}:${player.score}`).join('|');
+    if (key === state.scoreboardKey) return;
+    state.scoreboardKey = key;
+    list.innerHTML = players
       .map((player, index) => `<div class="score-row"><span>0${index + 1}</span><strong>${escapeHtml(player.name)}</strong><b>${player.score}</b></div>`)
       .join('');
   }
 
-  function updateRoundTimer(room) {
-    clearInterval(state.timer);
-    const clock = $('.round-clock strong');
+  function updateTimer(deadline, selector, key) {
+    if (state.timerKey === key) return;
+    clearRoomTimer();
+    state.timerKey = key;
+    const clock = $(selector);
+    let lastRemaining = -1;
     const update = () => {
-      const remaining = Math.max(0, Math.ceil((room.roundEndsAt - (Date.now() + state.serverOffset)) / 1000));
-      if (clock) clock.textContent = String(remaining);
+      const remaining = Math.max(0, Math.ceil((deadline - (Date.now() + state.serverOffset)) / 1000));
+      if (clock && remaining !== lastRemaining) {
+        clock.textContent = String(remaining);
+        lastRemaining = remaining;
+      }
     };
     update();
-    state.timer = setInterval(update, 150);
+    state.timer = setInterval(update, 500);
+  }
+
+  function updateRoundTimer(room) {
+    updateTimer(room.roundEndsAt, '.round-clock strong', `round:${room.roundNumber}:${room.roundEndsAt}`);
   }
 
   function updateBreakTimer(room) {
+    updateTimer(room.breakEndsAt, '.result-countdown b', `break:${room.roundNumber}:${room.breakEndsAt}`);
+  }
+
+  function clearRoomTimer() {
     clearInterval(state.timer);
-    const count = $('.result-countdown b');
-    const update = () => {
-      const remaining = Math.max(0, Math.ceil((room.breakEndsAt - (Date.now() + state.serverOffset)) / 1000));
-      if (count) count.textContent = String(remaining);
-    };
-    update();
-    state.timer = setInterval(update, 150);
+    state.timer = 0;
+    state.timerKey = '';
   }
 
   function stopSyncedAudio() {
@@ -326,25 +348,28 @@
     $$('.track-marks span').forEach((mark, index) => mark.classList.toggle('active', index <= stage));
     $('.game-skip').disabled = stage >= 4;
     const choicesContainer = $('.song-choices');
-    if (Number(choicesContainer.dataset.roundNumber || 0) !== number || Number(choicesContainer.dataset.stage || -1) !== stage) {
+    if (Number(choicesContainer.dataset.stage || -1) !== stage) {
       choicesContainer.dataset.stage = String(stage);
       $('.track-line i').style.width = `${[0, 8, 20, 46, 74, 100][stage]}%`;
     }
     if (room.currentRound) {
+      window.updateDifficultyMeter?.(room.currentRound.difficulty || 'medium');
       activeRoundSong = [null, '', room.currentRound.artwork || '', room.currentRound.previewUrl || ''];
       const mine = room.players.find((player) => player.id === state.session?.playerId);
       const choices = room.currentRound.choices || [];
       const container = choicesContainer;
       const wasRound = Number(container.dataset.roundNumber || 0);
       const isNewRound = wasRound !== number;
+      const renderChoices = container.dataset.renderedRound !== String(number);
+      if (renderChoices) container.dataset.renderedRound = String(number);
       if (isNewRound) {
         container.dataset.roundNumber = String(number);
         container.classList.remove('locked', 'wrong-locked');
         $('.track-line i').style.width = '0%';
         $('.round-feedback').textContent = 'Choose quickly for the highest score.';
       }
-      container.innerHTML = choices.map((choice, index) => `<button class="song-choice" data-choice-index="${index}" type="button"><span class="cover-art cover-${(number + index) % 4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeHtml(choice.title)}</strong></span><i>${String.fromCharCode(65 + index)}</i></button>`).join('');
-      choices.forEach((choice, index) => {
+      if (renderChoices) container.innerHTML = choices.map((choice, index) => `<button class="song-choice" data-choice-index="${index}" type="button"><span class="cover-art cover-${(number + index) % 4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeHtml(choice.title)}</strong></span><i>${String.fromCharCode(65 + index)}</i></button>`).join('');
+      if (renderChoices) choices.forEach((choice, index) => {
         const cover = container.querySelector(`[data-choice-index="${index}"] .cover-art`);
       if (cover && choice.artwork) {
         cover.style.backgroundImage = `url("${choice.artwork.replaceAll('"', '')}")`;
@@ -372,7 +397,7 @@
   function renderRoundEnd(room) {
     if (!room) return;
     renderGame(room);
-    clearInterval(state.timer);
+    clearRoomTimer();
     stopSyncedAudio();
     const answer = room.revealedSong;
     if (answer) {
@@ -389,7 +414,7 @@
   }
 
   function renderWinner(room) {
-    clearInterval(state.timer);
+    clearRoomTimer();
     stopSyncedAudio();
     enterGame();
     const winner = [...(room.players || [])].sort((a, b) => b.score - a.score)[0];
@@ -457,11 +482,15 @@
     showNotice('Loading the song catalog…');
     activeCatalog = await loadGenreCatalog(room.genre || 'Everything');
     if (!Array.isArray(activeCatalog) || activeCatalog.length < 4) activeCatalog = roundSongs;
+    const desiredDifficulty = room.difficulty || 'medium';
     const candidates = [...activeCatalog, ...roundSongs]
       .filter((song, index, list) => list.findIndex((item) => item[0] === song[0] && item[1] === song[1]) === index)
+      .filter((song) => window.getSongDifficulty?.(song) === desiredDifficulty)
       .sort(() => Math.random() - 0.5);
+    const choiceCount = Math.max(4, Math.min(8, Number(room.choiceCount) || 4));
+    const neededSongs = ROUND_COUNT * choiceCount;
     const playable = [];
-    for (let offset = 0; offset < candidates.length && playable.length < ROUND_COUNT * 4; offset += 8) {
+    for (let offset = 0; offset < candidates.length && playable.length < neededSongs; offset += 8) {
       if (request !== state.prepareRequest) throw new Error('Song preparation was cancelled.');
       const batch = candidates.slice(offset, offset + 8);
       const results = await Promise.all(batch.map(async (song) => ({ song, asset: await loadSongAsset(song) })));
@@ -472,17 +501,17 @@
         }
         song[3] = song[3] || asset.previewUrl;
         playable.push({ song, asset });
-        if (playable.length >= ROUND_COUNT * 4) break;
+        if (playable.length >= neededSongs) break;
       }
-      showNotice(`Preparing songs · found ${Math.min(playable.length, ROUND_COUNT * 4)} of ${ROUND_COUNT * 4}`);
+      showNotice(`Preparing songs · found ${Math.min(playable.length, neededSongs)} of ${neededSongs}`);
     }
-    if (playable.length < ROUND_COUNT * 4) {
-      throw new Error(`Found only ${playable.length} playable songs. Check your connection and try again.`);
+    if (playable.length < neededSongs) {
+      throw new Error(`Found only ${playable.length} playable ${desiredDifficulty} songs. Try another difficulty or check your connection.`);
     }
     const rounds = [];
     for (let index = 0; index < ROUND_COUNT; index += 1) {
       if (request !== state.prepareRequest) throw new Error('Song preparation was cancelled.');
-      const entries = playable.slice(index * 4, index * 4 + 4);
+      const entries = playable.slice(index * choiceCount, index * choiceCount + choiceCount);
       const choices = entries.map(({ song }) => song);
       const choiceRecords = [];
       for (const [choiceIndex, song] of choices.entries()) {
@@ -490,15 +519,16 @@
         const record = { title: song[0], artwork: asset.artworkUrl100 || song[2] || '' };
         choiceRecords.push(record);
       }
-      const song = choices[0];
-      const asset = entries[0].asset;
+      const answerIndex = Math.floor(Math.random() * choices.length);
+      const song = choices[answerIndex];
+      const asset = entries[answerIndex].asset;
       const answer = {
         title: song[0],
         artist: song[1],
         artwork: asset.artworkUrl100 || song[2] || '',
         previewUrl: song[3] || asset.previewUrl,
       };
-      rounds.push({ choices: choiceRecords, answerIndex: 0, answer });
+      rounds.push({ choices: choiceRecords, answerIndex, answer, difficulty: window.getSongDifficulty?.(song, asset) || 'medium' });
     }
     return rounds;
   }
@@ -526,9 +556,11 @@
 
   function configureFromForm() {
     if (!state.session?.host || state.room?.phase !== 'lobby') return;
-    const name = $('.host-name-input')?.value.trim();
-    const settings = currentSettings(name);
-    send('configure', settings);
+    clearTimeout(state.configureTimer);
+    state.configureTimer = setTimeout(() => {
+      const name = $('.host-name-input')?.value.trim();
+      send('configure', currentSettings(name));
+    }, 180);
   }
 
   function showJoinPage() {
@@ -542,7 +574,7 @@
     if (state.session && state.socket?.readyState === WebSocket.OPEN) send('leave');
     state.manuallyClosed = true;
     clearInterval(state.heartbeat);
-    clearInterval(state.timer);
+    clearRoomTimer();
     clearTimeout(state.connectTimer);
     stopSyncedAudio();
     state.socket?.close();
@@ -617,13 +649,24 @@
       return;
     }
 
-    if (target.matches('.copy-button')) {
+    if (target.matches('.copy-code-button')) {
       event.preventDefault();
       event.stopImmediatePropagation();
       if (!state.session?.code) return showNotice('Create a room first.', true);
       const code = state.session.code;
       try { await navigator.clipboard.writeText(code); showNotice('Room code copied.'); }
       catch { showNotice(`Room code: ${code}`); }
+      return;
+    }
+
+    if (target.matches('.copy-button')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (!state.session?.code) return showNotice('Create a room first.', true);
+      const link = new URL('index.html', location.href);
+      link.searchParams.set('join', state.session.code);
+      try { await navigator.clipboard.writeText(link.href); showNotice('Room link copied. Opening it lets your friends enter their name and join.'); }
+      catch { showNotice(`Copy this room link: ${link.href}`, true); }
       return;
     }
 
@@ -690,9 +733,20 @@
   });
 
   document.addEventListener('click', (event) => {
-    if (event.target.closest('.genre-option') || event.target.closest('.stepper-arrow')) configureFromForm();
+    if (event.target.closest('.genre-option') || event.target.closest('.stepper-arrow') || event.target.closest('.difficulty-option')) configureFromForm();
   });
 
+  const inviteCode = new URLSearchParams(location.search).get('join');
+  if (inviteCode) {
+    sessionStore.clear();
+    $('#join-code').value = inviteCode.replace(/\D/g, '').slice(0, 7);
+    history.replaceState(null, '', `${location.pathname}${location.hash}`);
+    showJoinPage();
+    if (!/^\d{7}$/.test($('#join-code').value)) {
+      $('.join-status').textContent = 'This room link is invalid. Ask the host for a new link.';
+      $('.join-status').className = 'join-status error';
+    }
+  }
   state.session = sessionStore.get();
   if (state.session) {
     setRoomCode(state.session.code);
@@ -706,7 +760,7 @@
       document.body.style.overflow = 'hidden';
     }
     connect();
-  } else if (document.body.dataset.roomPage === 'true') {
+  } else if (!inviteCode && document.body.dataset.roomPage === 'true') {
     let pendingRoom = null;
     try { pendingRoom = JSON.parse(sessionStorage.getItem(PENDING_ROOM_KEY) || 'null'); } catch {}
     if (!pendingRoom?.name || !pendingRoom?.settings) {

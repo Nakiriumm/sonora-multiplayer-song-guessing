@@ -7,6 +7,7 @@ const ROUND_COUNT = 10;
 const STAGES = [0.1, 0.5, 2, 8, 15];
 const STAGE_STARTS = [0, ...STAGES.slice(0, -1)];
 const ROUND_POINTS = [100, 80, 60, 35, 20];
+const PLAYBACK_SYNC_DELAY_MS = 350;
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -23,8 +24,8 @@ function validName(value) {
 }
 
 function cleanRound(round) {
-  if (!round || !Array.isArray(round.choices) || round.choices.length !== 4) return null;
-  if (!Number.isInteger(round.answerIndex) || round.answerIndex < 0 || round.answerIndex > 3) return null;
+  if (!round || !Array.isArray(round.choices) || round.choices.length < 4 || round.choices.length > 8) return null;
+  if (!Number.isInteger(round.answerIndex) || round.answerIndex < 0 || round.answerIndex >= round.choices.length) return null;
   const safeArtwork = (value) => {
     const candidate = String(value || '');
     try { return new URL(candidate).hostname.endsWith('.mzstatic.com') ? candidate.slice(0, 1000) : ''; } catch { return ''; }
@@ -43,6 +44,7 @@ function cleanRound(round) {
   return {
     choices,
     answerIndex: round.answerIndex,
+    difficulty: ['easy', 'medium', 'hard', 'extreme'].includes(round.difficulty) ? round.difficulty : 'medium',
     answer: {
       title: String(answer.title).slice(0, 160),
       artist: String(answer.artist).slice(0, 160),
@@ -65,7 +67,7 @@ export default {
       return stub.fetch('https://room.internal/create', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ code, name: body.name.trim(), maxPlayers: body.maxPlayers, genre: body.genre, durationSeconds: body.durationSeconds }),
+        body: JSON.stringify({ code, name: body.name.trim(), maxPlayers: body.maxPlayers, genre: body.genre, difficulty: body.difficulty, choiceCount: body.choiceCount, durationSeconds: body.durationSeconds }),
       });
     }
 
@@ -119,6 +121,8 @@ export class GameRoom extends DurableObject {
       hostId: room.hostId,
       maxPlayers: room.maxPlayers,
       genre: room.genre,
+      difficulty: ['easy', 'medium', 'hard', 'extreme'].includes(room.difficulty) ? room.difficulty : 'medium',
+      choiceCount: Math.max(4, Math.min(8, Number(room.choiceCount) || 4)),
       durationSeconds: room.durationSeconds || DEFAULT_ROUND_SECONDS,
       phase: room.phase,
       players: room.players.map(({ id, name, score, connected, status, continueReady }) => ({ id, name, score, connected, status, continueReady })),
@@ -133,6 +137,7 @@ export class GameRoom extends DurableObject {
             choices: room.rounds[room.roundIndex]?.choices || [],
             previewUrl: room.rounds[room.roundIndex]?.answer.previewUrl || '',
             artwork: room.rounds[room.roundIndex]?.answer.artwork || '',
+            difficulty: room.rounds[room.roundIndex]?.difficulty || 'medium',
           }
         : null,
       revealedSong: room.phase === 'break' || room.phase === 'finished' ? room.revealedSong : null,
@@ -168,6 +173,8 @@ export class GameRoom extends DurableObject {
         hostId,
         maxPlayers: Math.max(2, Math.min(20, Number(body.maxPlayers) || 8)),
         genre: String(body.genre || 'Everything').slice(0, 60),
+        difficulty: ['easy', 'medium', 'hard', 'extreme'].includes(body.difficulty) ? body.difficulty : 'medium',
+        choiceCount: Math.max(4, Math.min(8, Number(body.choiceCount) || 4)),
         durationSeconds: [30, 45, 60].includes(Number(body.durationSeconds)) ? Number(body.durationSeconds) : DEFAULT_ROUND_SECONDS,
         phase: 'lobby',
         players: [{ id: hostId, token, name: body.name, score: 0, connected: false, status: 'playing', continueReady: false }],
@@ -264,13 +271,22 @@ export class GameRoom extends DurableObject {
     }
 
     if (action.type === 'configure' && room.phase === 'lobby' && player.id === room.hostId) {
-      if (validName(action.name)) {
-        player.name = action.name.trim();
-        room.players[0].name = player.name;
-      }
-      if (Number.isFinite(Number(action.maxPlayers))) room.maxPlayers = Math.max(room.players.length, Math.min(20, Math.max(2, Number(action.maxPlayers))));
-      if (typeof action.genre === 'string') room.genre = action.genre.slice(0, 60);
-      if ([30, 45, 60].includes(Number(action.durationSeconds))) room.durationSeconds = Number(action.durationSeconds);
+      const name = validName(action.name) ? action.name.trim() : player.name;
+      const maxPlayers = Number.isFinite(Number(action.maxPlayers))
+        ? Math.max(room.players.length, Math.min(20, Math.max(2, Number(action.maxPlayers))))
+        : room.maxPlayers;
+      const genre = typeof action.genre === 'string' ? action.genre.slice(0, 60) : room.genre;
+      const difficulty = ['easy', 'medium', 'hard', 'extreme'].includes(action.difficulty) ? action.difficulty : (room.difficulty || 'medium');
+      const choiceCount = Math.max(4, Math.min(8, Number(action.choiceCount) || Number(room.choiceCount) || 4));
+      const durationSeconds = [30, 45, 60].includes(Number(action.durationSeconds)) ? Number(action.durationSeconds) : room.durationSeconds;
+      if (name === player.name && maxPlayers === room.maxPlayers && genre === room.genre && difficulty === (room.difficulty || 'medium') && choiceCount === (room.choiceCount || 4) && durationSeconds === room.durationSeconds) return;
+      player.name = name;
+      room.players[0].name = name;
+      room.maxPlayers = maxPlayers;
+      room.genre = genre;
+      room.difficulty = difficulty;
+      room.choiceCount = choiceCount;
+      room.durationSeconds = durationSeconds;
       await this.save();
       this.broadcast({ type: 'lobby' });
       return;
@@ -297,7 +313,7 @@ export class GameRoom extends DurableObject {
 
     if (action.type === 'skip' && room.phase === 'game' && room.stage < 4 && player.status === 'playing') {
       room.stage += 1;
-      const playAt = Date.now() + 900;
+      const playAt = Date.now() + PLAYBACK_SYNC_DELAY_MS;
       room.playback = { playing: true, playAt, offset: STAGE_STARTS[room.stage], endsAt: playAt + (STAGES[room.stage] - STAGE_STARTS[room.stage]) * 1000 };
       await this.scheduleGameAlarm(room);
       await this.save();
@@ -307,7 +323,7 @@ export class GameRoom extends DurableObject {
 
     if (action.type === 'playback' && room.phase === 'game' && player.status === 'playing') {
       if (action.playing) {
-        const playAt = Date.now() + 900;
+        const playAt = Date.now() + PLAYBACK_SYNC_DELAY_MS;
         room.playback = { playing: true, playAt, offset: STAGE_STARTS[room.stage], endsAt: playAt + (STAGES[room.stage] - STAGE_STARTS[room.stage]) * 1000 };
         await this.scheduleGameAlarm(room);
       } else {
