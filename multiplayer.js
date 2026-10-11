@@ -595,6 +595,14 @@
     }
     switch (message.type) {
       case 'lobby':
+        if (state.winnerShown && !state.session?.host) {
+          state.winnerShown = false;
+          $('.winner-backdrop').hidden = true;
+          $('.round-result-backdrop').hidden = true;
+          $('.game-view').hidden = true;
+          showJoinPage();
+          $('.joined-room-panel').hidden = false;
+        }
         renderLobby(room);
         break;
       case 'game':
@@ -749,6 +757,7 @@
   function returnToLobby() {
     clearRoomTimer();
     stopSyncedAudio();
+    if (state.session?.host && state.room?.phase === 'finished') send('return-lobby');
     $('.winner-backdrop').hidden = true;
     $('.round-result-backdrop').hidden = true;
     $('.game-view').hidden = true;

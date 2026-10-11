@@ -306,6 +306,28 @@ export class GameRoom extends DurableObject {
       return;
     }
 
+    if (action.type === 'return-lobby' && room.phase === 'finished' && player.id === room.hostId) {
+      room.phase = 'lobby';
+      room.winner = null;
+      room.rounds = [];
+      room.roundIndex = -1;
+      room.stage = 0;
+      room.roundStartedAt = 0;
+      room.roundEndsAt = 0;
+      room.breakEndsAt = 0;
+      room.revealedSong = null;
+      room.playback = { playing: false, playAt: 0, offset: 0, endsAt: 0 };
+      room.players.forEach((item) => {
+        item.score = 0;
+        item.status = 'playing';
+        item.continueReady = false;
+      });
+      await this.save();
+      await this.ctx.storage.setAlarm(room.createdAt + 24 * 60 * 60 * 1000);
+      this.broadcast({ type: 'lobby' });
+      return;
+    }
+
     if (action.type === 'start' && room.phase === 'lobby' && player.id === room.hostId) {
       if (!Array.isArray(action.rounds) || action.rounds.length !== ROUND_COUNT) {
         this.send(ws, { type: 'error', error: 'The host needs to prepare ten playable rounds before starting.' });
