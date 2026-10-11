@@ -108,7 +108,7 @@ const genreArtistSeeds={
   'Thai songs':['Bodyslam','Palmy','Bird Thongchai McIntyre','Slot Machine','Getsunova','Lula','Da Endorphine','Lipta','Three Man Down','Tilly Birds','Only Monday','Ink Waruntorn','Polycat','Scrubb','Potato','Big Ass','Labanoon','Cocktail','Pang Nakarin','Klear','Joey Phuwasit','Jeff Satur','Nont Tanont','Bowkylion'],
   'J-Pop':['YOASOBI','Ado','Official HIGE DANdism','Mrs. GREEN APPLE','King Gnu','Kenshi Yonezu','LiSA','Aimyon','Hikaru Utada','AKB48','Perfume','Arashi','Snow Man','back number','Vaundy','Eve','Aimer','RADWIMPS','BUMP OF CHICKEN','Sakanaction','Yorushika','Sukima Switch','Nogizaka46','ONE OK ROCK']
 };
-const GENRE_CATALOG_SIZE=300;
+const GENRE_CATALOG_SIZE=1000;
 const genreCatalogCache=new Map();
 const everythingGenreCatalogs=new Map();
 let activeCatalog=roundSongs;
@@ -119,8 +119,8 @@ async function loadSingleGenreCatalog(genre) {
   if (!artists) return roundSongs;
   if (genreCatalogCache.has(genre)) return genreCatalogCache.get(genre);
 
-  const storageKey = 'sonora-song-catalog-v2-' + genre;
-  const previousStorageKey = 'sonora-song-catalog-v1-' + genre;
+  const storageKey = 'sonora-song-catalog-v3-' + genre;
+  const previousStorageKeys = ['sonora-song-catalog-v2-' + genre, 'sonora-song-catalog-v1-' + genre];
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
     if (Array.isArray(saved) && saved.length >= GENRE_CATALOG_SIZE) {
@@ -152,15 +152,17 @@ async function loadSingleGenreCatalog(genre) {
     catalog.push(song);
   };
 
-  try {
-    const previous = JSON.parse(localStorage.getItem(previousStorageKey) || 'null');
-    if (Array.isArray(previous)) {
-      for (const [catalogIndex, song] of previous.entries()) {
-        if (Array.isArray(song) && !song[5]) song[5] = catalogIndex % 50 + 1;
-        addSong(song);
+  for (const previousStorageKey of previousStorageKeys) {
+    try {
+      const previous = JSON.parse(localStorage.getItem(previousStorageKey) || 'null');
+      if (Array.isArray(previous)) {
+        for (const [catalogIndex, song] of previous.entries()) {
+          if (Array.isArray(song) && !song[5]) song[5] = catalogIndex % 50 + 1;
+          addSong(song);
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
 
   for (let offset = 0; offset < artists.length && catalog.length < GENRE_CATALOG_SIZE; offset += 8) {
     const batch = artists.slice(offset, offset + 8);
@@ -280,7 +282,7 @@ function continueKey(){return `sonora-continue-${roundNo}`;}
 function continueNames(){try{return JSON.parse(localStorage.getItem(continueKey())||'[]');}catch{return [];}}
 function updateContinueStatus(button){const ready=continueNames();button.textContent=`Continue (${ready.length}/${roundPlayers.length})`;if(ready.length>=roundPlayers.length){clearInterval(breakTick);nextRound();}}
 window.addEventListener('storage',event=>{if(event.key===continueKey()){const button=roundResult.querySelector('.continue-round');if(button)updateContinueStatus(button);}});
-async function nextRound(){clearInterval(roundTick);clearInterval(attemptTick);clearInterval(breakTick);playRequest++;pauseCurrentPlayback();roundResult.hidden=true;if(gameAudio){gameAudio.pause();gameAudio=null;}if(roundNo>=10){const winner=[...roundPlayers].sort((a,b)=>b.score-a.score)[0]||{name:'You',score:0};winnerResult.querySelector('#winner-title').textContent=`${winner.name} wins!`;winnerResult.querySelector('.winner-score').textContent=`Final score · ${winner.score} points`;winnerResult.hidden=false;sprayNoteConfetti({winner:true});return;}roundNo++;const loadingRound=roundNo;localStorage.removeItem(continueKey());stageNo=0;elapsed=0;roundLeft=[30,45,60].includes(Number.parseInt(getRoomState().time,10))?Number.parseInt(getRoomState().time,10):30;gameView.querySelector('.round-feedback').textContent='Finding songs with playable previews…';const choices=await pickPlayableChoices();if(loadingRound!==roundNo)return;if(!choices.length){gameView.querySelector('.round-feedback').textContent='No playable preview songs are available. Check your connection and try again.';return;}const answerIndex=Math.floor(Math.random()*choices.length);const song=choices[answerIndex];activeRoundSong=song;updateDifficultyMeter(getSongDifficulty(song));gameView.dataset.answer=song[0];gameView.querySelector('.game-round').textContent=roundNo;gameView.querySelector('.round-clock strong').textContent=roundLeft;gameView.querySelector('.attempt-clock').textContent='';gameView.querySelector('.vinyl-stage p').textContent=`ROUND GENRE - ${activeRoundGenre.toUpperCase()}`;gameView.querySelector('.round-feedback').textContent='Choose quickly for the highest score.';gameView.querySelector('.track-line i').style.width='0';gameView.querySelector('.game-skip').disabled=false;gameView.querySelectorAll('.track-marks span').forEach((m,i)=>m.classList.toggle('active',i===0));gameView.querySelector('.song-choices').classList.remove('locked','wrong-locked');gameView.querySelector('.guess-status').textContent=`${choices.length} choices`;gameView.querySelector('.song-choices').innerHTML=choices.map((s,i)=>`<button class="song-choice" data-artist="${escapeRoomText(s[1])}" data-correct="${s===song}" type="button"><span class="cover-art cover-${(roundNo+i)%4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeRoomText(s[0])}</strong></span><i>${String.fromCharCode(65+i)}</i></button>`).join('');scoreBoard();roundTick=setInterval(()=>{roundLeft--;gameView.querySelector('.round-clock strong').textContent=roundLeft;if(roundLeft<=0)endRound(`Time is up. It was ${song[0]}.`);},1000);attemptTick=setInterval(()=>{if(!gameView.querySelector('.song-choices').classList.contains('locked'))elapsed++;gameView.querySelector('.attempt-clock').textContent=`00:${String(elapsed).padStart(2,'0')}`;},1000);}
+async function nextRound(){clearInterval(roundTick);clearInterval(attemptTick);clearInterval(breakTick);playRequest++;pauseCurrentPlayback();roundResult.hidden=true;if(gameAudio){gameAudio.pause();gameAudio=null;}if(roundNo>=10){const winner=[...roundPlayers].sort((a,b)=>b.score-a.score)[0]||{name:'You',score:0};winnerResult.querySelector('#winner-title').textContent=`${winner.name} wins!`;winnerResult.querySelector('.winner-score').textContent=`Final score · ${winner.score} points`;winnerResult.hidden=false;sprayNoteConfetti({winner:true});return;}roundNo++;const loadingRound=roundNo;localStorage.removeItem(continueKey());stageNo=0;elapsed=0;roundLeft=[30,45,60].includes(Number.parseInt(getRoomState().time,10))?Number.parseInt(getRoomState().time,10):30;gameView.querySelector('.round-clock').classList.remove('is-urgent');gameView.querySelector('.round-feedback').textContent='Finding songs with playable previews…';const choices=await pickPlayableChoices();if(loadingRound!==roundNo)return;if(!choices.length){gameView.querySelector('.round-feedback').textContent='No playable preview songs are available. Check your connection and try again.';return;}const answerIndex=Math.floor(Math.random()*choices.length);const song=choices[answerIndex];activeRoundSong=song;updateDifficultyMeter(getSongDifficulty(song));gameView.dataset.answer=song[0];gameView.querySelector('.game-round').textContent=roundNo;gameView.querySelector('.round-clock strong').textContent=roundLeft;gameView.querySelector('.attempt-clock').textContent='';gameView.querySelector('.vinyl-stage p').textContent=`ROUND GENRE - ${activeRoundGenre.toUpperCase()}`;gameView.querySelector('.round-feedback').textContent='Choose quickly for the highest score.';gameView.querySelector('.track-line i').style.width='0';gameView.querySelector('.game-skip').disabled=false;gameView.querySelectorAll('.track-marks span').forEach((m,i)=>m.classList.toggle('active',i===0));gameView.querySelector('.song-choices').classList.remove('locked','wrong-locked');gameView.querySelector('.guess-status').textContent=`${choices.length} choices`;gameView.querySelector('.song-choices').innerHTML=choices.map((s,i)=>`<button class="song-choice" data-artist="${escapeRoomText(s[1])}" data-correct="${s===song}" type="button"><span class="cover-art cover-${(roundNo+i)%4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeRoomText(s[0])}</strong></span><i>${String.fromCharCode(65+i)}</i></button>`).join('');scoreBoard();roundTick=setInterval(()=>{roundLeft--;gameView.querySelector('.round-clock strong').textContent=roundLeft;gameView.querySelector('.round-clock').classList.toggle('is-urgent',roundLeft<=5);if(roundLeft<=0)endRound(`Time is up. It was ${song[0]}.`);},1000);attemptTick=setInterval(()=>{if(!gameView.querySelector('.song-choices').classList.contains('locked'))elapsed++;gameView.querySelector('.attempt-clock').textContent=`00:${String(elapsed).padStart(2,'0')}`;},1000);}
 function endRound(message){clearInterval(roundTick);clearInterval(attemptTick);playRequest++;pauseCurrentPlayback();if(gameAudio){gameAudio.pause();gameAudio=null;}const feedback=gameView.querySelector('.round-feedback');let seconds=5;const song=activeRoundSong;roundResult.querySelector('.result-vinyl').style.setProperty('--result-cover',`var(--cover-${(roundNo-1)%4})`);roundResult.querySelector('.result-vinyl').className=`result-vinyl cover-${(roundNo-1)%4}`;roundResult.querySelector('#round-result-title').textContent=song[0];roundResult.querySelector('.result-artist').textContent=song[1];roundResult.querySelector('.continue-round').textContent=`Continue (0/${roundPlayers.length})`;roundResult.querySelector('.result-countdown b').textContent=seconds;roundResult.hidden=false;feedback.textContent=message;gameView.querySelectorAll('.song-choice').forEach(b=>b.disabled=true);const continueButton=roundResult.querySelector('.continue-round');continueButton.onclick=()=>{const room=getRoomState();const playerName=localStorage.getItem(profileNameKey)||room.players[0]?.name||roundPlayers[0].name;const ready=continueNames();if(!ready.includes(playerName)){ready.push(playerName);localStorage.setItem(continueKey(),JSON.stringify(ready));}updateContinueStatus(continueButton);};breakTick=setInterval(()=>{seconds--;const count=roundResult.querySelector('.result-countdown b');if(count)count.textContent=seconds;if(seconds<=0){clearInterval(breakTick);nextRound();}},1000);}
 function setPlayButton(playing){const button=gameView.querySelector('.game-play');button.classList.toggle('is-playing',playing);button.setAttribute('aria-label',playing?'Pause current section':'Play current section');}
 function pauseCurrentPlayback(){if(gameAudio)gameAudio.pause();cancelAnimationFrame(progressFrame);setPlayButton(false);}
@@ -812,10 +814,10 @@ const soundIcon = soundButton.querySelector('svg');
 const volumeHoverBridge = document.createElement('span');
 volumeHoverBridge.setAttribute('aria-hidden', 'true');
 volumeHoverBridge.style.position = 'absolute';
-volumeHoverBridge.style.left = '-145px';
-volumeHoverBridge.style.top = '-10px';
-volumeHoverBridge.style.width = '145px';
-volumeHoverBridge.style.height = '48px';
+volumeHoverBridge.style.left = '-150px';
+volumeHoverBridge.style.top = '-6px';
+volumeHoverBridge.style.width = '150px';
+volumeHoverBridge.style.height = '28px';
 volumeHoverBridge.style.zIndex = '0';
 volumeHoverBridge.style.pointerEvents = 'none';
 soundButton.appendChild(volumeHoverBridge);
@@ -825,17 +827,27 @@ function setSoundExpanded(expanded) {
   soundIcon.style.setProperty('left', 'auto', 'important');
   soundIcon.style.setProperty('right', '0', 'important');
   soundIcon.style.setProperty('transform', 'none', 'important');
-  volumeSlider.style.setProperty('left', expanded ? '-132px' : 'auto', 'important');
-  volumeSlider.style.setProperty('right', expanded ? 'auto' : '0', 'important');
+  volumeSlider.style.setProperty('left', '-132px', 'important');
+  volumeSlider.style.setProperty('right', 'auto', 'important');
   volumeSlider.style.setProperty('width', expanded ? '110px' : '0px', 'important');
   volumeSlider.style.setProperty('max-width', expanded ? '110px' : '0px', 'important');
   volumeSlider.style.setProperty('opacity', expanded ? '1' : '0', 'important');
   volumeSlider.style.setProperty('pointer-events', expanded ? 'auto' : 'none', 'important');
   volumeSlider.style.setProperty('z-index', expanded ? '2' : 'auto', 'important');
+  volumeSlider.style.setProperty('transition', 'width .28s cubic-bezier(.2,.8,.2,1), max-width .28s cubic-bezier(.2,.8,.2,1), opacity .28s cubic-bezier(.2,.8,.2,1)', 'important');
 }
 const supportsHoverVolume = window.matchMedia('(hover: hover)').matches;
-soundButton.addEventListener('mouseenter', () => { if (supportsHoverVolume) setSoundExpanded(true); });
-soundButton.addEventListener('mouseleave', () => { if (supportsHoverVolume) setSoundExpanded(false); });
+let volumeCollapseTimer = 0;
+soundButton.addEventListener('mouseenter', () => {
+  if (!supportsHoverVolume) return;
+  clearTimeout(volumeCollapseTimer);
+  setSoundExpanded(true);
+});
+soundButton.addEventListener('mouseleave', () => {
+  if (!supportsHoverVolume) return;
+  clearTimeout(volumeCollapseTimer);
+  volumeCollapseTimer = setTimeout(() => setSoundExpanded(false), 300);
+});
 soundButton.addEventListener('focusout', (event) => {
   if (supportsHoverVolume && !soundButton.contains(event.relatedTarget)) setSoundExpanded(false);
 });
@@ -847,6 +859,58 @@ soundButton.addEventListener('click', (event) => {
 document.addEventListener('pointerdown', (event) => {
   if (!supportsHoverVolume && !soundButton.contains(event.target)) setSoundExpanded(false);
 });
+let volumeKnobAnimation = 0;
+let activeVolumePointer = null;
+const valueFromPointer = (slider, event) => {
+  const bounds = slider.getBoundingClientRect();
+  if (!bounds.width) return Number(slider.value);
+  const min = Number(slider.min) || 0;
+  const max = Number(slider.max) || 100;
+  const fraction = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+  return min + fraction * (max - min);
+};
+const applyVolumeValue = (slider, value) => {
+  slider.value = String(value);
+  slider.dispatchEvent(new Event('input', { bubbles: true }));
+};
+const beginVolumePointer = (event) => {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  const slider = event.currentTarget === volumeHoverBridge ? volumeSlider : event.currentTarget;
+  slider.focus({ preventScroll: true });
+  cancelAnimationFrame(volumeKnobAnimation);
+  activeVolumePointer = { id: event.pointerId, target: event.currentTarget, slider };
+  try { event.currentTarget.setPointerCapture(event.pointerId); } catch {}
+  const start = Number(slider.value);
+  const end = valueFromPointer(slider, event);
+  const startTime = performance.now();
+  const animate = (now) => {
+    const progress = Math.min(1, (now - startTime) / 160);
+    const eased = 1 - (1 - progress) ** 3;
+    applyVolumeValue(slider, start + (end - start) * eased);
+    if (progress < 1) volumeKnobAnimation = requestAnimationFrame(animate);
+  };
+  volumeKnobAnimation = requestAnimationFrame(animate);
+};
+const moveVolumePointer = (event) => {
+  if (!activeVolumePointer || activeVolumePointer.id !== event.pointerId) return;
+  cancelAnimationFrame(volumeKnobAnimation);
+  applyVolumeValue(activeVolumePointer.slider, valueFromPointer(activeVolumePointer.slider, event));
+};
+const endVolumePointer = (event) => {
+  if (activeVolumePointer?.id !== event.pointerId) return;
+  if (event.type === 'pointercancel') cancelAnimationFrame(volumeKnobAnimation);
+  activeVolumePointer = null;
+};
+for (const target of [volumeSlider, volumeHoverBridge, gameVolumeInput]) {
+  target.addEventListener('pointerdown', beginVolumePointer);
+  target.addEventListener('pointermove', moveVolumePointer);
+  target.addEventListener('pointerup', endVolumePointer);
+  target.addEventListener('pointercancel', endVolumePointer);
+}
+for (const target of [volumeSlider, volumeHoverBridge]) {
+  target.addEventListener('mouseenter', () => clearTimeout(volumeCollapseTimer));
+}
 volumeSlider.addEventListener('input', (event) => {
   document.documentElement.style.setProperty('--volume-level', `${event.target.value}%`);
   hoverTargetVolume = Number(event.target.value) / 100;
@@ -886,20 +950,53 @@ languageMenu.hidden = true;
 languageMenu.innerHTML = '<button type="button" data-language="EN">English</button><button type="button" data-language="TH">ไทย</button>';
 userTools.appendChild(languageMenu);
 
+const dropdownAnimations = new WeakMap();
+function setDropdownVisible(panel, visible) {
+  dropdownAnimations.get(panel)?.cancel();
+  dropdownAnimations.delete(panel);
+  if (visible) panel.hidden = false;
+  else if (panel.hidden) return;
+
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const animation = panel.animate(
+    visible
+      ? [{ opacity: 0, transform: 'translateY(-8px) scale(.98)' }, { opacity: 1, transform: 'translateY(0) scale(1)' }]
+      : [{ opacity: 1, transform: 'translateY(0) scale(1)' }, { opacity: 0, transform: 'translateY(-8px) scale(.98)' }],
+    { duration: reducedMotion ? 0 : 180, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both' },
+  );
+  dropdownAnimations.set(panel, animation);
+  animation.onfinish = () => {
+    if (dropdownAnimations.get(panel) !== animation) return;
+    if (!visible) panel.hidden = true;
+    animation.cancel();
+    dropdownAnimations.delete(panel);
+  };
+}
+
 avatarButton.addEventListener('click', () => {
   profileNameField.value = hostNameInput.value.trim() || localStorage.getItem(profileNameKey) || '';
-  profilePanel.hidden = !profilePanel.hidden;
-  languageMenu.hidden = true;
+  const open = profilePanel.hidden;
+  setDropdownVisible(profilePanel, open);
+  setDropdownVisible(languageMenu, false);
+  avatarButton.setAttribute('aria-expanded', String(open));
+  languageButton.setAttribute('aria-expanded', 'false');
 });
 
 document.addEventListener('click', (event) => {
-  if (!userTools.contains(event.target)) profilePanel.hidden = true;
+  if (!userTools.contains(event.target)) {
+    setDropdownVisible(profilePanel, false);
+    setDropdownVisible(languageMenu, false);
+    avatarButton.setAttribute('aria-expanded', 'false');
+    languageButton.setAttribute('aria-expanded', 'false');
+  }
 });
 
 languageButton.addEventListener('click', () => {
-  languageMenu.hidden = !languageMenu.hidden;
-  profilePanel.hidden = true;
-  languageButton.setAttribute('aria-expanded', String(!languageMenu.hidden));
+  const open = languageMenu.hidden;
+  setDropdownVisible(languageMenu, open);
+  setDropdownVisible(profilePanel, false);
+  languageButton.setAttribute('aria-expanded', String(open));
+  avatarButton.setAttribute('aria-expanded', 'false');
 });
 
 profilePanel.querySelector('.profile-save').addEventListener('click', () => {
@@ -916,13 +1013,14 @@ profilePanel.querySelector('.profile-save').addEventListener('click', () => {
     hostNameInput.value = name;
     hostNameInput.dispatchEvent(new Event('input'));
   }
-  profilePanel.hidden = true;
+  setDropdownVisible(profilePanel, false);
+  avatarButton.setAttribute('aria-expanded', 'false');
 });
 
 languageMenu.querySelectorAll('button').forEach((choice) => {
   choice.addEventListener('click', () => {
     languageButton.querySelector('span').textContent = choice.dataset.language;
-    languageMenu.hidden = true;
+    setDropdownVisible(languageMenu, false);
     languageButton.setAttribute('aria-expanded', 'false');
     applyLanguage(choice.dataset.language);
   });
