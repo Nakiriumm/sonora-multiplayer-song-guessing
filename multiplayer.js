@@ -97,6 +97,7 @@
       name,
       maxPlayers: Number.parseInt(playersLabel, 10) || DEFAULT_MAX_PLAYERS,
       genre,
+      duration: Number($('.room-setting[data-setting="duration"]')?.value || saved.duration || 30),
     };
   }
 
@@ -178,11 +179,13 @@
       hostSettings[0].textContent = 'Classic';
       hostSettings[1].textContent = `${room.maxPlayers} max`;
       hostSettings[2].textContent = room.genre;
-      hostSettings[3].textContent = '30 sec';
+      hostSettings[3].textContent = `${room.duration || 30} sec`;
     }
     if (state.session?.host) {
       const playerStepper = $('.player-stepper strong');
       if (playerStepper) playerStepper.textContent = `${room.maxPlayers} players`;
+      const durationSetting = $('.room-setting[data-setting="duration"]');
+      if (durationSetting) durationSetting.value = String(room.duration || 30);
     }
     const listMarkup = players.map((player, index) => `<div class="joined-player"><span class="joined-avatar ${index === 0 ? 'avatar-yellow' : 'avatar-blue'}">${escapeHtml(player.name.slice(0, 2).toUpperCase())}</span><span><strong>${escapeHtml(player.name)}</strong><small>${index === 0 ? 'Host' : 'Joined'}${player.connected ? '' : ' · reconnecting'}</small></span><i>${index === 0 ? '★' : '✓'}</i></div>`).join('');
     const free = Math.max(0, room.maxPlayers - players.length);
@@ -203,7 +206,7 @@
     if (state.session?.host && room.phase === 'lobby') {
       const settings = currentSettings($('.host-name-input')?.value.trim());
       const host = players.find((player) => player.id === state.session.playerId);
-      if (host && (settings.name !== host.name || settings.maxPlayers !== room.maxPlayers || settings.genre !== room.genre)) send('configure', settings);
+      if (host && (settings.name !== host.name || settings.maxPlayers !== room.maxPlayers || settings.genre !== room.genre || settings.duration !== room.duration)) send('configure', settings);
     }
   }
 
@@ -291,7 +294,8 @@
     };
     state.audioTimeout = setTimeout(async () => {
       if (audio !== state.activeAudio) return;
-      audio.currentTime = Math.max(playback.offset || 0, (Date.now() - targetLocalTime) / 1000 + (playback.offset || 0));
+      const sectionStart = [0, 0.1, 0.5, 2, 8][stageIndex];
+      audio.currentTime = sectionStart + Math.max(0, (Date.now() - targetLocalTime) / 1000);
       audio.volume = Number($('.game-view [aria-label="Volume"]')?.value || 65) / 100;
       try {
         await audio.play();
@@ -642,7 +646,7 @@
       event.stopImmediatePropagation();
       if (state.localStage >= 4) return;
       state.localStage += 1;
-      const starts = [0, 0, 0.1, 0.5, 2];
+      const starts = [0, 0.1, 0.5, 2, 8];
       const ends = STAGE_ENDS;
       const start = starts[state.localStage];
       const end = ends[state.localStage];
@@ -710,6 +714,10 @@
   document.addEventListener('input', (event) => {
     if (event.target.matches('.host-name-input')) configureFromForm();
     if (event.target.matches('.game-view [aria-label="Volume"]') && state.activeAudio) state.activeAudio.volume = Number(event.target.value) / 100;
+  });
+
+  document.addEventListener('change', (event) => {
+    if (event.target.matches('.room-setting[data-setting="duration"]')) configureFromForm();
   });
 
   document.addEventListener('click', (event) => {

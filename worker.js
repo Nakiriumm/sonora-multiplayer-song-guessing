@@ -1,7 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 
 const CODE_ALPHABET = '0123456789';
-const ROUND_SECONDS = 30;
+const ALLOWED_ROUND_DURATIONS = new Set([30, 45, 60]);
 const BREAK_SECONDS = 5;
 const ROUND_COUNT = 10;
 const STAGES = [0.1, 0.5, 2, 8, 15];
@@ -65,7 +65,7 @@ export default {
       return stub.fetch('https://room.internal/create', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ code, name: body.name.trim(), maxPlayers: body.maxPlayers, genre: body.genre }),
+        body: JSON.stringify({ code, name: body.name.trim(), maxPlayers: body.maxPlayers, genre: body.genre, duration: body.duration }),
       });
     }
 
@@ -119,6 +119,7 @@ export class GameRoom extends DurableObject {
       hostId: room.hostId,
       maxPlayers: room.maxPlayers,
       genre: room.genre,
+      duration: room.duration || 30,
       phase: room.phase,
       players: room.players.map(({ id, name, score, connected, status, continueReady }) => ({ id, name, score, connected, status, continueReady })),
       roundNumber: room.roundIndex >= 0 ? room.roundIndex + 1 : 0,
@@ -167,6 +168,7 @@ export class GameRoom extends DurableObject {
         hostId,
         maxPlayers: Math.max(2, Math.min(20, Number(body.maxPlayers) || 8)),
         genre: String(body.genre || 'Everything').slice(0, 60),
+        duration: ALLOWED_ROUND_DURATIONS.has(Number(body.duration)) ? Number(body.duration) : 30,
         phase: 'lobby',
         players: [{ id: hostId, token, name: body.name, score: 0, connected: false, status: 'playing', continueReady: false }],
         rounds: [],
@@ -268,6 +270,7 @@ export class GameRoom extends DurableObject {
       }
       if (Number.isFinite(Number(action.maxPlayers))) room.maxPlayers = Math.max(room.players.length, Math.min(20, Math.max(2, Number(action.maxPlayers))));
       if (typeof action.genre === 'string') room.genre = action.genre.slice(0, 60);
+      if (ALLOWED_ROUND_DURATIONS.has(Number(action.duration))) room.duration = Number(action.duration);
       await this.save();
       this.broadcast({ type: 'lobby' });
       return;
@@ -352,7 +355,7 @@ export class GameRoom extends DurableObject {
     room.phase = 'game';
     room.stage = 0;
     room.roundStartedAt = Date.now();
-    room.roundEndsAt = room.roundStartedAt + ROUND_SECONDS * 1000;
+    room.roundEndsAt = room.roundStartedAt + (room.duration || 30) * 1000;
     room.breakEndsAt = 0;
     room.revealedSong = null;
     room.playback = { playing: false, playAt: 0, offset: 0, endsAt: 0 };

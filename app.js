@@ -151,6 +151,17 @@ gameView.querySelector('.game-exit').addEventListener('click',()=>{clearInterval
 document.querySelector('.launch-button').addEventListener('click',()=>{closeModal();launchGame();});
 
 document.querySelectorAll('.room-setting').forEach((select) => {
+  if (select.dataset.setting === 'duration') {
+    select.value = String(getRoomState().duration || 30);
+    select.addEventListener('change', () => {
+      const room = getRoomState();
+      room.duration = Number(select.value);
+      room.time = `${room.duration} seconds`;
+      saveRoomState(room);
+    });
+    return;
+  }
+
   if (select.dataset.setting === 'genre') {
     const originalField = select.parentElement;
     const genreField = document.createElement('div');
@@ -219,7 +230,7 @@ document.querySelector('.setup-modal').appendChild(joinedPanel);
 
 const roomStateKey = 'sonora-room-state';
 const profileNameKey = 'sonora-profile-name';
-const defaultRoomState = { hostName: '', maxPlayers: 8, mode: 'Quickfire', genre: '', time: '30 seconds', active: true, players: [{ name: '', role: 'Host' }] };
+const defaultRoomState = { hostName: '', maxPlayers: 8, mode: 'Quickfire', genre: '', duration: 30, time: '30 seconds', active: true, players: [{ name: '', role: 'Host' }] };
 
 function getRoomState() {
   try {
@@ -266,6 +277,9 @@ function renderRoster(list, room, waitingLabel) {
 }
 
 function renderRoomRosters() {
+  try {
+    if (sessionStorage.getItem('sonora-cloudflare-session')) return;
+  } catch {}
   const room = getRoomState();
   renderRoster(document.querySelector('.joined-list'), room, 'Waiting for players');
   renderRoster(document.querySelector('.joined-room-list'), room, 'Waiting for players');
