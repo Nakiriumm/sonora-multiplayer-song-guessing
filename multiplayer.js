@@ -18,6 +18,7 @@
     audioFrame: 0,
     audioTimeout: 0,
     prepareRequest: 0,
+    localStage: 0,
   };
 
   const $ = (selector) => document.querySelector(selector);
@@ -69,9 +70,9 @@
 
   function setRoomCode(code) {
     const label = $('.room-code');
-    if (label) label.textContent = `Room code · SONORA-${code}`;
+    if (label) label.textContent = `Room code · ${code}`;
     const input = $('#join-code');
-    if (input) input.placeholder = `SONORA-${code}`;
+    if (input) input.placeholder = code;
   }
 
   function openSetup(name) {
@@ -108,8 +109,8 @@
   }
 
   async function joinRoom(name, code) {
-    const cleanCode = code.trim().toUpperCase().replace(/^SONORA[\s-]*/, '').replace(/[\s-]/g, '');
-    if (!/^[A-HJ-NP-Z2-9]{6,7}$/.test(cleanCode)) throw new Error('Enter the full room code.');
+    const cleanCode = code.trim();
+    if (!/^\d{7}$/.test(cleanCode)) throw new Error('Enter the seven-digit room code.');
     const result = await api(`/api/rooms/${encodeURIComponent(cleanCode)}/join`, { name });
     sessionStore.set({ code: result.code, playerId: result.playerId, token: result.token, host: false });
     state.room = result.room;
@@ -269,7 +270,7 @@
       state.activeAudio.volume = Number($('.game-view [aria-label="Volume"]')?.value || 65) / 100;
     }
     const audio = state.activeAudio;
-    const stageIndex = Math.max(0, Math.min(4, room.stage || 0));
+    const stageIndex = Math.max(0, Math.min(4, state.localStage || 0));
     const sectionEnd = STAGE_ENDS[stageIndex];
     const targetLocalTime = playback.playAt - state.serverOffset;
     const renderProgress = () => {
@@ -312,7 +313,7 @@
     updateScoreboard(room);
     const number = room.roundNumber || 1;
     $('.game-round').textContent = String(number);
-    const stage = Math.max(0, room.stage || 0);
+    const stage = Math.max(0, state.localStage || 0);
     $$('.track-marks span').forEach((mark, index) => mark.classList.toggle('active', index <= stage));
     $('.game-skip').disabled = stage >= 4;
     const choicesContainer = $('.song-choices');
@@ -329,10 +330,14 @@
       const isNewRound = wasRound !== number;
       if (isNewRound) {
         container.dataset.roundNumber = String(number);
+        state.localStage = 0;
         container.classList.remove('locked', 'wrong-locked');
         $('.track-line i').style.width = '0%';
         $('.round-feedback').textContent = 'Choose quickly for the highest score.';
       }
+      const choiceSignature = choices.map((choice) => choice.title).join('\u001f');
+      if (container.dataset.choiceSignature !== choiceSignature) {
+      container.dataset.choiceSignature = choiceSignature;
       container.innerHTML = choices.map((choice, index) => `<button class="song-choice" data-choice-index="${index}" type="button"><span class="cover-art cover-${(number + index) % 4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeHtml(choice.title)}</strong></span><i>${String.fromCharCode(65 + index)}</i></button>`).join('');
       choices.forEach((choice, index) => {
         const cover = container.querySelector(`[data-choice-index="${index}"] .cover-art`);
@@ -342,6 +347,7 @@
         cover.style.backgroundPosition = 'center';
       }
       });
+      }
       const disabled = !mine || mine.status !== 'playing';
       container.querySelectorAll('.song-choice').forEach((button) => { button.disabled = disabled; });
       if (mine?.status === 'wrong') {
@@ -473,6 +479,10 @@
     for (let index = 0; index < ROUND_COUNT; index += 1) {
       if (request !== state.prepareRequest) throw new Error('Song preparation was cancelled.');
       const entries = playable.slice(index * 4, index * 4 + 4);
+      for (let i = entries.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [entries[i], entries[j]] = [entries[j], entries[i]];
+      }
       const choices = entries.map(({ song }) => song);
       const choiceRecords = [];
       for (const [choiceIndex, song] of choices.entries()) {
@@ -488,7 +498,7 @@
         artwork: asset.artworkUrl100 || song[2] || '',
         previewUrl: song[3] || asset.previewUrl,
       };
-      rounds.push({ choices: choiceRecords, answerIndex: 0, answer });
+      rounds.push({ choices: choiceRecords, answerIndex: choices.indexOf(song), answer });
     }
     return rounds;
   }
@@ -607,7 +617,7 @@
       event.preventDefault();
       event.stopImmediatePropagation();
       if (!state.session?.code) return showNotice('Create a room first.', true);
-      const code = `SONORA-${state.session.code}`;
+      const code = state.session.code;
       try { await navigator.clipboard.writeText(code); showNotice('Room code copied.'); }
       catch { showNotice(`Room code: ${code}`); }
       return;
@@ -630,14 +640,41 @@
     if (target.matches('.game-skip')) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      send('skip');
+      if (state.localStage >= 4) return;
+      state.localStage += 1;
+      const starts = [0, 0, 0.1, 0.5, 2];
+      const ends = STAGE_ENDS;
+      const start = starts[state.localStage];
+      const end = ends[state.localStage];
+      if (!state.activeAudio) {
+        const source = state.room?.currentRound?.previewUrl;
+        if (source) { state.activeAudio = new Audio(source); state.activeAudio.preload = 'auto'; }
+      }
+      if (state.activeAudio) {
+        const audio = state.activeAudio;
+        audio.currentTime = start;
+        audio.volume = Number($('.game-view [aria-label="Volume"]')?.value || 65) / 100;
+        audio.play().catch(() => {});
+        cancelAnimationFrame(state.audioFrame);
+        const update = () => {
+          if (audio !== state.activeAudio || audio.paused) return;
+          const fraction = Math.max(0, Math.min(1, (audio.currentTime - start) / Math.max(0.001, end - start)));
+          const marks = [0, 8, 20, 46, 74, 100];
+          $('.track-line i').style.width = `${marks[state.localStage] + fraction * (marks[state.localStage + 1] - marks[state.localStage])}%`;
+          if (audio.currentTime >= end) { audio.pause(); audio.currentTime = end; return; }
+          state.audioFrame = requestAnimationFrame(update);
+        };
+        state.audioFrame = requestAnimationFrame(update);
+      }
+      $$('.track-marks span').forEach((mark, index) => mark.classList.toggle('active', index <= state.localStage));
+      $('.game-skip').disabled = state.localStage >= 4;
       return;
     }
 
     if (target.matches('.song-choice')) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      send('guess', { choiceIndex: Number(target.dataset.choiceIndex) });
+      send('guess', { choiceIndex: Number(target.dataset.choiceIndex), stage: state.localStage });
       return;
     }
 

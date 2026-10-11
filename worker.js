@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 
-const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const CODE_ALPHABET = '0123456789';
 const ROUND_SECONDS = 30;
 const BREAK_SECONDS = 5;
 const ROUND_COUNT = 10;
@@ -69,14 +69,14 @@ export default {
       });
     }
 
-    const joinMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]{6,7})\/join$/i);
+    const joinMatch = url.pathname.match(/^\/api\/rooms\/(\d{7})\/join$/);
     if (joinMatch && request.method === 'POST') {
       const code = joinMatch[1].toUpperCase();
       const stub = env.GAME_ROOMS.get(env.GAME_ROOMS.idFromName(code));
       return stub.fetch('https://room.internal/join', { method: 'POST', body: request.body, headers: request.headers });
     }
 
-    const socketMatch = url.pathname.match(/^\/ws\/([A-Z0-9]{6,7})$/i);
+    const socketMatch = url.pathname.match(/^\/ws\/(\d{7})$/);
     if (socketMatch) {
       if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return json({ error: 'A WebSocket connection is required.' }, 426);
       const code = socketMatch[1].toUpperCase();
@@ -294,7 +294,7 @@ export class GameRoom extends DurableObject {
 
     if (action.type === 'skip' && room.phase === 'game' && room.stage < 4 && player.status === 'playing') {
       room.stage += 1;
-      const playAt = Date.now() + 900;
+      const playAt = Date.now() + 200;
       room.playback = { playing: true, playAt, offset: STAGE_STARTS[room.stage], endsAt: playAt + (STAGES[room.stage] - STAGE_STARTS[room.stage]) * 1000 };
       await this.scheduleGameAlarm(room);
       await this.save();
@@ -304,7 +304,7 @@ export class GameRoom extends DurableObject {
 
     if (action.type === 'playback' && room.phase === 'game' && player.status === 'playing') {
       if (action.playing) {
-        const playAt = Date.now() + 900;
+        const playAt = Date.now() + 200;
         room.playback = { playing: true, playAt, offset: STAGE_STARTS[room.stage], endsAt: playAt + (STAGES[room.stage] - STAGE_STARTS[room.stage]) * 1000 };
         await this.scheduleGameAlarm(room);
       } else {
@@ -324,7 +324,8 @@ export class GameRoom extends DurableObject {
         const elapsed = Math.max(0, Math.floor((Date.now() - room.roundStartedAt) / 1000));
         const timePenalty = Math.min(25, Math.floor(elapsed / 4) * 5);
         const orderPenalty = Math.min(25, correctBefore * 5);
-        const points = Math.max(5, ROUND_POINTS[room.stage] - timePenalty - orderPenalty);
+        const answerStage = Math.max(0, Math.min(4, Number(action.stage) || 0));
+        const points = Math.max(5, ROUND_POINTS[answerStage] - timePenalty - orderPenalty);
         player.score += points;
         player.status = 'correct';
         this.broadcast({ type: 'guess-result', playerId: player.id, correct: true, points });
