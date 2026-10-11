@@ -44,6 +44,7 @@ joinPage.className = 'join-page';
 joinPage.hidden = true;
 joinPage.innerHTML = '<button class="join-back" type="button">← Back to home</button><div class="join-content"><p class="eyebrow">Join the room</p><h2>Find your<br /><em>music people.</em></h2><p>Enter your name and the room code shared by the host.</p><form class="join-form"><label for="player-name">Your name</label><input id="player-name" type="text" placeholder="e.g. Jamie" autocomplete="name" maxlength="20" /><label for="join-code">Room code</label><input id="join-code" type="text" placeholder="1234567" autocomplete="off" maxlength="7" inputmode="numeric" pattern="[0-9]{7}" /><button class="primary-button" type="submit">Join room <span>→</span></button><small class="join-status" aria-live="polite"></small></form></div><div class="join-note"><span class="wordmark-mark">S</span><strong>SONORA</strong><span>Make some noise.</span></div>';
 document.body.appendChild(joinPage);
+const joinNameInput = joinPage.querySelector('#player-name');
 const joinedRoomPanel = document.createElement('div');
 joinedRoomPanel.className = 'joined-room-panel';
 joinedRoomPanel.innerHTML = '<div class="joined-room-heading"><p class="eyebrow">Cloudflare room</p><h3>Your crew is <em>here.</em></h3><div class="host-settings"><span><small>Mode</small><strong>Classic</strong></span><span><small>Players</small><strong>8 max</strong></span><span><small>Genre</small><strong>Everything</strong></span><span><small>Per song</small><strong>30 sec</strong></span><span><small>Difficulty</small><strong>Medium</strong></span><span><small>Choices</small><strong>4 choices</strong></span></div></div><div class="joined-room-list"></div>';
@@ -51,9 +52,10 @@ joinedRoomPanel.hidden = true;
 joinPage.querySelector('.join-content').appendChild(joinedRoomPanel);
 
 document.querySelector('.js-join-room').addEventListener('click', () => {
+  joinNameInput.value = localStorage.getItem(profileNameKey) || hostNameInput.value.trim() || '';
   joinPage.hidden = false;
   document.body.style.overflow = 'hidden';
-  document.querySelector('#player-name').focus();
+  joinNameInput.focus();
 });
 
 joinPage.querySelector('.join-back').addEventListener('click', closeJoinPage);
@@ -1056,6 +1058,7 @@ profilePanel.querySelector('.profile-save').addEventListener('click', () => {
   const status = profilePanel.querySelector('.profile-status');
   status.textContent = 'Name saved';
   localStorage.setItem(profileNameKey, name);
+  joinNameInput.value = name;
   if (typeof hostNameInput !== 'undefined') {
     hostNameInput.value = name;
     hostNameInput.dispatchEvent(new Event('input'));

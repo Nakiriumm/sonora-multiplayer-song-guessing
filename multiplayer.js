@@ -636,6 +636,7 @@
   }
 
   function showJoinPage() {
+    $('#player-name').value = localStorage.getItem('sonora-profile-name') || $('.host-name-input')?.value.trim() || '';
     $('.join-page').hidden = false;
     $('.joined-room-panel').hidden = true;
     $('body').style.overflow = 'hidden';
