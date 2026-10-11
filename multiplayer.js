@@ -444,31 +444,51 @@
     const request = ++state.prepareRequest;
     usedRoundSongs.clear();
     const room = getRoomState();
+    showNotice('Loading the song catalog…');
     activeCatalog = await loadGenreCatalog(room.genre || 'Everything');
     if (!Array.isArray(activeCatalog) || activeCatalog.length < 4) activeCatalog = roundSongs;
+    const candidates = [...activeCatalog, ...roundSongs]
+      .filter((song, index, list) => list.findIndex((item) => item[0] === song[0] && item[1] === song[1]) === index)
+      .sort(() => Math.random() - 0.5);
+    const playable = [];
+    for (let offset = 0; offset < candidates.length && playable.length < ROUND_COUNT * 4; offset += 8) {
+      if (request !== state.prepareRequest) throw new Error('Song preparation was cancelled.');
+      const batch = candidates.slice(offset, offset + 8);
+      const results = await Promise.all(batch.map(async (song) => ({ song, asset: await loadSongAsset(song) })));
+      for (const { song, asset } of results) {
+        if (!asset?.previewUrl) {
+          unavailableSongs.add(`${song[0]}|${song[1]}`);
+          continue;
+        }
+        song[3] = song[3] || asset.previewUrl;
+        playable.push({ song, asset });
+        if (playable.length >= ROUND_COUNT * 4) break;
+      }
+      showNotice(`Preparing songs · found ${Math.min(playable.length, ROUND_COUNT * 4)} of ${ROUND_COUNT * 4}`);
+    }
+    if (playable.length < ROUND_COUNT * 4) {
+      throw new Error(`Found only ${playable.length} playable songs. Check your connection and try again.`);
+    }
     const rounds = [];
     for (let index = 0; index < ROUND_COUNT; index += 1) {
       if (request !== state.prepareRequest) throw new Error('Song preparation was cancelled.');
-      const choices = await pickPlayableChoices();
-      if (choices.length !== 4) throw new Error('Not enough songs with playable previews were found. Check your connection and try again.');
+      const entries = playable.slice(index * 4, index * 4 + 4);
+      const choices = entries.map(({ song }) => song);
       const choiceRecords = [];
-      let answer = null;
       for (const [choiceIndex, song] of choices.entries()) {
-        const asset = await loadSongAsset(song);
-        if (!asset?.previewUrl) throw new Error(`Could not load a preview for ${song[0]}. Try starting again.`);
+        const asset = entries[choiceIndex].asset;
         const record = { title: song[0], artwork: asset.artworkUrl100 || song[2] || '' };
         choiceRecords.push(record);
-        if (choiceIndex === 0) {
-          answer = {
-            title: song[0],
-            artist: song[1],
-            artwork: asset.artworkUrl100 || song[2] || '',
-            previewUrl: song[3] || asset.previewUrl,
-          };
-        }
       }
+      const song = choices[0];
+      const asset = entries[0].asset;
+      const answer = {
+        title: song[0],
+        artist: song[1],
+        artwork: asset.artworkUrl100 || song[2] || '',
+        previewUrl: song[3] || asset.previewUrl,
+      };
       rounds.push({ choices: choiceRecords, answerIndex: 0, answer });
-      $('.round-feedback').textContent = `Preparing song ${index + 1} of ${ROUND_COUNT}…`;
     }
     return rounds;
   }
