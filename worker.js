@@ -1,7 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const ROUND_SECONDS = 30;
+const DEFAULT_ROUND_SECONDS = 30;
 const BREAK_SECONDS = 5;
 const ROUND_COUNT = 10;
 const STAGES = [0.1, 0.5, 2, 8, 15];
@@ -65,7 +65,7 @@ export default {
       return stub.fetch('https://room.internal/create', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ code, name: body.name.trim(), maxPlayers: body.maxPlayers, genre: body.genre }),
+        body: JSON.stringify({ code, name: body.name.trim(), maxPlayers: body.maxPlayers, genre: body.genre, durationSeconds: body.durationSeconds }),
       });
     }
 
@@ -119,6 +119,7 @@ export class GameRoom extends DurableObject {
       hostId: room.hostId,
       maxPlayers: room.maxPlayers,
       genre: room.genre,
+      durationSeconds: room.durationSeconds || DEFAULT_ROUND_SECONDS,
       phase: room.phase,
       players: room.players.map(({ id, name, score, connected, status, continueReady }) => ({ id, name, score, connected, status, continueReady })),
       roundNumber: room.roundIndex >= 0 ? room.roundIndex + 1 : 0,
@@ -167,6 +168,7 @@ export class GameRoom extends DurableObject {
         hostId,
         maxPlayers: Math.max(2, Math.min(20, Number(body.maxPlayers) || 8)),
         genre: String(body.genre || 'Everything').slice(0, 60),
+        durationSeconds: [30, 45, 60].includes(Number(body.durationSeconds)) ? Number(body.durationSeconds) : DEFAULT_ROUND_SECONDS,
         phase: 'lobby',
         players: [{ id: hostId, token, name: body.name, score: 0, connected: false, status: 'playing', continueReady: false }],
         rounds: [],
@@ -268,6 +270,7 @@ export class GameRoom extends DurableObject {
       }
       if (Number.isFinite(Number(action.maxPlayers))) room.maxPlayers = Math.max(room.players.length, Math.min(20, Math.max(2, Number(action.maxPlayers))));
       if (typeof action.genre === 'string') room.genre = action.genre.slice(0, 60);
+      if ([30, 45, 60].includes(Number(action.durationSeconds))) room.durationSeconds = Number(action.durationSeconds);
       await this.save();
       this.broadcast({ type: 'lobby' });
       return;
@@ -351,7 +354,7 @@ export class GameRoom extends DurableObject {
     room.phase = 'game';
     room.stage = 0;
     room.roundStartedAt = Date.now();
-    room.roundEndsAt = room.roundStartedAt + ROUND_SECONDS * 1000;
+    room.roundEndsAt = room.roundStartedAt + (room.durationSeconds || DEFAULT_ROUND_SECONDS) * 1000;
     room.breakEndsAt = 0;
     room.revealedSong = null;
     room.playback = { playing: false, playAt: 0, offset: 0, endsAt: 0 };

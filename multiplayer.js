@@ -1,5 +1,6 @@
 (() => {
   const SESSION_KEY = 'sonora-cloudflare-session';
+  const PENDING_ROOM_KEY = 'sonora-pending-room';
   const ROUND_COUNT = 10;
   const DEFAULT_MAX_PLAYERS = 8;
   const STAGE_ENDS = [0.1, 0.5, 2, 8, 15];
@@ -96,12 +97,19 @@
       name,
       maxPlayers: Number.parseInt(playersLabel, 10) || DEFAULT_MAX_PLAYERS,
       genre,
+      durationSeconds: Number.parseInt($('.duration-stepper strong')?.textContent, 10) || Number.parseInt(saved.time, 10) || 30,
     };
   }
 
   async function createRoom(name) {
-    const result = await api('/api/rooms', currentSettings(name));
+    sessionStorage.setItem(PENDING_ROOM_KEY, JSON.stringify({ name, settings: currentSettings(name) }));
+    location.assign(new URL('room.html', location.href).href);
+  }
+
+  async function finishRoomCreation(name, settings) {
+    const result = await api('/api/rooms', settings);
     sessionStore.set({ code: result.code, playerId: result.playerId, token: result.token, host: true });
+    sessionStorage.removeItem(PENDING_ROOM_KEY);
     setRoomCode(result.code);
     openSetup(name);
     connect();
@@ -177,11 +185,13 @@
       hostSettings[0].textContent = 'Classic';
       hostSettings[1].textContent = `${room.maxPlayers} max`;
       hostSettings[2].textContent = room.genre;
-      hostSettings[3].textContent = '30 sec';
+      hostSettings[3].textContent = `${room.durationSeconds || 30} sec`;
     }
     if (state.session?.host) {
       const playerStepper = $('.player-stepper strong');
       if (playerStepper) playerStepper.textContent = `${room.maxPlayers} players`;
+      const durationStepper = $('.duration-stepper strong');
+      if (durationStepper) durationStepper.textContent = `${room.durationSeconds || 30} seconds`;
     }
     const listMarkup = players.map((player, index) => `<div class="joined-player"><span class="joined-avatar ${index === 0 ? 'avatar-yellow' : 'avatar-blue'}">${escapeHtml(player.name.slice(0, 2).toUpperCase())}</span><span><strong>${escapeHtml(player.name)}</strong><small>${index === 0 ? 'Host' : 'Joined'}${player.connected ? '' : ' · reconnecting'}</small></span><i>${index === 0 ? '★' : '✓'}</i></div>`).join('');
     const free = Math.max(0, room.maxPlayers - players.length);
@@ -202,7 +212,7 @@
     if (state.session?.host && room.phase === 'lobby') {
       const settings = currentSettings($('.host-name-input')?.value.trim());
       const host = players.find((player) => player.id === state.session.playerId);
-      if (host && (settings.name !== host.name || settings.maxPlayers !== room.maxPlayers || settings.genre !== room.genre)) send('configure', settings);
+      if (host && (settings.name !== host.name || settings.maxPlayers !== room.maxPlayers || settings.genre !== room.genre || settings.durationSeconds !== room.durationSeconds)) send('configure', settings);
     }
   }
 
@@ -560,6 +570,10 @@
       const savedName = localStorage.getItem('sonora-profile-name') || '';
       const name = $('.host-name-input')?.value.trim() || savedName;
       if (state.session?.host && state.room?.phase === 'lobby') {
+        if (document.body.dataset.roomPage !== 'true') {
+          location.assign('room.html');
+          return;
+        }
         openSetup(name || state.room.players.find((player) => player.id === state.session.playerId)?.name || '');
         setRoomCode(state.session.code);
         if (state.socket?.readyState !== WebSocket.OPEN) connect();
@@ -692,5 +706,14 @@
       document.body.style.overflow = 'hidden';
     }
     connect();
+  } else if (document.body.dataset.roomPage === 'true') {
+    let pendingRoom = null;
+    try { pendingRoom = JSON.parse(sessionStorage.getItem(PENDING_ROOM_KEY) || 'null'); } catch {}
+    if (!pendingRoom?.name || !pendingRoom?.settings) {
+      location.replace('index.html');
+    } else {
+      openSetup(pendingRoom.name);
+      void finishRoomCreation(pendingRoom.name, pendingRoom.settings).catch((error) => showNotice(error.message, true));
+    }
   }
 })();
