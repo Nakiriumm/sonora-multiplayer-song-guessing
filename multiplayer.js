@@ -689,6 +689,13 @@
     if (!target) return;
     if (!state.session && target.matches('.game-play, .game-skip, .song-choice, .continue-round, .winner-exit, .game-exit')) return;
 
+    if (target.matches('.modal-close') && state.session) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      leaveRoom();
+      return;
+    }
+
     if (target.matches('.mode-card[data-mode="Solo"]')) return;
 
     if (target.matches('.js-create-room') && !window.getSelectedGameMode?.()) {
