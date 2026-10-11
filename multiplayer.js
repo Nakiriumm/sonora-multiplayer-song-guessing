@@ -510,7 +510,7 @@
       $('.game-skip').disabled = disabled || stage >= 4;
       if (mine?.status === 'wrong') {
         container.classList.add('wrong-locked');
-        container.querySelectorAll('.song-choice').forEach((button) => button.classList.add('blackout'));
+        container.querySelectorAll('.song-choice').forEach((button) => button.classList.add('dimmed'));
         $('.guess-status').textContent = 'Wrong guess · waiting for other players';
       } else if (mine?.status === 'correct') {
         container.classList.add('locked');
@@ -535,6 +535,11 @@
       if (cover && answer.artwork) applySongArtwork(cover, { artworkUrl100: answer.artwork });
       $('.song-choice[data-choice-index="' + answer.answerIndex + '"]')?.classList.add('correct');
     }
+    const mine = room.players.find((player) => player.id === state.session?.playerId);
+    const guessedCorrectly = mine?.status === 'correct';
+    const playerResult = $('.result-player-status');
+    playerResult.textContent = guessedCorrectly ? 'You guessed correctly' : 'You’re incorrect';
+    playerResult.className = `result-player-status ${guessedCorrectly ? 'is-correct' : 'is-incorrect'}`;
     $('.continue-round').textContent = `Continue (${room.readyCount || 0}/${room.players.length})`;
     $('.continue-round').disabled = Boolean(room.players.find((player) => player.id === state.session?.playerId)?.continueReady);
     $('.round-result-backdrop').hidden = false;

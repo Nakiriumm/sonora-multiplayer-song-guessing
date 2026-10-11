@@ -102,3 +102,5 @@
 .song-choice .cover-art{width:6px;min-width:6px;max-width:6px;flex:0 0 6px;background-size:auto 44px!important;background-position:center!important;overflow:hidden}
 .song-choice .cover-art{height:52px;background-size:auto 52px!important}
 .mode-required-status{margin:14px 0 0;color:#e58e7d;font-size:12px;font-weight:600}.mode-required-status[hidden]{display:none}
+.song-choice.dimmed{opacity:.46;filter:saturate(.7) brightness(.78);cursor:default}.song-choice.dimmed:hover{transform:none;border-color:#35413d}
+.result-player-status{margin:-12px 0 18px;font-size:14px;font-weight:700}.result-player-status.is-correct{color:#72d59a}.result-player-status.is-incorrect{color:#ff8585}
