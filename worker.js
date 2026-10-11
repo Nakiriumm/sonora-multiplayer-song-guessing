@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 
-const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const CODE_ALPHABET = '0123456789';
 const DEFAULT_ROUND_SECONDS = 30;
 const BREAK_SECONDS = 5;
 const ROUND_COUNT = 10;

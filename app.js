@@ -22,7 +22,7 @@ modeCards.forEach((card) => {
 const joinPage = document.createElement('div');
 joinPage.className = 'join-page';
 joinPage.hidden = true;
-joinPage.innerHTML = '<button class="join-back" type="button">← Back to home</button><div class="join-content"><p class="eyebrow">Join the room</p><h2>Find your<br /><em>music people.</em></h2><p>Enter your name and the room code shared by the host.</p><form class="join-form"><label for="player-name">Your name</label><input id="player-name" type="text" placeholder="e.g. Jamie" autocomplete="name" maxlength="20" /><label for="join-code">Room code</label><input id="join-code" type="text" placeholder="SONORA-XXXXXXX" autocomplete="off" maxlength="32" /><button class="primary-button" type="submit">Join room <span>→</span></button><small class="join-status" aria-live="polite"></small></form></div><div class="join-note"><span class="wordmark-mark">S</span><strong>SONORA</strong><span>Make some noise.</span></div>';
+joinPage.innerHTML = '<button class="join-back" type="button">← Back to home</button><div class="join-content"><p class="eyebrow">Join the room</p><h2>Find your<br /><em>music people.</em></h2><p>Enter your name and the room code shared by the host.</p><form class="join-form"><label for="player-name">Your name</label><input id="player-name" type="text" placeholder="e.g. Jamie" autocomplete="name" maxlength="20" /><label for="join-code">Room code</label><input id="join-code" type="text" placeholder="1234567" autocomplete="off" maxlength="7" inputmode="numeric" pattern="[0-9]{7}" /><button class="primary-button" type="submit">Join room <span>→</span></button><small class="join-status" aria-live="polite"></small></form></div><div class="join-note"><span class="wordmark-mark">S</span><strong>SONORA</strong><span>Make some noise.</span></div>';
 document.body.appendChild(joinPage);
 const joinedRoomPanel = document.createElement('div');
 joinedRoomPanel.className = 'joined-room-panel';
@@ -151,6 +151,17 @@ gameView.querySelector('.game-exit').addEventListener('click',()=>{clearInterval
 document.querySelector('.launch-button').addEventListener('click',()=>{closeModal();launchGame();});
 
 document.querySelectorAll('.room-setting').forEach((select) => {
+  if (select.dataset.setting === 'duration') {
+    select.value = String(getRoomState().duration || 30);
+    select.addEventListener('change', () => {
+      const room = getRoomState();
+      room.duration = Number(select.value);
+      room.time = `${room.duration} seconds`;
+      saveRoomState(room);
+    });
+    return;
+  }
+
   if (select.dataset.setting === 'genre') {
     const originalField = select.parentElement;
     const genreField = document.createElement('div');
@@ -219,7 +230,7 @@ document.querySelector('.setup-modal').appendChild(joinedPanel);
 
 const roomStateKey = 'sonora-room-state';
 const profileNameKey = 'sonora-profile-name';
-const defaultRoomState = { hostName: '', maxPlayers: 8, mode: 'Quickfire', genre: '', time: '30 seconds', active: true, players: [{ name: '', role: 'Host' }] };
+const defaultRoomState = { hostName: '', maxPlayers: 8, mode: 'Quickfire', genre: '', duration: 30, time: '30 seconds', active: true, players: [{ name: '', role: 'Host' }] };
 
 function getRoomState() {
   try {
@@ -251,6 +262,7 @@ if (durationField) {
     const next = values[Math.max(0, Math.min(values.length - 1, values.indexOf(current) + direction))];
     durationValue.textContent = `${next} seconds`;
     const room = getRoomState();
+    room.duration = next;
     room.time = `${next} seconds`;
     saveRoomState(room);
   };
@@ -289,6 +301,9 @@ function renderRoster(list, room, waitingLabel) {
 }
 
 function renderRoomRosters() {
+  try {
+    if (sessionStorage.getItem('sonora-cloudflare-session')) return;
+  } catch {}
   const room = getRoomState();
   renderRoster(document.querySelector('.joined-list'), room, 'Waiting for players');
   renderRoster(document.querySelector('.joined-room-list'), room, 'Waiting for players');

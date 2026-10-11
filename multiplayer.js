@@ -70,9 +70,9 @@
 
   function setRoomCode(code) {
     const label = $('.room-code');
-    if (label) label.textContent = `Room code · SONORA-${code}`;
+    if (label) label.textContent = `Room code: ${code}`;
     const input = $('#join-code');
-    if (input) input.placeholder = `SONORA-${code}`;
+    if (input) input.placeholder = code;
   }
 
   function openSetup(name) {
@@ -621,7 +621,7 @@
       event.preventDefault();
       event.stopImmediatePropagation();
       if (!state.session?.code) return showNotice('Create a room first.', true);
-      const code = `SONORA-${state.session.code}`;
+      const code = state.session.code;
       try { await navigator.clipboard.writeText(code); showNotice('Room code copied.'); }
       catch { showNotice(`Room code: ${code}`); }
       return;
