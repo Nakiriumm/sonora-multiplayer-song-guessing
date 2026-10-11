@@ -14,6 +14,7 @@
     serverOffset: 0,
     pendingHost: false,
     pendingHostName: '',
+    winnerShown: false,
     manuallyClosed: false,
     creatingRoom: false,
     activeAudio: null,
@@ -488,10 +489,12 @@
   }
 
   function renderWinner(room) {
+    if (state.winnerShown) return;
+    state.winnerShown = true;
     clearRoomTimer();
     stopSyncedAudio();
     enterGame();
-    const winner = [...(room.players || [])].sort((a, b) => b.score - a.score)[0];
+    const winner = room.winner || [...(room.players || [])].sort((a, b) => b.score - a.score)[0];
     $('#winner-title').textContent = winner ? `${winner.name} wins!` : 'Game complete';
     $('.winner-score').textContent = winner ? `Final score · ${winner.score} points` : '';
     $('.winner-backdrop').hidden = false;
@@ -513,12 +516,31 @@
       return;
     }
     const room = message.room;
-    if (room) state.room = room;
+    if (room) {
+      state.room = room;
+      if (state.session) {
+        const wasHost = Boolean(state.session.host);
+        const isHost = room.hostId === state.session.playerId;
+        if (wasHost !== isHost) {
+          sessionStore.set({ ...state.session, host: isHost });
+          if (isHost && room.phase === 'lobby') {
+            const promotedPlayer = room.players?.find((player) => player.id === state.session.playerId);
+            $('.join-page').hidden = true;
+            $('main').hidden = false;
+            $('.site-footer').hidden = false;
+            window.selectQuickfireModeForHost?.();
+            openSetup(promotedPlayer?.name || $('.host-name-input')?.value || '');
+            setRoomCode(room.code);
+          }
+        }
+      }
+    }
     switch (message.type) {
       case 'lobby':
         renderLobby(room);
         break;
       case 'game':
+        state.winnerShown = false;
         renderGame(room);
         break;
       case 'guess-result':

@@ -631,6 +631,10 @@ function updateModeSelection(showSetupSelection = false) {
 
 updateModeSelection(selectedMode !== null);
 updateLaunchAvailability();
+window.selectQuickfireModeForHost = () => {
+  selectedMode = 'Quickfire';
+  updateModeSelection(true);
+};
 
 const vinylArtwork = document.querySelector('.hero-art');
 const vinylParts = [vinylArtwork.querySelector('.record'), vinylArtwork.querySelector('.record-label')];

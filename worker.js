@@ -119,6 +119,7 @@ export class GameRoom extends DurableObject {
     return {
       code: room.code,
       hostId: room.hostId,
+      winner: room.winner || null,
       maxPlayers: room.maxPlayers,
       genre: room.genre,
       difficulty: ['easy', 'medium', 'hard', 'extreme'].includes(room.difficulty) ? room.difficulty : 'medium',
@@ -248,21 +249,15 @@ export class GameRoom extends DurableObject {
     }
 
     if (action.type === 'leave') {
-      if (room.phase === 'lobby' && player.id === room.hostId) {
-        room.phase = 'closed';
-        await this.save();
-        this.broadcast({ type: 'closed' });
-        await this.ctx.storage.deleteAll();
-        this.state = null;
-        for (const socket of this.ctx.getWebSockets()) socket.close(1000, 'Host closed the room');
-        return;
-      }
+      const wasHost = player.id === room.hostId;
+      if (room.phase === 'finished' && !room.winner) room.winner = this.getWinner(room);
       room.players = room.players.filter((item) => item.id !== player.id);
       if (!room.players.length) {
         await this.ctx.storage.deleteAll();
         this.state = null;
         return;
       }
+      if (wasHost && room.phase === 'lobby') room.hostId = room.players[0].id;
       await this.save();
       if (room.phase === 'game' && room.players.every((item) => item.status !== 'playing')) await this.endRound(room);
       else if (room.phase === 'break' && room.players.every((item) => item.continueReady)) await this.beginNextRound(room);
@@ -374,6 +369,7 @@ export class GameRoom extends DurableObject {
     if (room.roundIndex + 1 >= room.rounds.length) {
       room.phase = 'finished';
       room.breakEndsAt = 0;
+      room.winner = this.getWinner(room);
       await this.save();
       await this.ctx.storage.setAlarm(room.createdAt + 24 * 60 * 60 * 1000);
       this.broadcast({ type: 'game-ended' });
@@ -383,6 +379,11 @@ export class GameRoom extends DurableObject {
     await this.beginRound(room);
     await this.save();
     this.broadcast({ type: 'game' });
+  }
+
+  getWinner(room) {
+    const winner = [...(room.players || [])].sort((a, b) => b.score - a.score)[0];
+    return winner ? { id: winner.id, name: winner.name, score: winner.score } : null;
   }
 
   alarm() {
