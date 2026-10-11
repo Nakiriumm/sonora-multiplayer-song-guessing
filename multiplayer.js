@@ -511,7 +511,7 @@
       if (mine?.status === 'wrong') {
         container.classList.add('wrong-locked');
         container.querySelectorAll('.song-choice').forEach((button) => button.classList.add('blackout'));
-        $('.guess-status').textContent = 'Wrong guess · locked until next round';
+        $('.guess-status').textContent = 'Wrong guess · waiting for other players';
       } else if (mine?.status === 'correct') {
         container.classList.add('locked');
         $('.guess-status').textContent = 'Correct · waiting for the others';
@@ -608,7 +608,7 @@
             $('.round-feedback').textContent = `Correct! +${message.points} points. Waiting for the others.`;
           } else {
             if (window.triggerWrongMark) window.triggerWrongMark();
-            $('.round-feedback').textContent = 'Wrong guess · 5 points deducted. Choices are locked until the next round.';
+            $('.round-feedback').textContent = 'Wrong guess · 5 points deducted. Waiting for the other players…';
           }
         }
         break;
