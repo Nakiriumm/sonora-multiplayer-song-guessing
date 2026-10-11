@@ -13,7 +13,9 @@
     timer: 0,
     serverOffset: 0,
     pendingHost: false,
+    pendingHostName: '',
     manuallyClosed: false,
+    creatingRoom: false,
     activeAudio: null,
     audioFrame: 0,
     audioOperation: 0,
@@ -76,6 +78,8 @@
     const roomCode = String(code || '').trim();
     const label = $('.room-code');
     if (label) label.textContent = roomCode || '-------';
+    const gateCode = $('.name-gate-code');
+    if (gateCode) gateCode.textContent = roomCode || 'Generating…';
     const copyButton = $('.copy-code-button');
     if (copyButton) {
       copyButton.disabled = !roomCode;
@@ -120,21 +124,40 @@
     const mode = window.getSelectedGameMode?.();
     if (!mode) throw new Error('Choose a game mode before creating a room.');
     if (mode !== 'Quickfire') throw new Error('Solo play does not create a room.');
-    const settings = currentSettings(name);
+    // The room API requires a host name, so create with a temporary label and
+    // ask for the real name as soon as the room and invite code exist.
+    const settings = currentSettings(name || 'Host');
     settings.mode = mode;
     await finishRoomCreation(name, settings);
   }
 
   async function finishRoomCreation(name, settings) {
-    const result = await api('/api/rooms', settings);
-    const code = result.code || result.room?.code;
-    if (!code) throw new Error('The room was created, but no invite code was returned. Try again.');
-    sessionStore.set({ code, playerId: result.playerId, token: result.token, host: true, mode: settings.mode || null });
-    sessionStorage.removeItem(PENDING_ROOM_KEY);
-    setRoomCode(code);
-    openSetup(name);
-    showNotice('Room created. Copy the code to invite players.');
-    connect();
+    if (state.creatingRoom) return;
+    state.creatingRoom = true;
+    const roomSettings = { ...settings, name: name || settings.name || 'Host' };
+    try {
+      const result = await api('/api/rooms', roomSettings);
+      const code = result.code || result.room?.code;
+      if (!code) throw new Error('The room was created, but no invite code was returned. Try again.');
+      const finalName = name || state.pendingHostName;
+      sessionStore.set({ code, playerId: result.playerId, token: result.token, host: true, mode: settings.mode || null });
+      sessionStorage.removeItem(PENDING_ROOM_KEY);
+      setRoomCode(code);
+      openSetup(finalName || '');
+      showNotice('Room created. Copy the code to invite players.');
+      connect();
+      if (!finalName) {
+        state.pendingHost = true;
+        $('.name-gate').hidden = false;
+        $('.name-gate-save').disabled = false;
+        $('.name-gate-input').focus();
+      } else {
+        state.pendingHost = false;
+        state.pendingHostName = '';
+      }
+    } finally {
+      state.creatingRoom = false;
+    }
   }
 
   async function joinRoom(name, code) {
@@ -173,6 +196,8 @@
     socket.addEventListener('open', () => {
       clearInterval(state.heartbeat);
       state.heartbeat = setInterval(() => send('ping'), 25000);
+      const hostName = $('.host-name-input')?.value.trim();
+      if (state.session?.host && hostName) send('configure', currentSettings(hostName));
       showNotice('Connected to Cloudflare room.');
     });
     socket.addEventListener('close', () => {
@@ -697,13 +722,6 @@
         return;
       }
       if (state.session) leaveRoom();
-      if (!name) {
-        state.pendingHost = true;
-        $('.name-gate').hidden = false;
-        $('.name-gate-input').value = '';
-        $('.name-gate-input').focus();
-        return;
-      }
       try { await createRoom(name); } catch (error) { showNotice(error.message, true); $('.modal-backdrop').hidden = false; }
       return;
     }
@@ -714,7 +732,21 @@
       const name = $('.name-gate-input').value.trim();
       if (!name) { $('.name-gate-status').textContent = 'Enter a name to continue.'; return; }
       state.pendingHost = false;
-      try { await createRoom(name); } catch (error) { $('.name-gate-status').textContent = error.message; }
+      if (state.session?.host) {
+        $('.name-gate').hidden = true;
+        const hostName = $('.host-name-input');
+        if (hostName) {
+          hostName.value = name;
+          hostName.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        send('configure', currentSettings(name));
+        localStorage.setItem('sonora-profile-name', name);
+      } else if (state.creatingRoom) {
+        state.pendingHostName = name;
+        localStorage.setItem('sonora-profile-name', name);
+      } else {
+        try { await createRoom(name); } catch (error) { $('.name-gate-status').textContent = error.message; }
+      }
       return;
     }
 
@@ -760,15 +792,9 @@
     if (target.matches('.launch-button')) {
       event.preventDefault();
       event.stopImmediatePropagation();
+      if (state.creatingRoom) return;
       if (!state.session && window.getSelectedGameMode?.() === 'Quickfire') {
         const name = $('.host-name-input')?.value.trim() || '';
-        if (!name) {
-          state.pendingHost = true;
-          $('.name-gate').hidden = false;
-          $('.name-gate-input').value = '';
-          $('.name-gate-input').focus();
-          return;
-        }
         try { await finishRoomCreation(name, currentSettings(name)); }
         catch (error) { showNotice(error.message, true); }
         return;
@@ -866,12 +892,39 @@
     window.selectSetupGenre?.('Everything');
     setRoomCode('');
     const savedRoom = getRoomState();
-    const rememberedName = localStorage.getItem('sonora-room-setup-name') || '';
+    const rememberedName = localStorage.getItem('sonora-profile-name') || localStorage.getItem('sonora-room-setup-name') || '';
     savedRoom.hostName = '';
     if (savedRoom.players?.[0]) savedRoom.players[0].name = '';
     saveRoomState(savedRoom);
     openSetup(rememberedName);
-    showNotice('Create the room to generate an invite code.');
+    const launch = $('.launch-button');
+    if (!rememberedName) {
+      state.pendingHost = true;
+      $('.name-gate-status').textContent = '';
+      $('.name-gate-input').value = '';
+      $('.name-gate-save').disabled = false;
+      $('.name-gate').hidden = false;
+    }
+    if (launch) {
+      launch.disabled = true;
+      launch.textContent = 'Creating room…';
+    }
+    showNotice('Creating your room and invite code…');
+    if (!rememberedName) $('.name-gate-input').focus();
+    void finishRoomCreation(rememberedName, currentSettings(rememberedName)).catch((error) => {
+      showNotice(error.message, true);
+      if ($('.name-gate-code')) $('.name-gate-code').textContent = 'Unavailable';
+      if (!rememberedName) {
+        state.pendingHost = true;
+        if (state.pendingHostName) $('.name-gate-input').value = state.pendingHostName;
+        $('.name-gate').hidden = false;
+        $('.name-gate-save').disabled = false;
+      }
+      if (launch) {
+        launch.disabled = false;
+        launch.innerHTML = 'Start the room <span>→</span>';
+      }
+    });
   } else if (state.session) {
     setRoomCode(state.session.code);
     if (state.session.host) {

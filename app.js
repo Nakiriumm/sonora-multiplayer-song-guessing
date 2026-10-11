@@ -12,7 +12,8 @@ try {
     const pendingMode = JSON.parse(sessionStorage.getItem('sonora-pending-room') || 'null')?.settings?.mode;
     const sessionMode = JSON.parse(sessionStorage.getItem('sonora-cloudflare-session') || 'null')?.mode;
     const requestedMode = new URLSearchParams(location.search).get('mode');
-    if (availableModes.has(requestedMode)) selectedMode = requestedMode;
+    if (new URLSearchParams(location.search).get('setup') === '1') selectedMode = 'Quickfire';
+    else if (availableModes.has(requestedMode)) selectedMode = requestedMode;
     else if (pendingMode === 'Quickfire' || sessionMode === 'Quickfire') selectedMode = 'Quickfire';
   }
 } catch {}
@@ -552,10 +553,11 @@ hostNameField.className = 'setup-field host-name-field';
 hostNameField.innerHTML = '<span>Your name</span><input class="host-name-input" type="text" value="" placeholder="Enter your name" maxlength="20" autocomplete="name" /><small>This is how your crew will see you</small>';
 document.querySelector('.setup-fields').prepend(hostNameField);
 const hostNameInput = hostNameField.querySelector('.host-name-input');
-hostNameInput.value = getRoomState().hostName || '';
+hostNameInput.value = localStorage.getItem(profileNameKey) || localStorage.getItem(setupNameKey) || getRoomState().hostName || '';
 hostNameInput.addEventListener('input', () => {
   const hostName = hostNameInput.value.trim();
   localStorage.setItem(setupNameKey, hostName);
+  if (hostName) localStorage.setItem(profileNameKey, hostName);
   const room = getRoomState();
   room.hostName = hostName;
   saveRoomState(room);
@@ -564,7 +566,7 @@ hostNameInput.addEventListener('input', () => {
 const nameGate = document.createElement('div');
 nameGate.className = 'name-gate';
 nameGate.hidden = true;
-nameGate.innerHTML = '<section class="name-gate-card" role="dialog" aria-modal="true" aria-labelledby="name-gate-title"><p class="eyebrow">Before we start</p><h2 id="name-gate-title">What should<br /><em>we call you?</em></h2><p>Your name will appear in the room for everyone to see.</p><input class="name-gate-input" type="text" placeholder="Enter your name" maxlength="20" autocomplete="name" /><button class="primary-button name-gate-save" type="button">Continue <span>→</span></button><small class="name-gate-status" aria-live="polite"></small></section></div>';
+nameGate.innerHTML = '<section class="name-gate-card" role="dialog" aria-modal="true" aria-labelledby="name-gate-title"><p class="eyebrow">Before we start</p><h2 id="name-gate-title">What should<br /><em>we call you?</em></h2><p>Your name will appear in the room for everyone to see.</p><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 14px;padding:12px 14px;border:1px solid #53625d;border-radius:6px;background:#111817"><span style="color:#9da39d;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">Room code</span><strong class="name-gate-code" style="color:#e8e5da;font:600 21px \'Space Grotesk\';letter-spacing:.1em">Generating…</strong></div><input class="name-gate-input" type="text" placeholder="Enter your name" maxlength="20" autocomplete="name" /><button class="primary-button name-gate-save" type="button">Continue <span>→</span></button><small class="name-gate-status" aria-live="polite"></small></section></div>';
 document.body.appendChild(nameGate);
 const nameGateInput = nameGate.querySelector('.name-gate-input');
 nameGate.querySelector('.name-gate-save').addEventListener('click', () => {
@@ -976,8 +978,8 @@ function updateProfileDisplay(name) {
 updateProfileDisplay(hostNameInput.value || localStorage.getItem(profileNameKey) || '');
 hostNameInput.addEventListener('input', () => updateProfileDisplay(hostNameInput.value));
 window.addEventListener('storage', (event) => {
-  if (event.key !== roomStateKey || document.activeElement === hostNameInput) return;
-  const hostName = getRoomState().hostName || '';
+  if (![roomStateKey, profileNameKey, setupNameKey].includes(event.key) || document.activeElement === hostNameInput) return;
+  const hostName = localStorage.getItem(profileNameKey) || localStorage.getItem(setupNameKey) || getRoomState().hostName || '';
   hostNameInput.value = hostName;
   updateProfileDisplay(hostName);
 });
