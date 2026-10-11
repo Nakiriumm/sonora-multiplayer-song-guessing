@@ -122,8 +122,7 @@
     if (mode !== 'Quickfire') throw new Error('Solo play does not create a room.');
     const settings = currentSettings(name);
     settings.mode = mode;
-    sessionStorage.setItem(PENDING_ROOM_KEY, JSON.stringify({ name, settings }));
-    location.assign(new URL('room.html', location.href).href);
+    await finishRoomCreation(name, settings);
   }
 
   async function finishRoomCreation(name, settings) {
@@ -638,12 +637,31 @@
     $('.site-footer').hidden = false;
     document.body.style.overflow = '';
     window.scrollTo(0, 0);
+    if (document.body.dataset.roomPage === 'true') location.assign('index.html');
+  }
+
+  function returnToLobby() {
+    clearRoomTimer();
+    stopSyncedAudio();
+    $('.winner-backdrop').hidden = true;
+    $('.round-result-backdrop').hidden = true;
+    $('.game-view').hidden = true;
+    const room = state.room;
+    if (state.session?.host) {
+      const host = room?.players?.find((player) => player.id === state.session.playerId);
+      openSetup(host?.name || $('.host-name-input')?.value || '');
+    } else {
+      showJoinPage();
+      $('.joined-room-panel').hidden = false;
+    }
+    if (room) renderLobby(room);
+    if (state.session?.code) setRoomCode(state.session.code);
   }
 
   document.addEventListener('click', async (event) => {
     const target = event.target.closest('button');
     if (!target) return;
-    if (!state.session && target.matches('.game-play, .game-skip, .song-choice, .continue-round')) return;
+    if (!state.session && target.matches('.game-play, .game-skip, .song-choice, .continue-round, .winner-exit, .game-exit')) return;
 
     if (target.matches('.mode-card[data-mode="Solo"]')) return;
 
@@ -789,7 +807,14 @@
       return;
     }
 
-    if (target.matches('.winner-exit') || target.matches('.game-exit')) {
+    if (target.matches('.winner-exit')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      returnToLobby();
+      return;
+    }
+
+    if (target.matches('.game-exit')) {
       event.preventDefault();
       event.stopImmediatePropagation();
       leaveRoom();
@@ -831,7 +856,23 @@
     }
   }
   state.session = sessionStore.get();
-  if (state.session) {
+  const isFreshSetupPage = !inviteCode
+    && document.body.dataset.roomPage === 'true'
+    && new URLSearchParams(location.search).get('setup') === '1';
+  if (isFreshSetupPage) {
+    // A new setup must not reopen an old room session or its saved host.
+    sessionStore.clear();
+    sessionStorage.removeItem(PENDING_ROOM_KEY);
+    state.room = null;
+    window.selectSetupGenre?.('Everything');
+    setRoomCode('');
+    const savedRoom = getRoomState();
+    savedRoom.hostName = '';
+    if (savedRoom.players?.[0]) savedRoom.players[0].name = '';
+    saveRoomState(savedRoom);
+    openSetup('');
+    showNotice('Create the room to generate an invite code.');
+  } else if (state.session) {
     setRoomCode(state.session.code);
     if (state.session.host) {
       $('.modal-backdrop').hidden = false;
@@ -846,16 +887,7 @@
   } else if (!inviteCode && document.body.dataset.roomPage === 'true') {
     let pendingRoom = null;
     try { pendingRoom = JSON.parse(sessionStorage.getItem(PENDING_ROOM_KEY) || 'null'); } catch {}
-    if (new URLSearchParams(location.search).get('setup') === '1') {
-      window.selectSetupGenre?.('Everything');
-      setRoomCode('');
-      const savedRoom = getRoomState();
-      savedRoom.hostName = '';
-      if (savedRoom.players?.[0]) savedRoom.players[0].name = '';
-      saveRoomState(savedRoom);
-      openSetup('');
-      showNotice('Create the room to generate an invite code.');
-    } else if (!pendingRoom?.name || !pendingRoom?.settings) {
+    if (!pendingRoom?.name || !pendingRoom?.settings) {
       location.replace('index.html');
     } else {
       openSetup(pendingRoom.name);
