@@ -57,7 +57,14 @@ document.querySelector('.js-join-room').addEventListener('click', () => {
 });
 
 joinPage.querySelector('.join-back').addEventListener('click', closeJoinPage);
-document.querySelector('.modal-close').addEventListener('click', closeModal);
+document.querySelector('.modal-close').addEventListener('click', (event) => {
+  if (document.body.dataset.roomPage === 'true') {
+    event.preventDefault();
+    location.replace(new URL('index.html', location.href).href);
+    return;
+  }
+  closeModal();
+});
 modal.addEventListener('click', (event) => {
   if (event.target === modal) closeModal();
 });
