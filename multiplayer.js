@@ -161,6 +161,46 @@
     }
   }
 
+  window.createRoomFromModeButton = () => {
+    if (state.creatingRoom) return;
+    if (state.session?.host && state.room?.phase === 'lobby') {
+      const host = state.room.players?.find((player) => player.id === state.session.playerId);
+      openSetup(host?.name || $('.host-name-input')?.value || '');
+      setRoomCode(state.session.code);
+      return;
+    }
+    if (state.session) leaveRoom();
+    const name = localStorage.getItem('sonora-profile-name') || $('.host-name-input')?.value.trim() || '';
+    state.pendingHostName = '';
+    state.pendingHost = !name;
+    window.selectQuickfireModeForHost?.();
+    window.selectSetupGenre?.('Everything');
+    openSetup(name);
+    const launch = $('.launch-button');
+    if (!name) {
+      state.pendingHost = true;
+      $('.name-gate-status').textContent = '';
+      $('.name-gate-input').value = '';
+      $('.name-gate-save').disabled = false;
+      $('.name-gate').hidden = false;
+      $('.name-gate-input').focus();
+    }
+    if (launch) {
+      launch.disabled = true;
+      launch.textContent = 'Creating room…';
+    }
+    showNotice('Creating your room and invite code…');
+    void finishRoomCreation(name, currentSettings(name)).catch((error) => {
+      showNotice(error.message, true);
+      if ($('.name-gate-code')) $('.name-gate-code').textContent = 'Unavailable';
+      if (!name) state.pendingHost = true;
+      if (launch) {
+        launch.disabled = false;
+        launch.innerHTML = 'Start the room <span>→</span>';
+      }
+    });
+  };
+
   async function joinRoom(name, code) {
     const cleanCode = code.trim().replace(/\D/g, '').slice(0, 7);
     if (!/^\d{7}$/.test(cleanCode)) throw new Error('Enter the full 7 digit room code.');

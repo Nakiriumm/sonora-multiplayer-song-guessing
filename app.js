@@ -35,6 +35,10 @@ modeCards.forEach((card) => {
     const room = getRoomState();
     room.mode = selectedMode;
     saveRoomState(room);
+    if (selectedMode === 'Quickfire' && window.createRoomFromModeButton) {
+      window.createRoomFromModeButton();
+      return;
+    }
     openModal();
   });
 });
