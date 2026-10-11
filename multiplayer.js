@@ -867,10 +867,11 @@
     window.selectSetupGenre?.('Everything');
     setRoomCode('');
     const savedRoom = getRoomState();
+    const rememberedName = localStorage.getItem('sonora-room-setup-name') || '';
     savedRoom.hostName = '';
     if (savedRoom.players?.[0]) savedRoom.players[0].name = '';
     saveRoomState(savedRoom);
-    openSetup('');
+    openSetup(rememberedName);
     showNotice('Create the room to generate an invite code.');
   } else if (state.session) {
     setRoomCode(state.session.code);

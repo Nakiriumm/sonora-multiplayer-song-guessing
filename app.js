@@ -420,6 +420,7 @@ document.querySelector('.setup-modal').appendChild(joinedPanel);
 
 const roomStateKey = 'sonora-room-state';
 const profileNameKey = 'sonora-profile-name';
+const setupNameKey = 'sonora-room-setup-name';
 const defaultRoomState = { hostName: '', maxPlayers: 8, mode: 'Quickfire', genre: '', difficulty: 'medium', choiceCount: 4, duration: 30, time: '30 seconds', active: true, players: [{ name: '', role: 'Host' }] };
 
 function getRoomState() {
@@ -503,7 +504,6 @@ function updateLaunchAvailability() {
   const ready = Boolean(
     selectedMode
     && room.mode === selectedMode
-    && (solo || room.hostName?.trim())
     && (solo || modeChoices.querySelector('.mode-choice.selected'))
     && document.querySelector('.genre-option.selected')
     && (solo || (Number.parseInt(document.querySelector('.player-stepper strong')?.textContent, 10) && room.maxPlayers))
@@ -555,9 +555,9 @@ const hostNameInput = hostNameField.querySelector('.host-name-input');
 hostNameInput.value = getRoomState().hostName || '';
 hostNameInput.addEventListener('input', () => {
   const hostName = hostNameInput.value.trim();
+  localStorage.setItem(setupNameKey, hostName);
   const room = getRoomState();
   room.hostName = hostName;
-  if (room.players[0]) room.players[0].name = hostName;
   saveRoomState(room);
 });
 
