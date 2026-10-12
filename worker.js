@@ -458,6 +458,14 @@ export class GameRoom extends DurableObject {
       return;
     }
 
+    if (action.type === 'start') {
+      this.send(ws, {
+        type: 'error',
+        error: room.phase !== 'lobby' ? 'This room is not waiting to start a match.' : 'Only the current host can start the match.',
+      });
+      return;
+    }
+
     if (action.type === 'guess' && room.phase === 'game' && player.status === 'playing') {
       const round = room.rounds[room.roundIndex];
       const correct = Number(action.choiceIndex) === round.answerIndex;

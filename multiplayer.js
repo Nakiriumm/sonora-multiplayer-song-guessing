@@ -31,6 +31,7 @@
     bombMessageKey: '',
     scoreboardKey: '',
     configureTimer: 0,
+    startTimer: 0,
   };
 
   const $ = (selector) => document.querySelector(selector);
@@ -260,14 +261,16 @@
     socket.addEventListener('error', () => showNotice('Unable to connect to the room. Check that the Cloudflare Worker is deployed.', true));
   }
 
-  function enterGame() {
+  function enterGame(mode = 'Classic') {
     $('.modal-backdrop').hidden = true;
     $('.name-gate').hidden = true;
     $('.join-page').hidden = true;
     $('main').hidden = true;
     $('.site-footer').hidden = true;
     $$('.info-page').forEach((page) => { page.hidden = true; });
-    $('.game-view').hidden = false;
+    const isSongBomb = mode === 'SongBomb';
+    $('.game-view').hidden = isSongBomb;
+    $('.song-bomb-panel').hidden = !isSongBomb;
     document.body.style.overflow = 'auto';
   }
 
@@ -328,7 +331,7 @@
       const host = players.find((player) => player.id === state.session.playerId);
       if (host && (settings.name !== host.name || settings.mode !== room.mode || settings.maxPlayers !== room.maxPlayers || settings.genre !== room.genre || settings.difficulty !== (room.difficulty || 'medium') || settings.choiceCount !== (room.choiceCount || 4) || settings.roundCount !== (room.roundCount || 10) || settings.durationSeconds !== room.durationSeconds)) send('configure', settings);
     }
-    window.applyAppLanguage?.(window.getAppLanguage?.() || 'EN');
+    window.refreshSetupLanguage?.();
   }
 
   function updateScoreboard(room) {
@@ -469,10 +472,12 @@
   function renderGame(room) {
     if (!room) return;
     state.room = room;
-    enterGame();
+    enterGame(room.mode || 'Classic');
     $('.game-layout').hidden = false;
-    $('.song-bomb-panel').hidden = true;
-    $('.game-topbar>span').textContent = `ROUND ${room.roundNumber || 1} / ${room.roundCount || 10}`;
+    const roundNumber = Math.max(1, Number(room.roundNumber) || 1);
+    const roundCount = Math.max(1, Number(room.roundCount) || 10);
+    const topbar = $('.game-topbar>span');
+    if (topbar) topbar.innerHTML = `ROUND <strong class="game-round">${roundNumber}</strong> / ${roundCount}`;
     $('.round-result-backdrop').hidden = true;
     $('.winner-backdrop').hidden = true;
     updateScoreboard(room);
@@ -483,7 +488,8 @@
       state.localRound = number;
       state.localStage = 0;
     }
-    $('.game-round').textContent = String(number);
+    const roundLabel = $('.game-round');
+    if (roundLabel) roundLabel.textContent = String(number);
     $('.vinyl-stage p').textContent = `ROUND GENRE · ${(room.currentRound?.genre || room.genre || 'Everything').toUpperCase()}`;
     const stage = state.localStage;
     $$('.track-marks span').forEach((mark, index) => mark.classList.toggle('active', index <= stage));
@@ -540,13 +546,11 @@
   function renderSongBomb(room) {
     if (!room?.bomb) return;
     state.room = room;
-    enterGame();
+    enterGame('SongBomb');
     clearRoomTimer();
     $('.round-result-backdrop').hidden = true;
     $('.winner-backdrop').hidden = true;
-    $('.game-layout').hidden = true;
-    $('.song-bomb-panel').hidden = false;
-    $('.game-topbar>span').textContent = 'SONG BOMB';
+    $('.bomb-topbar>span').textContent = 'SONG BOMB';
     const bomb = room.bomb;
     const activePlayer = room.players.find((player) => player.id === bomb.turnPlayerId);
     const me = room.players.find((player) => player.id === state.session?.playerId);
@@ -679,7 +683,7 @@
     state.winnerShown = true;
     clearRoomTimer();
     stopSyncedAudio();
-    enterGame();
+    enterGame(room.mode || 'Classic');
     const winner = room.winner || [...(room.players || [])].sort((a, b) => b.score - a.score)[0];
     $('#winner-title').textContent = winner ? `${winner.name} wins!` : 'Game complete';
     $('.winner-score').textContent = winner ? (room.mode === 'SongBomb' ? `Last player standing \u00b7 ${winner.lives} lives left` : `Final score \u00b7 ${winner.score} points`) : '';
@@ -689,6 +693,8 @@
 
   function handleMessage(message) {
     if (message.type === 'error') {
+      clearTimeout(state.startTimer);
+      state.startTimer = 0;
       if (state.session && !state.session.host) {
         $('.join-status').textContent = message.error;
         $('.join-status').className = 'join-status error';
@@ -696,6 +702,7 @@
       }
       if (state.session?.host && state.room?.phase === 'lobby') {
         $('.game-view').hidden = true;
+        $('.song-bomb-panel').hidden = true;
         $('main').hidden = false;
         $('.site-footer').hidden = false;
         $('.modal-backdrop').hidden = false;
@@ -728,6 +735,19 @@
     }
     switch (message.type) {
       case 'lobby':
+        // A lobby transition can mean the host is starting a fresh match in
+        // this same room. Clear round render caches so round 1 is initialized
+        // again instead of retaining the previous match's "Starting" state.
+        state.localRound = 0;
+        state.localStage = 0;
+        state.timerKey = '';
+        const choices = $('.song-choices');
+        if (choices) {
+          choices.dataset.renderedRound = '';
+          choices.dataset.roundNumber = '0';
+          choices.dataset.stage = '-1';
+          choices.classList.remove('locked', 'wrong-locked');
+        }
         if (state.winnerShown && !state.session?.host) {
           state.winnerShown = false;
           $('.winner-backdrop').hidden = true;
@@ -739,6 +759,8 @@
         renderLobby(room);
         break;
       case 'game':
+        clearTimeout(state.startTimer);
+        state.startTimer = 0;
         state.winnerShown = false;
         renderGame(room);
         break;
@@ -865,6 +887,7 @@
     if (!state.session?.host) return showNotice('Only the host can start the room.', true);
     if (!window.getSelectedGameMode?.()) return showNotice('Choose a game mode on the home page before starting.', true);
     const button = $('.launch-button');
+    let showingGameStart = false;
     button.disabled = true;
     button.textContent = window.getSelectedGameMode?.() === 'SongBomb' ? 'Preparing Song Bomb…' : 'Preparing songs…';
     try {
@@ -872,17 +895,52 @@
         const songs = await prepareBombSongs();
         if (state.socket?.readyState !== WebSocket.OPEN) throw new Error('The room connection was lost. Reconnect and try again.');
         closeModal();
-        enterGame();
+        enterGame('SongBomb');
         send('start-bomb', { songs });
         return;
       }
       const rounds = await prepareRounds();
       if (state.socket?.readyState !== WebSocket.OPEN) throw new Error('The room connection was lost. Reconnect and try again.');
+      // A host can reuse the same page/session to start another room without
+      // receiving a lobby WebSocket event. Force round 1 to render as new.
+      state.localRound = 0;
+      state.localStage = 0;
+      state.timerKey = '';
+      stopSyncedAudio();
+      const choices = $('.song-choices');
+      if (choices) {
+        choices.dataset.renderedRound = '';
+        choices.dataset.roundNumber = '0';
+        choices.dataset.stage = '-1';
+        choices.classList.remove('locked', 'wrong-locked');
+      }
       closeModal();
-      enterGame();
+      enterGame('Classic');
+      $('.game-layout').hidden = false;
       $('.round-feedback').textContent = 'Starting the game…';
-      send('start', { rounds });
+      showingGameStart = true;
+      if (!send('start', { rounds })) throw new Error('The room connection was lost before the match could start. Reconnect and try again.');
+      clearTimeout(state.startTimer);
+      state.startTimer = setTimeout(() => {
+        state.startTimer = 0;
+        if (state.room?.phase === 'game' || state.room?.phase === 'break') return;
+        $('.game-view').hidden = true;
+        $('main').hidden = false;
+        $('.site-footer').hidden = false;
+        $('.modal-backdrop').hidden = false;
+        document.body.style.overflow = 'hidden';
+        showNotice('The room did not confirm the match start. Check your connection and try again.', true);
+      }, 12000);
     } catch (error) {
+      clearTimeout(state.startTimer);
+      state.startTimer = 0;
+      if (showingGameStart) {
+        $('.game-view').hidden = true;
+        $('main').hidden = false;
+        $('.site-footer').hidden = false;
+        $('.modal-backdrop').hidden = false;
+        document.body.style.overflow = 'hidden';
+      }
       showNotice(error.message, true);
     } finally {
       button.disabled = false;
@@ -914,6 +972,8 @@
     clearInterval(state.heartbeat);
     clearRoomTimer();
     clearTimeout(state.connectTimer);
+    clearTimeout(state.startTimer);
+    state.startTimer = 0;
     stopSyncedAudio();
     state.socket?.close();
     state.socket = null;
@@ -922,6 +982,7 @@
     $('.winner-backdrop').hidden = true;
     $('.round-result-backdrop').hidden = true;
     $('.game-view').hidden = true;
+    $('.song-bomb-panel').hidden = true;
     $('.modal-backdrop').hidden = true;
     $('.join-page').hidden = true;
     $('main').hidden = false;
@@ -933,11 +994,14 @@
 
   function returnToLobby() {
     clearRoomTimer();
+    clearTimeout(state.startTimer);
+    state.startTimer = 0;
     stopSyncedAudio();
     if (state.session?.host && state.room?.phase === 'finished') send('return-lobby');
     $('.winner-backdrop').hidden = true;
     $('.round-result-backdrop').hidden = true;
     $('.game-view').hidden = true;
+    $('.song-bomb-panel').hidden = true;
     const room = state.room;
     if (state.session?.host) {
       const host = room?.players?.find((player) => player.id === state.session.playerId);
