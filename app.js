@@ -491,7 +491,8 @@ async function loadSingleGenreCatalog(genre){
 }
 async function loadQuickGenreCatalog(genre,target){
   genre=genreAliases[genre]||genre;
-  if(genreCatalogCache.has(genre))return genreCatalogCache.get(genre);
+  const cachedCatalog=genreCatalogCache.get(genre);
+  if(cachedCatalog&&cachedCatalog.length>=target)return cachedCatalog;
   const key=`${genre}:${target}`;
   if(quickCatalogLoadTasks.has(key))return quickCatalogLoadTasks.get(key);
   const task=loadSingleGenreCatalogInner(genre,target);
@@ -624,24 +625,27 @@ window.getCachedRoundSongCatalogs=async(genre='Everything')=>{
 window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficulty='medium')=>{
   genre=genreAliases[genre]||genre;
   const required=Math.max(4,Math.min(400,Number(requiredCount)||40));
+  const difficultyMultiplier={easy:2,medium:4,hard:8,extreme:12}[difficulty]||4;
+  const expansionTarget=(count,sourceGenre)=>Math.min(getGenreCatalogTarget(sourceGenre),Math.max(count+4,count*difficultyMultiplier+4));
   const playableCount=catalogs=>(catalogs||[]).reduce((sum,pool)=>sum+(pool.songs||[]).filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty).length,0);
   let catalogs=await window.getCachedRoundSongCatalogs(genre);
   if(playableCount(catalogs)>=required)return catalogs;
   if(genre==='Everything'){
     const groups=new Map(catalogs.filter(pool=>pool.name!=='Everything').map(pool=>[pool.name,pool.songs||[]]));
     const genres=[...sourceGenres].sort(()=>Math.random()-.5).slice(0,3);
-    const target=Math.ceil(required/genres.length)+4;
+    const perGenreRequired=Math.ceil(required/genres.length);
     for(const sourceGenre of genres){
+      const target=expansionTarget(perGenreRequired,sourceGenre);
       const songs=await loadQuickGenreCatalog(sourceGenre,target);
       groups.set(sourceGenre,songs);
     }
     catalogs=[...groups].map(([name,songs])=>({name,songs}));
   }else if(genre==='Anime'){
-    const target=Math.ceil(required/2)+4;
+    const target=expansionTarget(Math.ceil(required/2),'Anime openings');
     const [openings,endings]=await Promise.all([loadQuickGenreCatalog('Anime openings',target),loadQuickGenreCatalog('Anime endings',target)]);
     catalogs=[{name:'Anime openings',songs:openings},{name:'Anime endings',songs:endings}];
   }else{
-    catalogs=[{name:genre,songs:await loadQuickGenreCatalog(genre,required+4)}];
+    catalogs=[{name:genre,songs:await loadQuickGenreCatalog(genre,expansionTarget(required,genre))}];
   }
   if(playableCount(catalogs)<required)throw new Error(`Only ${playableCount(catalogs)} playable ${difficulty} songs are cached for ${genre}. Check your connection and try again.`);
   return catalogs;
@@ -746,9 +750,7 @@ function getJPopSubtitle(song, genre = activeRoundGenre) {
   if (genre !== 'J-Pop' || !song?.[0] || !/[\u3040-\u30ff\u3400-\u9fff]/u.test(song[0])) return '';
   const alias = song[7] && typeof song[7] === 'object' ? song[7] : {};
   const known = jpopTitleAliases.get(song[0].normalize('NFC')) || {};
-  if (alias.english || known.english) return alias.english || known.english;
-  const romaji = alias.romaji || song[8] || known.romaji || romanizeKana(song[0]);
-  return romaji && !/[\u3400-\u9fff]/u.test(romaji) ? romaji : '';
+  return alias.english || known.english || '';
 }
 window.getJPopSubtitle = getJPopSubtitle;
 const vocaloidSubtitleCacheKey='sonora-vocaloid-title-subtitles-v2';
