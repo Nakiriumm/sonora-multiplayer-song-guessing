@@ -35,7 +35,9 @@ function cleanBombSong(song) {
 }
 
 function normalizeGuess(value) {
-  return String(value || '').normalize('NFKD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  // Keep combining marks: NFKD + stripping diacritics turns voiced kana such
+  // as が into か, making Japanese catalog entries impossible to find.
+  return String(value || '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
 }
 
 function roomEventType(room) {
@@ -300,6 +302,29 @@ export class GameRoom extends DurableObject {
       return;
     }
 
+    if (action.type === 'bomb-search' && room.phase === 'bomb' && player.id === room.bombTurnPlayerId && !player.eliminated) {
+      const query = normalizeGuess(action.query);
+      const requestId = Number(action.requestId) || 0;
+      const currentSong = room.bombSongs?.[room.bombSongIndex];
+      const compact = (value) => normalizeGuess(value).replace(/\s+/g, '');
+      const compactQuery = compact(query);
+      const matches = (song) => {
+        const title = normalizeGuess(song.title);
+        const artist = normalizeGuess(song.artist);
+        return title.includes(query) || artist.includes(query)
+          || compact(title).includes(compactQuery) || compact(artist).includes(compactQuery);
+      };
+      const hasJapanese = /[\u3040-\u30ff\u3400-\u9fff]/u.test(query);
+      const suggestions = (query.length < (hasJapanese ? 1 : 2)) ? [] : (room.bombSongs || [])
+        .filter(matches)
+        .sort((a, b) => Number(b === currentSong) - Number(a === currentSong)
+          || Number(normalizeGuess(b.title).startsWith(query)) - Number(normalizeGuess(a.title).startsWith(query)))
+        .slice(0, 12)
+        .map(({ title, artist }) => ({ title, artist }));
+      this.send(ws, { type: 'bomb-suggestions', requestId, suggestions });
+      return;
+    }
+
     if (action.type === 'leave') {
       if (room.phase === 'lobby' && player.id === room.hostId) {
         room.phase = 'closed';
@@ -427,14 +452,24 @@ export class GameRoom extends DurableObject {
 
     if (action.type === 'bomb-skip' && room.phase === 'bomb' && player.id === room.bombTurnPlayerId && !player.eliminated) {
       const result = Date.now() >= room.bombTurnEndsAt ? 'timeout' : 'skip';
-      room.bombLastResult = { playerId: player.id, result, turnNumber: room.bombTurnNumber };
+      room.bombLastResult = {
+        playerId: player.id,
+        result,
+        turnNumber: room.bombTurnNumber,
+        answerTitle: room.bombSongs?.[room.bombSongIndex]?.title || '',
+      };
       await this.advanceBombTurn(room, true);
       return;
     }
 
     if (action.type === 'bomb-guess' && room.phase === 'bomb' && player.id === room.bombTurnPlayerId && !player.eliminated) {
       if (Date.now() >= room.bombTurnEndsAt) {
-        room.bombLastResult = { playerId: player.id, result: 'timeout', turnNumber: room.bombTurnNumber };
+        room.bombLastResult = {
+          playerId: player.id,
+          result: 'timeout',
+          turnNumber: room.bombTurnNumber,
+          answerTitle: room.bombSongs?.[room.bombSongIndex]?.title || '',
+        };
         await this.advanceBombTurn(room, true);
         return;
       }
@@ -442,10 +477,19 @@ export class GameRoom extends DurableObject {
       const guess = normalizeGuess(action.guess);
       const title = normalizeGuess(action.title);
       const artist = normalizeGuess(action.artist);
-      const correct = Boolean(answer) && (title && artist
-        ? title === normalizeGuess(answer.title) && artist === normalizeGuess(answer.artist)
-        : guess === normalizeGuess(answer.title) || guess === normalizeGuess(answer.artist));
-      room.bombLastResult = { playerId: player.id, result: correct ? 'correct' : 'wrong', turnNumber: room.bombTurnNumber };
+      const answerTitle = normalizeGuess(answer?.title);
+      const answerArtist = normalizeGuess(answer?.artist);
+      const correct = Boolean(answer) && (
+        (title && title === answerTitle)
+        || (artist && artist === answerArtist)
+        || (guess && (guess === answerTitle || guess === answerArtist))
+      );
+      room.bombLastResult = {
+        playerId: player.id,
+        result: correct ? 'correct' : 'wrong',
+        turnNumber: room.bombTurnNumber,
+        answerTitle: correct ? '' : answer?.title || '',
+      };
       this.send(ws, { type: 'bomb-result', correct });
       await this.advanceBombTurn(room, !correct);
       return;
@@ -522,7 +566,7 @@ export class GameRoom extends DurableObject {
         name: current.name,
         result: result.result,
         turnNumber: room.bombTurnNumber,
-        answerTitle: ['wrong', 'timeout'].includes(result.result) ? room.bombSongs?.[room.bombSongIndex]?.title || '' : '',
+        answerTitle: result.answerTitle || (result.result !== 'correct' ? room.bombSongs?.[room.bombSongIndex]?.title || '' : ''),
       });
       if (room.bombLog.length > 80) room.bombLog.splice(0, room.bombLog.length - 80);
     }
@@ -617,7 +661,12 @@ export class GameRoom extends DurableObject {
       return;
     }
     if (room.phase === 'bomb' && now >= room.bombTurnEndsAt) {
-      room.bombLastResult = { playerId: room.bombTurnPlayerId, result: 'timeout', turnNumber: room.bombTurnNumber };
+      room.bombLastResult = {
+        playerId: room.bombTurnPlayerId,
+        result: 'timeout',
+        turnNumber: room.bombTurnNumber,
+        answerTitle: room.bombSongs?.[room.bombSongIndex]?.title || '',
+      };
       await this.advanceBombTurn(room, true);
     } else if (room.phase === 'game' && room.playback.playing && now >= room.playback.endsAt && now < room.roundEndsAt) {
       room.playback = { playing: false, playAt: 0, offset: STAGE_STARTS[room.stage], endsAt: 0 };

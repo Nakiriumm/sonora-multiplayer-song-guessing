@@ -26,6 +26,7 @@
     timerKey: '',
     bombAudioKey: '',
     bombSearchRequest: 0,
+    bombServerSuggestions: [],
     bombSearchTimer: 0,
     bombSubmitting: false,
     bombMessageKey: '',
@@ -644,12 +645,15 @@
         changed = true;
       }
       line.className = `bomb-log-entry${entry.result === 'correct' ? ' is-correct' : ''}${index === log.length - 1 ? ' is-latest' : ''}`;
-      if (entry.result === 'wrong' || entry.result === 'timeout') {
+      if (entry.result === 'wrong' || entry.result === 'timeout' || entry.result === 'skip') {
         const prefix = entry.result === 'wrong'
-          ? `${entry.name} guessed incorrectly and lost a life. Answer: `
-          : `${entry.name} ran out of time and lost a life. Answer: `;
+          ? `${entry.name} guessed incorrectly and lost a life. Answer:`
+          : entry.result === 'timeout'
+            ? `${entry.name} ran out of time and lost a life. Answer:`
+            : `${entry.name} skipped their turn and lost a life. Answer:`;
         line.replaceChildren(document.createTextNode(prefix));
         if (entry.answerTitle) {
+          line.appendChild(document.createTextNode(' '));
           const answer = document.createElement('strong');
           answer.className = 'bomb-log-answer';
           answer.textContent = entry.answerTitle;
@@ -658,7 +662,7 @@
       } else {
         line.textContent = entry.result === 'correct'
           ? `${entry.name} guessed correctly. The bomb passed on.`
-          : `${entry.name} skipped their turn and lost a life.`;
+          : `${entry.name} lost a life.`;
       }
       line.style.setProperty('--entry-opacity', String(Math.max(0.12, 0.9 - (log.length - 1 - index) * 0.22)));
     });
@@ -708,26 +712,82 @@
     updateBreakTimer(room);
   }
 
+  const bombArtistNameCache = new Map();
+
+  async function getEnglishBombArtist(song) {
+    const artistName = String(song.artistName || '');
+    if (!/[\u3040-\u30ff\u3400-\u9fff]/u.test(artistName)) return artistName;
+    const cacheKey = String(song.trackId || `${song.trackName}|${artistName}`);
+    if (bombArtistNameCache.has(cacheKey)) return bombArtistNameCache.get(cacheKey);
+    const lookup = (async () => {
+      const isEnglish = (value) => value && !/[\u3040-\u30ff\u3400-\u9fff]/u.test(value);
+      const titleKey = String(song.trackName || '').normalize('NFKC').toLocaleLowerCase();
+      try {
+        if (song.trackId) {
+          const response = await fetch(`https://itunes.apple.com/lookup?id=${encodeURIComponent(song.trackId)}&entity=song&country=US`, { signal: AbortSignal.timeout(5000) });
+          if (response.ok) {
+            const data = await response.json();
+            const match = (data.results || []).find((track) => track.trackId === song.trackId) || data.results?.[0];
+            if (isEnglish(match?.artistName)) return match.artistName;
+          }
+        }
+        const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(song.trackName)}&entity=song&country=US&limit=50`, { signal: AbortSignal.timeout(5000) });
+        if (response.ok) {
+          const data = await response.json();
+          const match = (data.results || []).find((track) => String(track.trackName || '').normalize('NFKC').toLocaleLowerCase() === titleKey && isEnglish(track.artistName));
+          if (match) return match.artistName;
+        }
+      } catch {}
+      return artistName;
+    })();
+    bombArtistNameCache.set(cacheKey, lookup);
+    const resolved = await lookup;
+    bombArtistNameCache.set(cacheKey, resolved);
+    return resolved;
+  }
+
   function searchBombSuggestions(query) {
     clearTimeout(state.bombSearchTimer);
     const list = $('.bomb-suggestions');
     const value = query.trim();
     const request = ++state.bombSearchRequest;
-    if (value.length < 2) { list.replaceChildren(); return; }
+    state.bombServerSuggestions = [];
+    if (value.length < (/[\u3040-\u30ff\u3400-\u9fff]/u.test(value) ? 1 : 2)) { list.replaceChildren(); return; }
     list.innerHTML = '<p class="bomb-suggestions-hint">Searching songs…</p>';
     state.bombSearchTimer = setTimeout(async () => {
-      const country = ['Anime', 'J-Pop', 'Thai songs'].includes(state.room?.genre) ? 'JP' : 'US';
+      send('bomb-search', { query: value, requestId: request });
+      const genre = state.room?.genre || '';
+      const country = genre === 'Thai songs' ? 'TH' : genre === 'J-Pop' || genre === 'Anime' || genre.startsWith('Anime ') ? 'JP' : 'US';
       try {
-        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(value)}&entity=song&country=${country}&limit=8`;
+        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(value)}&entity=song&country=${country}&limit=50`;
         const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
         const data = response.ok ? await response.json() : { results: [] };
         if (request !== state.bombSearchRequest || value !== $('#bomb-song-input').value.trim()) return;
-        const results = (data.results || []).filter((song) => song.trackName && song.artistName).slice(0, 8);
-        list.innerHTML = results.length ? results.map((song) => `<button class="bomb-suggestion" type="button" role="option" data-title="${escapeHtml(song.trackName)}" data-artist="${escapeHtml(song.artistName)}"><strong>${escapeHtml(song.trackName)}</strong><small>${escapeHtml(song.artistName)}</small></button>`).join('') : '<p class="bomb-suggestions-hint">No matching songs found.</p>';
+        const results = (data.results || []).filter((song) => song.trackName && song.artistName).slice(0, 12);
+        const suggestions = await Promise.all(results.map(async (song) => ({ song, artist: await getEnglishBombArtist(song) })));
+        if (request !== state.bombSearchRequest || value !== $('#bomb-song-input').value.trim()) return;
+        renderBombSuggestionList(suggestions, request);
       } catch {
-        if (request === state.bombSearchRequest) list.innerHTML = '<p class="bomb-suggestions-hint">Song suggestions are unavailable right now.</p>';
+        if (request === state.bombSearchRequest) renderBombSuggestionList([], request);
       }
     }, 220);
+  }
+
+  function renderBombSuggestionList(externalSuggestions, request) {
+    if (request !== state.bombSearchRequest) return;
+    const list = $('.bomb-suggestions');
+    const combined = [...state.bombServerSuggestions.map((song) => ({ song, artist: song.artist })), ...externalSuggestions];
+    const seen = new Set();
+    const unique = combined.filter(({ song, artist }) => {
+      const key = `${String(song.title || song.trackName).toLocaleLowerCase()}|${String(artist).toLocaleLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 12);
+    list.innerHTML = unique.length ? unique.map(({ song, artist }) => {
+      const title = song.title || song.trackName;
+      return `<button class="bomb-suggestion" type="button" role="option" data-title="${escapeHtml(title)}" data-artist="${escapeHtml(artist)}"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(artist)}</small></button>`;
+    }).join('') : '<p class="bomb-suggestions-hint">No matching songs found.</p>';
   }
 
   function submitBombGuess(guess, title = '', artist = '') {
@@ -758,6 +818,7 @@
     clearRoomTimer();
     stopSyncedAudio();
     enterGame(room.mode || 'Classic');
+    if (room.mode === 'SongBomb') renderBombLog(room.bombLog || []);
     const latestBombEvent = room.mode === 'SongBomb' ? room.bombLog?.[room.bombLog.length - 1] : null;
     if (latestBombEvent?.result === 'timeout') {
       const resultKey = `${latestBombEvent.turnNumber}:${latestBombEvent.playerId}:${latestBombEvent.result}`;
@@ -774,6 +835,15 @@
   }
 
   function handleMessage(message) {
+    if (message.type === 'bomb-suggestions') {
+      const request = Number(message.requestId) || 0;
+      const query = $('#bomb-song-input')?.value.trim() || '';
+      if (request === state.bombSearchRequest && query.length >= (/[\u3040-\u30ff\u3400-\u9fff]/u.test(query) ? 1 : 2)) {
+        state.bombServerSuggestions = Array.isArray(message.suggestions) ? message.suggestions : [];
+        renderBombSuggestionList([], request);
+      }
+      return;
+    }
     if (message.type === 'error') {
       clearTimeout(state.startTimer);
       state.startTimer = 0;
