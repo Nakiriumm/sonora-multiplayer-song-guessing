@@ -35,8 +35,8 @@ modeCards.forEach((card) => {
     const room = getRoomState();
     room.mode = selectedMode;
     saveRoomState(room);
-    if (selectedMode === 'Quickfire' && window.createRoomFromModeButton) {
-      window.createRoomFromModeButton();
+    if (selectedMode !== 'Solo') {
+      location.assign(new URL('room.html?setup=1&mode=Quickfire', location.href).href);
       return;
     }
     openModal();
@@ -139,7 +139,27 @@ const genreArtistSeeds={
   'Hip-hop & R&B':['Drake','Kendrick Lamar','Eminem','SZA','The Weeknd','Beyonce','Rihanna','TLC','Usher','Alicia Keys','Outkast','Jay-Z','Missy Elliott','Tupac','Notorious B.I.G.','Lauryn Hill','Chris Brown','Doja Cat','Post Malone','Travis Scott','Childish Gambino','Mary J. Blige','Bruno Mars','TLC'],
   'Throwback classics':['The Beatles','Queen','Michael Jackson','ABBA','Whitney Houston','Elton John','Madonna','Prince','Stevie Wonder','Earth, Wind & Fire','Fleetwood Mac','David Bowie','The Rolling Stones','Bee Gees','Cyndi Lauper','Bon Jovi','a-ha','Toto','Journey','Gloria Gaynor','Eurythmics','Aretha Franklin','The Supremes','Elvis Presley'],
   'Thai songs':['Bodyslam','Palmy','Bird Thongchai McIntyre','Slot Machine','Getsunova','Lula','Da Endorphine','Lipta','Three Man Down','Tilly Birds','Only Monday','Ink Waruntorn','Polycat','Scrubb','Potato','Big Ass','Labanoon','Cocktail','Pang Nakarin','Klear','Joey Phuwasit','Jeff Satur','Nont Tanont','Bowkylion'],
-  'J-Pop':['YOASOBI','Ado','Official HIGE DANdism','Mrs. GREEN APPLE','King Gnu','Kenshi Yonezu','LiSA','Aimyon','Hikaru Utada','AKB48','Perfume','Arashi','Snow Man','back number','Vaundy','Eve','Aimer','RADWIMPS','BUMP OF CHICKEN','Sakanaction','Yorushika','Sukima Switch','Nogizaka46','ONE OK ROCK']
+  'J-Pop':['YOASOBI','Ado','Official HIGE DANdism','Mrs. GREEN APPLE','King Gnu','Kenshi Yonezu','LiSA','Aimyon','Hikaru Utada','AKB48','Perfume','Arashi','Snow Man','back number','Vaundy','Eve','Aimer','RADWIMPS','BUMP OF CHICKEN','Sakanaction','Yorushika','Sukima Switch','Nogizaka46','ONE OK ROCK'],
+  'Anime openings':[],
+  'Anime endings':[]
+};
+const animeSeriesSearchTerms = {
+  'Anime openings':[
+    'Naruto','One Piece','Bleach','Dragon Ball Z','Attack on Titan','Demon Slayer','Jujutsu Kaisen','My Hero Academia','Chainsaw Man','Tokyo Ghoul',
+    'Fullmetal Alchemist Brotherhood','Death Note','Hunter x Hunter','Sailor Moon','Neon Genesis Evangelion','Cowboy Bebop','JoJo Bizarre Adventure','Sword Art Online','Fairy Tail','Black Clover',
+    'Spy x Family','Haikyu','Oshi no Ko','Frieren Beyond Journey’s End','Blue Lock','Bocchi the Rock','Kaguya-sama Love Is War','Your Lie in April','One Punch Man','Mob Psycho 100',
+    'Gintama','Code Geass','Steins Gate','Re Zero','The Apothecary Diaries','Solo Leveling','Psycho-Pass','Fate Stay Night','Inuyasha','The Seven Deadly Sins',
+    'Violet Evergarden','Dandadan','Dr Stone','The Promised Neverland','Vinland Saga','Beastars','Made in Abyss','Parasyte','Assassination Classroom','Food Wars',
+    'Blue Exorcist','K-On','Initial D','Trigun','Samurai Champloo','Yu Yu Hakusho','Cardcaptor Sakura','Black Butler','Ouran High School Host Club','Pokémon'
+  ],
+  'Anime endings':[
+    'Naruto','One Piece','Bleach','Dragon Ball Z','Attack on Titan','Demon Slayer','Jujutsu Kaisen','My Hero Academia','Chainsaw Man','Tokyo Ghoul',
+    'Fullmetal Alchemist Brotherhood','Death Note','Hunter x Hunter','Sailor Moon','Neon Genesis Evangelion','Cowboy Bebop','JoJo Bizarre Adventure','Sword Art Online','Fairy Tail','Black Clover',
+    'Spy x Family','Haikyu','Oshi no Ko','Frieren Beyond Journey’s End','Blue Lock','Bocchi the Rock','Kaguya-sama Love Is War','Your Lie in April','One Punch Man','Mob Psycho 100',
+    'Gintama','Code Geass','Steins Gate','Re Zero','The Apothecary Diaries','Solo Leveling','Psycho-Pass','Fate Stay Night','Inuyasha','The Seven Deadly Sins',
+    'Violet Evergarden','Dandadan','Dr Stone','The Promised Neverland','Vinland Saga','Beastars','Made in Abyss','Parasyte','Assassination Classroom','Food Wars',
+    'Blue Exorcist','K-On','Initial D','Trigun','Samurai Champloo','Yu Yu Hakusho','Cardcaptor Sakura','Black Butler','Ouran High School Host Club','Pokémon'
+  ]
 };
 const GENRE_CATALOG_SIZE=1000;
 const genreCatalogCache=new Map();
@@ -149,7 +169,8 @@ const genreAliases={'เพลงป๊อป':'Pop anthems','อินดี้
 async function loadSingleGenreCatalog(genre) {
   genre = genreAliases[genre] || genre;
   const artists = genreArtistSeeds[genre];
-  if (!artists) return roundSongs;
+  const searchTerms = animeSeriesSearchTerms[genre] || artists;
+  if (!searchTerms) return roundSongs;
   if (genreCatalogCache.has(genre)) return genreCatalogCache.get(genre);
 
   const storageKey = 'sonora-song-catalog-v3-' + genre;
@@ -197,12 +218,13 @@ async function loadSingleGenreCatalog(genre) {
     } catch {}
   }
 
-  for (let offset = 0; offset < artists.length && catalog.length < GENRE_CATALOG_SIZE; offset += 8) {
-    const batch = artists.slice(offset, offset + 8);
-    const country = genre === 'Thai songs' ? 'TH' : genre === 'J-Pop' ? 'JP' : 'US';
-    const results = await Promise.all(batch.map(async (artist) => {
+  for (let offset = 0; offset < searchTerms.length && catalog.length < GENRE_CATALOG_SIZE; offset += 8) {
+    const batch = searchTerms.slice(offset, offset + 8);
+    const country = genre === 'Thai songs' ? 'TH' : genre === 'J-Pop' || genre.startsWith('Anime ') ? 'JP' : 'US';
+    const results = await Promise.all(batch.map(async (term) => {
       try {
-        const url = 'https://itunes.apple.com/search?term=' + encodeURIComponent(artist)
+        const searchTerm = animeSeriesSearchTerms[genre] ? `${term} anime ${genre.endsWith('openings') ? 'opening' : 'ending'}` : term;
+        const url = 'https://itunes.apple.com/search?term=' + encodeURIComponent(searchTerm)
           + '&entity=song&country=' + country + '&limit=50';
         const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
         if (!response.ok) return [];
@@ -235,10 +257,14 @@ async function loadSingleGenreCatalog(genre) {
   }
   return catalog;
 }
-const sourceGenres=['Pop anthems','Indie & alternative','Hip-hop & R&B','Throwback classics','Thai songs','J-Pop'];
+const sourceGenres=['Pop anthems','Indie & alternative','Hip-hop & R&B','Throwback classics','Thai songs','J-Pop','Anime openings','Anime endings'];
 const combinedGenres=['Everything',...sourceGenres];
 async function loadGenreCatalog(genre) {
   genre=genreAliases[genre]||genre;
+  if(genre==='Anime'){
+    const catalogs=await Promise.all([loadSingleGenreCatalog('Anime openings'),loadSingleGenreCatalog('Anime endings')]);
+    return [...new Map(catalogs.flat().map((song)=>[normalizeSongText(song[0])+'|'+normalizeSongText(song[1]),song])).values()];
+  }
   if(genre!=='Everything')return loadSingleGenreCatalog(genre);
   if(genreCatalogCache.has('Everything')&&everythingGenreCatalogs.size)return genreCatalogCache.get('Everything');
   const cacheKey='sonora-song-catalog-v3-Everything';
@@ -274,6 +300,10 @@ async function loadGenreCatalog(genre) {
 }
 window.getRoundSongCatalogs=async(genre='Everything')=>{
   genre=genreAliases[genre]||genre;
+  if(genre==='Anime'){
+    const [openings,endings]=await Promise.all([loadSingleGenreCatalog('Anime openings'),loadSingleGenreCatalog('Anime endings')]);
+    return [{name:'Anime openings',songs:openings},{name:'Anime endings',songs:endings}];
+  }
   if(genre==='Everything'){
     await loadGenreCatalog('Everything');
     return [...everythingGenreCatalogs].map(([name,songs])=>({name,songs}));
@@ -316,7 +346,7 @@ function continueNames(){try{return JSON.parse(localStorage.getItem(continueKey(
 function updateContinueStatus(button){const ready=continueNames();button.textContent=`Continue (${ready.length}/${roundPlayers.length})`;if(ready.length>=roundPlayers.length){clearInterval(breakTick);nextRound();}}
 window.addEventListener('storage',event=>{if(event.key===continueKey()){const button=roundResult.querySelector('.continue-round');if(button)updateContinueStatus(button);}});
 async function nextRound(){clearInterval(roundTick);clearInterval(attemptTick);clearInterval(breakTick);playRequest++;pauseCurrentPlayback();roundResult.hidden=true;if(gameAudio){gameAudio.pause();gameAudio=null;}if(roundNo>=10){const winner=[...roundPlayers].sort((a,b)=>b.score-a.score)[0]||{name:'You',score:0};winnerResult.querySelector('#winner-title').textContent=`${winner.name} wins!`;winnerResult.querySelector('.winner-score').textContent=`Final score · ${winner.score} points`;winnerResult.hidden=false;sprayNoteConfetti({winner:true});return;}roundNo++;const loadingRound=roundNo;localStorage.removeItem(continueKey());stageNo=0;elapsed=0;roundLeft=[30,45,60].includes(Number.parseInt(getRoomState().time,10))?Number.parseInt(getRoomState().time,10):30;gameView.querySelector('.round-clock').classList.remove('is-urgent');gameView.querySelector('.round-feedback').textContent='Finding songs with playable previews…';const choices=await pickPlayableChoices();if(loadingRound!==roundNo)return;if(!choices.length){gameView.querySelector('.round-feedback').textContent='No playable preview songs are available. Check your connection and try again.';return;}const answerIndex=Math.floor(Math.random()*choices.length);const song=choices[answerIndex];activeRoundSong=song;updateDifficultyMeter(getSongDifficulty(song));gameView.dataset.answer=song[0];gameView.querySelector('.game-round').textContent=roundNo;gameView.querySelector('.round-clock strong').textContent=roundLeft;gameView.querySelector('.attempt-clock').textContent='';gameView.querySelector('.vinyl-stage p').textContent=`ROUND GENRE - ${activeRoundGenre.toUpperCase()}`;gameView.querySelector('.round-feedback').textContent='Choose quickly for the highest score.';gameView.querySelector('.track-line i').style.width='0';gameView.querySelector('.game-skip').disabled=false;gameView.querySelectorAll('.track-marks span').forEach((m,i)=>m.classList.toggle('active',i===0));gameView.querySelector('.song-choices').classList.remove('locked','wrong-locked');gameView.querySelector('.guess-status').textContent=`${choices.length} choices`;gameView.querySelector('.song-choices').innerHTML=choices.map((s,i)=>`<button class="song-choice" data-artist="${escapeRoomText(s[1])}" data-correct="${s===song}" type="button"><span class="cover-art cover-${(roundNo+i)%4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeRoomText(s[0])}</strong></span><i>${String.fromCharCode(65+i)}</i></button>`).join('');scoreBoard();roundTick=setInterval(()=>{roundLeft--;gameView.querySelector('.round-clock strong').textContent=roundLeft;gameView.querySelector('.round-clock').classList.toggle('is-urgent',roundLeft<=5);if(roundLeft<=0)endRound(`Time is up. It was ${song[0]}.`);},1000);attemptTick=setInterval(()=>{if(!gameView.querySelector('.song-choices').classList.contains('locked'))elapsed++;gameView.querySelector('.attempt-clock').textContent=`00:${String(elapsed).padStart(2,'0')}`;},1000);}
-function endRound(message){clearInterval(roundTick);clearInterval(attemptTick);playRequest++;pauseCurrentPlayback();if(gameAudio){gameAudio.pause();gameAudio=null;}const feedback=gameView.querySelector('.round-feedback');let seconds=5;const song=activeRoundSong;roundResult.querySelector('.result-vinyl').style.setProperty('--result-cover',`var(--cover-${(roundNo-1)%4})`);roundResult.querySelector('.result-vinyl').className=`result-vinyl cover-${(roundNo-1)%4}`;roundResult.querySelector('#round-result-title').textContent=song[0];roundResult.querySelector('.result-artist').textContent=song[1];const playerResult=roundResult.querySelector('.result-player-status'),guessedCorrectly=Boolean(gameView.querySelector('.song-choice.correct'));playerResult.textContent=guessedCorrectly?'You guessed correctly':'You?re incorrect';playerResult.className=`result-player-status ${guessedCorrectly?'is-correct':'is-incorrect'}`;roundResult.querySelector('.continue-round').textContent=`Continue (0/${roundPlayers.length})`;roundResult.querySelector('.result-countdown b').textContent=seconds;roundResult.hidden=false;feedback.textContent=message;gameView.querySelectorAll('.song-choice').forEach(b=>b.disabled=true);const continueButton=roundResult.querySelector('.continue-round');continueButton.onclick=()=>{const room=getRoomState();const playerName=localStorage.getItem(profileNameKey)||room.players[0]?.name||roundPlayers[0].name;const ready=continueNames();if(!ready.includes(playerName)){ready.push(playerName);localStorage.setItem(continueKey(),JSON.stringify(ready));}updateContinueStatus(continueButton);};breakTick=setInterval(()=>{seconds--;const count=roundResult.querySelector('.result-countdown b');if(count)count.textContent=seconds;if(seconds<=0){clearInterval(breakTick);nextRound();}},1000);}
+function endRound(message){clearInterval(roundTick);clearInterval(attemptTick);playRequest++;pauseCurrentPlayback();if(gameAudio){gameAudio.pause();gameAudio=null;}const feedback=gameView.querySelector('.round-feedback');let seconds=5;const song=activeRoundSong;roundResult.querySelector('.result-vinyl').style.setProperty('--result-cover',`var(--cover-${(roundNo-1)%4})`);roundResult.querySelector('.result-vinyl').className=`result-vinyl cover-${(roundNo-1)%4}`;roundResult.querySelector('#round-result-title').textContent=song[0];roundResult.querySelector('.result-artist').textContent=song[1];const playerResult=roundResult.querySelector('.result-player-status'),guessedCorrectly=Boolean(gameView.querySelector('.song-choice.correct'));playerResult.textContent=guessedCorrectly?'You guessed correctly':'You\u2019re incorrect';playerResult.className=`result-player-status ${guessedCorrectly?'is-correct':'is-incorrect'}`;roundResult.querySelector('.continue-round').textContent=`Continue (0/${roundPlayers.length})`;roundResult.querySelector('.result-countdown b').textContent=seconds;roundResult.hidden=false;feedback.textContent=message;gameView.querySelectorAll('.song-choice').forEach(b=>b.disabled=true);const continueButton=roundResult.querySelector('.continue-round');continueButton.onclick=()=>{const room=getRoomState();const playerName=localStorage.getItem(profileNameKey)||room.players[0]?.name||roundPlayers[0].name;const ready=continueNames();if(!ready.includes(playerName)){ready.push(playerName);localStorage.setItem(continueKey(),JSON.stringify(ready));}updateContinueStatus(continueButton);};breakTick=setInterval(()=>{seconds--;const count=roundResult.querySelector('.result-countdown b');if(count)count.textContent=seconds;if(seconds<=0){clearInterval(breakTick);nextRound();}},1000);}
 function setPlayButton(playing){const button=gameView.querySelector('.game-play');button.classList.toggle('is-playing',playing);button.setAttribute('aria-label',playing?'Pause current section':'Play current section');}
 function pauseCurrentPlayback(){if(gameAudio)gameAudio.pause();cancelAnimationFrame(progressFrame);setPlayButton(false);}
 async function playCurrentSection(restartFromBeginning=false,startAt=null){const requestedRound=roundNo,requestedStage=stageNo,request=++playRequest,song=activeRoundSong;if(!song)return;const boundaries=[0,.1,.5,2,8,15],points=[0,3,11,34,70,100],start=requestedStage===0?0:boundaries[requestedStage],end=boundaries[requestedStage+1];let asset=null;if(!gameAudio||gameAudio.dataset.songKey!==`${song[0]}|${song[1]}`){asset=await loadSongAsset(song);if(request!==playRequest||requestedRound!==roundNo||requestedStage!==stageNo)return;if(!asset?.previewUrl){gameView.querySelector('.round-feedback').textContent=`No matching preview is available for ${song[0]}.`;return;}if(gameAudio)gameAudio.pause();gameAudio=new Audio(asset.previewUrl);gameAudio.dataset.trackId=String(asset.trackId);gameAudio.dataset.songKey=`${song[0]}|${song[1]}`;gameAudio.preload='auto';}const activeAudio=gameAudio;if(request!==playRequest||requestedRound!==roundNo||requestedStage!==stageNo)return;activeAudio.volume=Number(gameView.querySelector('[aria-label="Volume"]').value)/100;if(startAt!==null)activeAudio.currentTime=startAt;else if(restartFromBeginning||activeAudio.currentTime>=end)activeAudio.currentTime=0;const updateProgress=()=>{const time=Math.max(0,Math.min(end,activeAudio.currentTime));let marker=0;while(marker<boundaries.length-2&&time>boundaries[marker+1])marker++;const fraction=Math.max(0,Math.min(1,(time-boundaries[marker])/(boundaries[marker+1]-boundaries[marker])));gameView.querySelector('.track-line i').style.width=`${points[marker]+fraction*(points[marker+1]-points[marker])}%`;};updateProgress();const animate=()=>{if(activeAudio!==gameAudio||activeAudio.paused||requestedRound!==roundNo||requestedStage!==stageNo)return;updateProgress();if(activeAudio.currentTime>=end){activeAudio.pause();activeAudio.currentTime=end;gameView.querySelector('.track-line i').style.width=`${points[requestedStage+1]}%`;setPlayButton(false);return;}progressFrame=requestAnimationFrame(animate);};try{await activeAudio.play();if(request!==playRequest)return;setPlayButton(true);cancelAnimationFrame(progressFrame);progressFrame=requestAnimationFrame(animate);}catch{setPlayButton(false);}}
