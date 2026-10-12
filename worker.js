@@ -161,7 +161,7 @@ export class GameRoom extends DurableObject {
       roundEndsAt: room.roundEndsAt,
       breakEndsAt: room.breakEndsAt,
       playback: room.playback,
-      bombLog: (room.bombLog || []).map(({ playerId, name, result, turnNumber }) => ({ playerId, name, result, turnNumber })),
+      bombLog: (room.bombLog || []).map(({ playerId, name, result, turnNumber, answerTitle }) => ({ playerId, name, result, turnNumber, answerTitle })),
       bomb: room.phase === 'bomb' ? {
         turnPlayerId: room.bombTurnPlayerId,
         turnNumber: room.bombTurnNumber,
@@ -517,7 +517,13 @@ export class GameRoom extends DurableObject {
     const result = room.bombLastResult;
     if (result && result.turnNumber === room.bombTurnNumber && current) {
       room.bombLog ||= [];
-      room.bombLog.push({ playerId: current.id, name: current.name, result: result.result, turnNumber: room.bombTurnNumber });
+      room.bombLog.push({
+        playerId: current.id,
+        name: current.name,
+        result: result.result,
+        turnNumber: room.bombTurnNumber,
+        answerTitle: ['wrong', 'timeout'].includes(result.result) ? room.bombSongs?.[room.bombSongIndex]?.title || '' : '',
+      });
       if (room.bombLog.length > 80) room.bombLog.splice(0, room.bombLog.length - 80);
     }
     if (loseLife && current) {

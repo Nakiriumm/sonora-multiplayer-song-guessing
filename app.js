@@ -1212,6 +1212,11 @@ function setSoundExpanded(expanded) {
   volumeSlider.style.setProperty('z-index', expanded ? '2' : 'auto', 'important');
   volumeSlider.style.setProperty('transition', 'width .28s cubic-bezier(.2,.8,.2,1), max-width .28s cubic-bezier(.2,.8,.2,1), opacity .28s cubic-bezier(.2,.8,.2,1)', 'important');
 }
+window.setSongBombVolumePlacement = (inSongBomb) => {
+  setSoundExpanded(false);
+  if (inSongBomb) document.querySelector('.bomb-topbar')?.appendChild(soundButton);
+  else userTools.insertBefore(soundButton, languageButton);
+};
 const supportsHoverVolume = window.matchMedia('(hover: hover)').matches;
 let volumeCollapseTimer = 0;
 soundButton.addEventListener('mouseenter', () => {

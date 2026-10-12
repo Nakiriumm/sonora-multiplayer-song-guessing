@@ -272,6 +272,7 @@
     const isSongBomb = mode === 'SongBomb';
     $('.game-view').hidden = isSongBomb;
     $('.song-bomb-panel').hidden = !isSongBomb;
+    window.setSongBombVolumePlacement?.(isSongBomb);
     document.body.style.overflow = 'auto';
   }
 
@@ -609,7 +610,7 @@
       state.bombAudioKey = audioKey;
       state.activeAudio = new Audio(audioUrl);
       state.activeAudio.preload = 'auto';
-      state.activeAudio.volume = Number($('.game-view [aria-label="Volume"]')?.value || 65) / 100;
+      state.activeAudio.volume = Number($('.song-bomb-panel [aria-label="Volume"]')?.value || 65) / 100;
       $('.bomb-audio-status').textContent = 'Starting song preview…';
       state.activeAudio.play().then(() => {
         if (state.bombAudioKey === audioKey) $('.bomb-audio-status').textContent = 'Song preview playing';
@@ -643,11 +644,22 @@
         changed = true;
       }
       line.className = `bomb-log-entry${entry.result === 'correct' ? ' is-correct' : ''}${index === log.length - 1 ? ' is-latest' : ''}`;
-      line.textContent = entry.result === 'correct'
-        ? `${entry.name} guessed correctly. The bomb passed on.`
-        : entry.result === 'skip'
-          ? `${entry.name} skipped their turn and lost a life.`
-        : `${entry.name} lost a life.`;
+      if (entry.result === 'wrong' || entry.result === 'timeout') {
+        const prefix = entry.result === 'wrong'
+          ? `${entry.name} guessed incorrectly and lost a life. Answer: `
+          : `${entry.name} ran out of time and lost a life. Answer: `;
+        line.replaceChildren(document.createTextNode(prefix));
+        if (entry.answerTitle) {
+          const answer = document.createElement('strong');
+          answer.className = 'bomb-log-answer';
+          answer.textContent = entry.answerTitle;
+          line.appendChild(answer);
+        }
+      } else {
+        line.textContent = entry.result === 'correct'
+          ? `${entry.name} guessed correctly. The bomb passed on.`
+          : `${entry.name} skipped their turn and lost a life.`;
+      }
       line.style.setProperty('--entry-opacity', String(Math.max(0.12, 0.9 - (log.length - 1 - index) * 0.22)));
     });
     if (changed) container.scrollTop = container.scrollHeight;
@@ -1035,6 +1047,7 @@
   }
 
   function leaveRoom() {
+    window.setSongBombVolumePlacement?.(false);
     if (state.session && state.socket?.readyState === WebSocket.OPEN) send('leave');
     state.manuallyClosed = true;
     clearInterval(state.heartbeat);
@@ -1061,6 +1074,7 @@
   }
 
   function returnToLobby() {
+    window.setSongBombVolumePlacement?.(false);
     clearRoomTimer();
     clearTimeout(state.startTimer);
     state.startTimer = 0;
@@ -1303,7 +1317,7 @@
 
   document.addEventListener('input', (event) => {
     if (event.target.matches('.host-name-input')) configureFromForm();
-    if (event.target.matches('.game-view [aria-label="Volume"]') && state.activeAudio) state.activeAudio.volume = Number(event.target.value) / 100;
+    if ((event.target.matches('.game-view [aria-label="Volume"]') || event.target.matches('.sound-button [aria-label="Volume"]')) && state.activeAudio) state.activeAudio.volume = Number(event.target.value) / 100;
     if (event.target.matches('#bomb-song-input')) searchBombSuggestions(event.target.value);
   });
 
