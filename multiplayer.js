@@ -995,8 +995,10 @@
     }));
     const usedKeys = new Set();
     const rounds = [];
+    const vocaloidSubtitleEntries = [];
     for (let roundIndex = 0; roundIndex < roundCount; roundIndex += 1) {
       if (request !== state.prepareRequest) throw new Error('Song preparation was cancelled.');
+      showNotice(`Preparing round ${roundIndex + 1} of ${roundCount}…`);
       const blocked = new Set();
       let selected = null;
       while (!selected) {
@@ -1015,7 +1017,7 @@
             collected.push({ song, asset });
             if (collected.length >= choiceCount) break;
           }
-          showNotice(`Preparing round ${roundIndex + 1}/${roundCount} · ${pool.name}`);
+          showNotice(`Preparing round ${roundIndex + 1} of ${roundCount} · ${pool.name}`);
         }
         if (collected.length < choiceCount) { blocked.add(pool.name); continue; }
         const entries = collected.slice(0, choiceCount);
@@ -1024,11 +1026,21 @@
       }
       if (!selected) throw new Error(`Could not find ${choiceCount} playable ${desiredDifficulty} songs from one genre for round ${roundIndex + 1}. Try another difficulty or genre.`);
       const { genre, entries } = selected;
-      const choiceRecords = await Promise.all(entries.map(async ({ song, asset }) => ({ title: song[0], artwork: asset.artworkUrl100 || song[2] || '', anime: song[6] || '', subtitle: genre === 'Vocaloid' ? (await window.resolveVocaloidTitleSubtitle?.(song) || window.getVocaloidTitleSubtitle?.(song) || '') : (window.getJPopSubtitle?.(song, genre) || '') })));
+      const choiceRecords = entries.map(({ song, asset }) => {
+        const choice = { title: song[0], artwork: asset.artworkUrl100 || song[2] || '', anime: song[6] || '', subtitle: genre === 'Vocaloid' ? (window.getVocaloidTitleSubtitle?.(song) || '') : (window.getJPopSubtitle?.(song, genre) || '') };
+        if (genre === 'Vocaloid') vocaloidSubtitleEntries.push({ song, choice });
+        return choice;
+      });
       const answerIndex = Math.floor(Math.random() * entries.length);
       const { song, asset } = entries[answerIndex];
       const answer = { title: song[0], artist: song[1], subtitle: choiceRecords[answerIndex].subtitle || '', artwork: asset.artworkUrl100 || song[2] || '', previewUrl: song[3] || asset.previewUrl };
       rounds.push({ choices: choiceRecords, answerIndex, answer, difficulty: window.getSongDifficulty?.(song, asset) || 'medium', genre });
+    }
+    if (vocaloidSubtitleEntries.length) {
+      showNotice(`Finishing Vocaloid titles for ${roundCount} rounds…`);
+      await Promise.all(vocaloidSubtitleEntries.map(async ({ song, choice }) => {
+        choice.subtitle = await window.resolveVocaloidTitleSubtitle?.(song) || choice.subtitle;
+      }));
     }
     return rounds;
   }

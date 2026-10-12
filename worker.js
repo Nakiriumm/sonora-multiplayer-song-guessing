@@ -2,7 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 
 const CODE_ALPHABET = '0123456789';
 const DEFAULT_ROUND_SECONDS = 30;
-const BREAK_SECONDS = 5;
+const BREAK_SECONDS = 10;
 const ROUND_COUNT = 10;
 const STAGES = [0.1, 0.5, 2, 8, 15];
 const STAGE_STARTS = [0, ...STAGES.slice(0, -1)];
