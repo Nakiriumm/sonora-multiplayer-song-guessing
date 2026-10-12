@@ -820,7 +820,7 @@ window.getSongDifficulty=getSongDifficulty;
 window.updateDifficultyMeter=updateDifficultyMeter;
 function applySongArtwork(element,asset){if(!element||!asset?.artworkUrl100)return;const imageUrl=asset.artworkUrl100.replace(/^http:/,'https:');const image=new Image();image.onload=()=>{element.style.backgroundImage=`url("${imageUrl}")`;element.style.backgroundSize='cover';element.style.backgroundPosition='center';element.classList.add('cover-loaded');};image.src=imageUrl;}
 function setChoiceSubtitle(choice,subtitle){const titleNode=choice.querySelector('.song-title');if(!titleNode)return;let node=choice.querySelector('.song-title-subtitle');if(!subtitle){node?.remove();return;}if(!node){node=document.createElement('small');node.className='song-title-subtitle';const origin=choice.querySelector('.song-origin');titleNode.insertBefore(node,origin);}if(node.textContent!==subtitle)node.textContent=subtitle;}
-const choiceArtworkObserver=new MutationObserver(()=>{const currentRound=roundNo;gameView.querySelectorAll('.song-choice').forEach(choice=>{const title=choice.querySelector('.song-title strong')?.textContent;const artist=choice.dataset.artist;const song=[...activeCatalog,...roundSongs].find(item=>item[0]===title&&(!artist||item[1]===artist));if(song){const subtitle=activeRoundGenre==='Vocaloid'?getVocaloidTitleSubtitle(song):getJPopSubtitle(song,activeRoundGenre);setChoiceSubtitle(choice,subtitle);if(activeRoundGenre==='Vocaloid')resolveVocaloidTitleSubtitle(song).then(resolved=>{if(currentRound===roundNo&&choice.isConnected)setChoiceSubtitle(choice,resolved);});loadSongAsset(song).then(asset=>{if(currentRound===roundNo&&choice.isConnected)applySongArtwork(choice.querySelector('.cover-art'),asset);});}});});
+const choiceArtworkObserver=new MutationObserver(()=>{const currentRound=roundNo;gameView.querySelectorAll('.song-choice').forEach(choice=>{const title=choice.querySelector('.song-title strong')?.textContent;const artist=choice.dataset.artist;const song=[...activeCatalog,...roundSongs].find(item=>item[0]===title&&(!artist||item[1]===artist));if(song){const subtitle=activeRoundGenre==='Vocaloid'?'':getJPopSubtitle(song,activeRoundGenre);setChoiceSubtitle(choice,subtitle);loadSongAsset(song).then(asset=>{if(currentRound===roundNo&&choice.isConnected)applySongArtwork(choice.querySelector('.cover-art'),asset);});}});});
 choiceArtworkObserver.observe(gameView.querySelector('.song-choices'),{childList:true});
 const resultArtworkObserver=new MutationObserver(()=>{if(roundResult.hidden)return;const title=roundResult.querySelector('#round-result-title').textContent;const song=activeRoundSong||roundSongs.find(item=>item[0]===title);if(song)loadSongAsset(song).then(asset=>{if(!roundResult.hidden&&roundResult.querySelector('#round-result-title').textContent===title)applySongArtwork(roundResult.querySelector('.result-vinyl span'),asset);});});
 resultArtworkObserver.observe(roundResult,{attributes:true,attributeFilter:['hidden']});
@@ -990,11 +990,8 @@ async function nextRound(){
   const answerIndex=Math.floor(Math.random()*choices.length);
   const song=choices[answerIndex];
   activeRoundSong=song;
-  const choiceSubtitles=activeRoundGenre==='Vocaloid'
-    ? await Promise.all(choices.map(choice=>resolveVocaloidTitleSubtitle(choice)))
-    : choices.map(choice=>getJPopSubtitle(choice,activeRoundGenre));
-  if(loadingRound!==roundNo)return;
-  activeRoundSongSubtitle=choiceSubtitles[answerIndex]||'';
+  const choiceSubtitles=choices.map(choice=>activeRoundGenre==='Vocaloid'?'':getJPopSubtitle(choice,activeRoundGenre));
+  activeRoundSongSubtitle=activeRoundGenre==='Vocaloid'?getVocaloidTitleSubtitle(song):choiceSubtitles[answerIndex]||'';
   updateDifficultyMeter(getSongDifficulty(song));
   gameView.dataset.answer=song[0];
   const roundLabel=gameView.querySelector('.game-round');if(roundLabel)roundLabel.textContent=roundNo;
@@ -1010,6 +1007,14 @@ async function nextRound(){
   choiceList?.classList.remove('locked','wrong-locked');
   const guessStatus=gameView.querySelector('.guess-status');if(guessStatus)guessStatus.textContent=`${choices.length} choices`;
   if(choiceList)choiceList.innerHTML=choices.map((choice,index)=>`<button class="song-choice" data-artist="${escapeRoomText(choice[1])}" data-correct="${choice===song}" type="button"><span class="cover-art cover-${(roundNo+index)%4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeRoomText(choice[0])}</strong>${choiceSubtitles[index]?`<small class="song-title-subtitle">${escapeRoomText(choiceSubtitles[index])}</small>`:''}${choice[6]?`<small class="song-origin">From ${escapeRoomText(choice[6])}</small>`:''}</span><i>${String.fromCharCode(65+index)}</i></button>`).join('');
+  if(activeRoundGenre==='Vocaloid'){
+    const selectedRound=roundNo;
+    resolveVocaloidTitleSubtitle(song).then(subtitle=>{
+      if(selectedRound!==roundNo||activeRoundSong!==song)return;
+      activeRoundSongSubtitle=subtitle;
+      if(!roundResult.hidden&&roundResult.querySelector('#round-result-title')?.textContent===song[0])roundResult.querySelector('#round-result-subtitle').textContent=subtitle;
+    });
+  }
   scoreBoard();
   roundTick=setInterval(()=>{
     roundLeft--;

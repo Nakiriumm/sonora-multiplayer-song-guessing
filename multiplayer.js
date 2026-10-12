@@ -523,7 +523,7 @@
         $('.track-line i').style.width = '0%';
         $('.round-feedback').textContent = 'Choose quickly for the highest score.';
       }
-      if (renderChoices) container.innerHTML = choices.map((choice, index) => `<button class="song-choice" data-choice-index="${index}" type="button"><span class="cover-art cover-${(number + index) % 4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeHtml(choice.title)}</strong>${choice.subtitle ? `<small class="song-title-subtitle">${escapeHtml(choice.subtitle)}</small>` : ''}${choice.anime ? `<small class="song-origin">From ${escapeHtml(choice.anime)}</small>` : ''}</span><i>${String.fromCharCode(65 + index)}</i></button>`).join('');
+      if (renderChoices) container.innerHTML = choices.map((choice, index) => `<button class="song-choice" data-choice-index="${index}" type="button"><span class="cover-art cover-${(number + index) % 4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeHtml(choice.title)}</strong>${choice.subtitle && (room.currentRound?.genre || room.genre) !== 'Vocaloid' ? `<small class="song-title-subtitle">${escapeHtml(choice.subtitle)}</small>` : ''}${choice.anime ? `<small class="song-origin">From ${escapeHtml(choice.anime)}</small>` : ''}</span><i>${String.fromCharCode(65 + index)}</i></button>`).join('');
       if (renderChoices) choices.forEach((choice, index) => {
         const cover = container.querySelector(`[data-choice-index="${index}"] .cover-art`);
       if (cover && choice.artwork) {
@@ -995,7 +995,7 @@
     }));
     const usedKeys = new Set();
     const rounds = [];
-    const vocaloidSubtitleEntries = [];
+    const vocaloidAnswerEntries = [];
     for (let roundIndex = 0; roundIndex < roundCount; roundIndex += 1) {
       if (request !== state.prepareRequest) throw new Error('Song preparation was cancelled.');
       showNotice(`Preparing round ${roundIndex + 1} of ${roundCount}…`);
@@ -1027,19 +1027,19 @@
       if (!selected) throw new Error(`Could not find ${choiceCount} playable ${desiredDifficulty} songs from one genre for round ${roundIndex + 1}. Try another difficulty or genre.`);
       const { genre, entries } = selected;
       const choiceRecords = entries.map(({ song, asset }) => {
-        const choice = { title: song[0], artwork: asset.artworkUrl100 || song[2] || '', anime: song[6] || '', subtitle: genre === 'Vocaloid' ? (window.getVocaloidTitleSubtitle?.(song) || '') : (window.getJPopSubtitle?.(song, genre) || '') };
-        if (genre === 'Vocaloid') vocaloidSubtitleEntries.push({ song, choice });
+        const choice = { title: song[0], artwork: asset.artworkUrl100 || song[2] || '', anime: song[6] || '', subtitle: genre === 'Vocaloid' ? '' : (window.getJPopSubtitle?.(song, genre) || '') };
         return choice;
       });
       const answerIndex = Math.floor(Math.random() * entries.length);
       const { song, asset } = entries[answerIndex];
       const answer = { title: song[0], artist: song[1], subtitle: choiceRecords[answerIndex].subtitle || '', artwork: asset.artworkUrl100 || song[2] || '', previewUrl: song[3] || asset.previewUrl };
+      if (genre === 'Vocaloid') vocaloidAnswerEntries.push({ song, answer });
       rounds.push({ choices: choiceRecords, answerIndex, answer, difficulty: window.getSongDifficulty?.(song, asset) || 'medium', genre });
     }
-    if (vocaloidSubtitleEntries.length) {
+    if (vocaloidAnswerEntries.length) {
       showNotice(`Finishing Vocaloid titles for ${roundCount} rounds…`);
-      await Promise.all(vocaloidSubtitleEntries.map(async ({ song, choice }) => {
-        choice.subtitle = await window.resolveVocaloidTitleSubtitle?.(song) || choice.subtitle;
+      await Promise.all(vocaloidAnswerEntries.map(async ({ song, answer }) => {
+        answer.subtitle = await window.resolveVocaloidTitleSubtitle?.(song) || window.getVocaloidTitleSubtitle?.(song) || '';
       }));
     }
     return rounds;
