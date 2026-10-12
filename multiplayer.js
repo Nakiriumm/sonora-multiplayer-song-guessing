@@ -1049,11 +1049,14 @@
     const request = ++state.prepareRequest;
     usedRoundSongs.clear();
     const settings = getRoomState();
-    activeCatalog = await loadGenreCatalog(settings.genre || 'Everything');
-    const catalogs = await window.getRoundSongCatalogs?.(settings.genre || 'Everything') || [{ name: settings.genre || 'Everything', songs: activeCatalog }];
     const difficulty = settings.difficulty || 'medium';
+    const genre = settings.genre || 'Everything';
+    const catalogs = window.getRoomStartupCatalogs
+      ? await window.getRoomStartupCatalogs(genre, 4, difficulty)
+      : await window.getCachedRoundSongCatalogs?.(genre) || await window.getRoundSongCatalogs?.(genre) || [{ name: genre, songs: activeCatalog }];
+    activeCatalog = catalogs.flatMap(({ songs }) => songs || []);
     const candidates = [...new Map(catalogs.flatMap(({ songs }) => songs || [])
-      .filter((song) => window.getSongDifficulty?.(song) === difficulty)
+      .filter((song) => song?.[3] && window.getSongDifficulty?.(song) === difficulty)
       .map((song) => [`${song[0]}|${song[1]}`, song])).values()].sort(() => Math.random() - 0.5);
     const songs = [];
     for (let offset = 0; offset < candidates.length && songs.length < 100; offset += 12) {
@@ -1070,10 +1073,12 @@
     }
     if (songs.length < 4) throw new Error('Could not prepare enough playable songs. Try another genre or difficulty.');
     if (settings.genre === 'Vocaloid') {
-      await Promise.all(songs.map(async (item) => {
-        item.subtitle = await window.resolveVocaloidTitleSubtitle?.(item.sourceSong) || window.getVocaloidTitleSubtitle?.(item.sourceSong) || '';
+      songs.forEach((item) => {
+        item.subtitle = window.getVocaloidTitleSubtitle?.(item.sourceSong) || '';
         delete item.sourceSong;
-      }));
+      });
+    } else {
+      songs.forEach((item) => { delete item.sourceSong; });
     }
     return songs;
   }

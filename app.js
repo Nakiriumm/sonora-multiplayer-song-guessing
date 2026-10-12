@@ -624,9 +624,10 @@ window.getCachedRoundSongCatalogs=async(genre='Everything')=>{
 };
 window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficulty='medium')=>{
   genre=genreAliases[genre]||genre;
-  const required=Math.max(4,Math.min(400,Number(requiredCount)||40));
+  const required=Math.max(4,Math.min(500,Number(requiredCount)||40));
   const difficultyMultiplier={easy:2,medium:4,hard:8,extreme:12}[difficulty]||4;
-  const expansionTarget=(count,sourceGenre)=>Math.min(getGenreCatalogTarget(sourceGenre),Math.max(count+4,count*difficultyMultiplier+4));
+  const rankCoverageTarget={easy:64,medium:144,hard:304,extreme:480}[difficulty]||144;
+  const expansionTarget=(count,sourceGenre)=>Math.min(getGenreCatalogTarget(sourceGenre),Math.max(count+4,count*difficultyMultiplier+4,rankCoverageTarget));
   const playableCount=catalogs=>(catalogs||[]).reduce((sum,pool)=>sum+(pool.songs||[]).filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty).length,0);
   let catalogs=await window.getCachedRoundSongCatalogs(genre);
   if(playableCount(catalogs)>=required)return catalogs;
@@ -638,6 +639,7 @@ window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficul
       const target=expansionTarget(perGenreRequired,sourceGenre);
       const songs=await loadQuickGenreCatalog(sourceGenre,target);
       groups.set(sourceGenre,songs);
+      if(playableCount([...groups].map(([name,entries])=>({name,songs:entries})))>=required)break;
     }
     catalogs=[...groups].map(([name,songs])=>({name,songs}));
   }else if(genre==='Anime'){
@@ -861,9 +863,10 @@ async function pickPlayableChoices(allowVocaloidExpansionWait=true){
       return choices;
     }
   }
-  if(allowVocaloidExpansionWait&&room.genre==='Vocaloid'&&catalogExpansionTasks.has('Vocaloid')){
-    if(feedback)feedback.textContent='Loading more Vocaloid songs…';
-    await catalogExpansionTasks.get('Vocaloid');
+  const expandingGenre=genreAliases[room.genre]||room.genre||'Everything';
+  if(allowVocaloidExpansionWait&&catalogExpansionTasks.has(expandingGenre)){
+    if(feedback)feedback.textContent=`Loading more ${expandingGenre} songs…`;
+    await catalogExpansionTasks.get(expandingGenre);
     return pickPlayableChoices(false);
   }
   activeRoundGenre=room.genre||'Everything';
@@ -907,25 +910,29 @@ async function launchGame(){
       deferredExpansionGenre=selectedGenre;
     }
     if(activeCatalog.length<4)activeCatalog=roundSongs;
+    const choiceCount=Math.max(4,Math.min(8,Number(r.choiceCount)||4));
+    const difficulty=r.difficulty||'medium';
+    const cachedPlayableCount=activeCatalog.filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty).length;
+    if(cachedPlayableCount<choiceCount&&window.getRoomStartupCatalogs){
+      feedback.textContent='Finding playable songs for the first round…';
+      const startupCatalogs=await window.getRoomStartupCatalogs(selectedGenre,choiceCount,difficulty);
+      activeCatalog=startupCatalogs.flatMap(pool=>pool.songs||[]);
+    }
     await nextRound();
-    if(deferredExpansionGenre==='Everything'&&!catalogExpansionTasks.has('Everything')){
-      const task=loadGenreCatalog('Everything').then(catalog=>{
-        activeCatalog=catalog;
-        for(const [name,songs] of everythingGenreCatalogs)catalogSnapshotByGenre.set(name,songs);
-        return catalog;
-      }).catch(()=>activeCatalog);
-      catalogExpansionTasks.set('Everything',task);
-    }else if(deferredExpansionGenre&&deferredExpansionGenre!=='Everything'){
+    if(deferredExpansionGenre){
       deferredCatalogExpansionGenres.delete(deferredExpansionGenre);
       if(!catalogExpansionTasks.has(deferredExpansionGenre)){
         const selectedGenre=deferredExpansionGenre;
-        const task=loadGenreCatalog(selectedGenre).then(catalog=>{
-          activeCatalog=catalog;
-          if(selectedGenre==='Anime'){
-            catalogSnapshotByGenre.set('Anime openings',genreCatalogCache.get('Anime openings')||[]);
-            catalogSnapshotByGenre.set('Anime endings',genreCatalogCache.get('Anime endings')||[]);
-          }else catalogSnapshotByGenre.set(selectedGenre,catalog);
-          return catalog;
+        const target=Math.min(500,((Number(r.roundCount)||ROUND_COUNT)+1)*choiceCount);
+        const task=(window.getRoomStartupCatalogs
+          ? window.getRoomStartupCatalogs(selectedGenre,target,difficulty)
+          : loadGenreCatalog(selectedGenre).then(catalog=>[{name:selectedGenre,songs:catalog}])).then(catalogs=>{
+          activeCatalog=catalogs.flatMap(pool=>pool.songs||[]);
+          for(const {name,songs} of catalogs){
+            catalogSnapshotByGenre.set(name,songs||[]);
+            if(everythingGenreCatalogs.has(name))everythingGenreCatalogs.set(name,songs||[]);
+          }
+          return activeCatalog;
         }).catch(()=>activeCatalog);
         catalogExpansionTasks.set(selectedGenre,task);
       }
