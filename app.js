@@ -179,6 +179,15 @@ const animeSeriesSearchTerms = {
   ]
 };
 const GENRE_CATALOG_SIZE=1000;
+function isRemixOrInstrumental(song){
+  const title=String(song?.[0]||'').normalize('NFKC');
+  return /(?:\bremix(?:es|ed)?\b|\binstrumental\b|\boff[\s-]?vocal\b|\bkaraoke\b|\bbacking\s+track\b|\bno\s+vocals\b|\bwithout\s+vocals\b|\u4f34\u594f|\u30a4\u30f3\u30b9\u30c8|\u30ab\u30e9\u30aa\u30b1)/iu.test(title);
+}
+function isExcludedAnimeTrack(song){
+  const title=String(song?.[0]||'').normalize('NFKC');
+  return isRemixOrInstrumental(song)||/(?:\btheme(?:\s+song)?\b|\bsoundtrack\b|\boriginal\s+score\b|\bost\b|\bbgm\b|\u30b5\u30a6\u30f3\u30c9\u30c8\u30e9\u30c3\u30af|\u30c6\u30fc\u30de\u66f2)/iu.test(title);
+}
+function isExcludedCatalogTrack(song,isAnimeSource=false){return isAnimeSource?isExcludedAnimeTrack(song):isRemixOrInstrumental(song);}
 const genreCatalogCache=new Map();
 const everythingGenreCatalogs=new Map();
 let activeCatalog=roundSongs;
@@ -191,12 +200,19 @@ async function loadSingleGenreCatalog(genre) {
   if (genreCatalogCache.has(genre)) return genreCatalogCache.get(genre);
 
   const hasAnimeSource = Boolean(animeSeriesSearchTerms[genre]);
-  const storageKey = 'sonora-song-catalog-' + (hasAnimeSource ? 'v4-' : 'v3-') + genre;
-  const previousStorageKeys = hasAnimeSource ? [] : ['sonora-song-catalog-v2-' + genre, 'sonora-song-catalog-v1-' + genre];
+  const storageKey = 'sonora-song-catalog-v6-' + genre;
+  const previousStorageKeys = [
+    'sonora-song-catalog-v5-' + genre,
+    'sonora-song-catalog-' + (hasAnimeSource ? 'v4-' : 'v3-') + genre,
+    'sonora-song-catalog-v2-' + genre,
+    'sonora-song-catalog-v1-' + genre
+  ];
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
     if (Array.isArray(saved) && saved.length >= GENRE_CATALOG_SIZE) {
-      for (const song of saved) {
+      const cleanSaved=saved.filter(song=>!isExcludedCatalogTrack(song,hasAnimeSource));
+      if(cleanSaved.length!==saved.length){try{localStorage.setItem(storageKey,JSON.stringify(cleanSaved));}catch{}}
+      for (const song of cleanSaved) {
         if (Array.isArray(song) && song.length >= 4) {
           songAssetCache.set(song[0] + '|' + song[1], Promise.resolve({
             trackName: song[0], artistName: song[1], artworkUrl100: song[2], previewUrl: song[3],
@@ -204,15 +220,15 @@ async function loadSingleGenreCatalog(genre) {
           }));
         }
       }
-      genreCatalogCache.set(genre, saved);
-      return saved;
+      genreCatalogCache.set(genre, cleanSaved);
+      return cleanSaved;
     }
   } catch {}
 
   const catalog = [];
   const seen = new Set();
   const addSong = (song, asset) => {
-    if (!song?.[0] || !song?.[1] || !song?.[3]) return;
+    if (!song?.[0] || !song?.[1] || !song?.[3] || isExcludedCatalogTrack(song,hasAnimeSource)) return;
     const key = normalizeSongText(song[0]) + '|' + normalizeSongText(song[1]);
     if (seen.has(key)) return;
     seen.add(key);
@@ -233,6 +249,7 @@ async function loadSingleGenreCatalog(genre) {
       }
     } catch {}
   }
+  for(const previousStorageKey of previousStorageKeys){try{localStorage.removeItem(previousStorageKey);}catch{}}
 
   for (let offset = 0; offset < searchTerms.length && catalog.length < GENRE_CATALOG_SIZE; offset += 8) {
     const batch = searchTerms.slice(offset, offset + 8);
@@ -284,7 +301,7 @@ async function loadGenreCatalog(genre) {
   }
   if(genre!=='Everything')return loadSingleGenreCatalog(genre);
   if(genreCatalogCache.has('Everything')&&everythingGenreCatalogs.size)return genreCatalogCache.get('Everything');
-  const cacheKey='sonora-song-catalog-v3-Everything';
+  const cacheKey='sonora-song-catalog-v5-Everything';
   let cachedSongs=[];
   try {
     const cached=JSON.parse(localStorage.getItem(cacheKey)||'null');
@@ -292,8 +309,9 @@ async function loadGenreCatalog(genre) {
     if(complete&&Array.isArray(cached.songs))cachedSongs=cached.songs;
   } catch {}
   const existing=[];
-  for(const key of ['sonora-song-catalog-v2-Everything','sonora-song-catalog-v1-Everything']){
+  for(const key of ['sonora-song-catalog-v4-Everything','sonora-song-catalog-v3-Everything','sonora-song-catalog-v2-Everything','sonora-song-catalog-v1-Everything']){
     try {const saved=JSON.parse(localStorage.getItem(key)||'null');if(Array.isArray(saved))existing.push(...saved);} catch {}
+    try {localStorage.removeItem(key);} catch {}
   }
   const catalogs=await Promise.all(sourceGenres.map(loadSingleGenreCatalog));
   everythingGenreCatalogs.clear();
@@ -301,7 +319,7 @@ async function loadGenreCatalog(genre) {
   const merged=[];
   const seen=new Set();
   for(const song of [...roundSongs,...existing,...cachedSongs,...catalogs.flat()]){
-    if(!Array.isArray(song)||!song[0]||!song[1])continue;
+    if(!Array.isArray(song)||!song[0]||!song[1]||isExcludedCatalogTrack(song,Boolean(song[6])))continue;
     const key=normalizeSongText(song[0])+'|'+normalizeSongText(song[1]);
     if(seen.has(key))continue;
     seen.add(key);
