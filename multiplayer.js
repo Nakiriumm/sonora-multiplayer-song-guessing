@@ -29,6 +29,7 @@
     bombSearchTimer: 0,
     bombSubmitting: false,
     bombMessageKey: '',
+    lastBombTurnKey: '',
     scoreboardKey: '',
     configureTimer: 0,
     startTimer: 0,
@@ -559,17 +560,18 @@
     $('.bomb-lives').textContent = me?.eliminated ? 'You are out' : `Your lives: ${'♥'.repeat(lives)}${'♡'.repeat(Math.max(0, 3 - lives))}`;
     $('.bomb-turn-status').textContent = isMyTurn ? 'Your turn — name the song or artist!' : `${activePlayer?.name || 'A player'} has the bomb`;
     const input = $('#bomb-song-input');
-    input.disabled = !isMyTurn || state.bombSubmitting;
-    $('.bomb-submit').disabled = !isMyTurn || state.bombSubmitting;
-    input.placeholder = isMyTurn ? 'Type a song name or artist…' : 'Waiting for your turn…';
     const turnKey = `${bomb.turnNumber}:${bomb.turnPlayerId}`;
-    const priorTurnNumber = Number(state.lastBombTurnKey.split(':')[0]) || 0;
+    const priorTurnNumber = Number(String(state.lastBombTurnKey || '').split(':')[0]) || 0;
     if (state.lastBombTurnKey !== turnKey) {
       state.lastBombTurnKey = turnKey;
       state.bombSubmitting = false;
       input.value = '';
       $('.bomb-suggestions').replaceChildren();
     }
+    input.disabled = !isMyTurn || state.bombSubmitting;
+    $('.bomb-submit').disabled = !isMyTurn || state.bombSubmitting;
+    $('.bomb-skip').disabled = !isMyTurn || state.bombSubmitting;
+    input.placeholder = isMyTurn ? 'Type a song name or artist…' : 'Waiting for your turn…';
     const bombLog = room.bombLog || [];
     renderBombLog(bombLog);
     const latestLog = bombLog[bombLog.length - 1];
@@ -612,7 +614,7 @@
       state.activeAudio.play().then(() => {
         if (state.bombAudioKey === audioKey) $('.bomb-audio-status').textContent = 'Song preview playing';
       }).catch(() => {
-        if (state.bombAudioKey === audioKey) $('.bomb-audio-status').textContent = 'Tap “Play song” to hear the preview';
+        if (state.bombAudioKey === audioKey) $('.bomb-audio-status').textContent = 'Song preview could not start';
       });
     }
     updateTimer(bomb.turnEndsAt, '.bomb-timer', `bomb:${bomb.turnNumber}:${bomb.turnEndsAt}`);
@@ -621,17 +623,34 @@
   function renderBombLog(log) {
     const container = $('.bomb-log');
     if (!container) return;
-    container.replaceChildren();
+    const existing = new Map([...container.children].map((line) => [line.dataset.eventKey, line]));
+    const eventKeys = new Set(log.map((entry) => `${entry.turnNumber}:${entry.playerId}:${entry.result}`));
+    let changed = false;
+    for (const [key, line] of existing) {
+      if (!eventKeys.has(key)) {
+        line.remove();
+        existing.delete(key);
+        changed = true;
+      }
+    }
     log.forEach((entry, index) => {
-      const line = document.createElement('p');
+      const key = `${entry.turnNumber}:${entry.playerId}:${entry.result}`;
+      let line = existing.get(key);
+      if (!line) {
+        line = document.createElement('p');
+        line.dataset.eventKey = key;
+        container.appendChild(line);
+        changed = true;
+      }
       line.className = `bomb-log-entry${entry.result === 'correct' ? ' is-correct' : ''}${index === log.length - 1 ? ' is-latest' : ''}`;
       line.textContent = entry.result === 'correct'
         ? `${entry.name} guessed correctly. The bomb passed on.`
+        : entry.result === 'skip'
+          ? `${entry.name} skipped their turn and lost a life.`
         : `${entry.name} lost a life.`;
-      line.style.opacity = String(Math.max(0.2, 1 - (log.length - 1 - index) * 0.12));
-      container.appendChild(line);
+      line.style.setProperty('--entry-opacity', String(Math.max(0.12, 0.9 - (log.length - 1 - index) * 0.22)));
     });
-    container.scrollTop = container.scrollHeight;
+    if (changed) container.scrollTop = container.scrollHeight;
   }
 
   function triggerBombExplosion() {
@@ -705,6 +724,17 @@
     const sent = send('bomb-guess', { guess, title, artist });
     if (sent) {
       $('.bomb-submit').disabled = true;
+      $('#bomb-song-input').disabled = true;
+      $('.bomb-suggestions').replaceChildren();
+    } else state.bombSubmitting = false;
+  }
+
+  function skipBombTurn() {
+    if (state.bombSubmitting || state.room?.phase !== 'bomb') return;
+    state.bombSubmitting = true;
+    if (send('bomb-skip')) {
+      $('.bomb-submit').disabled = true;
+      $('.bomb-skip').disabled = true;
       $('#bomb-song-input').disabled = true;
       $('.bomb-suggestions').replaceChildren();
     } else state.bombSubmitting = false;
@@ -1060,11 +1090,9 @@
       submitBombGuess('', target.dataset.title || '', target.dataset.artist || '');
       return;
     }
-    if (target.matches('.bomb-audio-toggle')) {
+    if (target.matches('.bomb-skip')) {
       event.preventDefault();
-      if (!state.activeAudio) return;
-      try { await state.activeAudio.play(); $('.bomb-audio-status').textContent = 'Song preview playing'; }
-      catch { $('.bomb-audio-status').textContent = 'Unable to play this preview.'; }
+      skipBombTurn();
       return;
     }
     if (!state.session && target.matches('.game-play, .game-skip, .song-choice, .continue-round, .winner-exit, .game-exit')) return;

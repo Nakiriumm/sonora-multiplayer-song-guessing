@@ -398,8 +398,9 @@ export class GameRoom extends DurableObject {
     }
 
     if (action.type === 'start-bomb' && room.phase === 'lobby' && room.mode === 'SongBomb' && player.id === room.hostId) {
-      if (room.players.filter((item) => !item.eliminated).length < 2) {
-        this.send(ws, { type: 'error', error: 'Song Bomb needs at least two players in the room.' });
+      const activePlayers = room.players.filter((item) => !item.eliminated);
+      if (activePlayers.length < 1) {
+        this.send(ws, { type: 'error', error: 'Song Bomb needs at least one player in the room.' });
         return;
       }
       const songs = Array.isArray(action.songs) ? action.songs.slice(0, 100).map(cleanBombSong).filter(Boolean) : [];
@@ -414,12 +415,20 @@ export class GameRoom extends DurableObject {
       room.bombTurnEndsAt = Date.now() + bombTurnSeconds(room) * 1000;
       room.bombLastResult = null;
       room.bombLog = [];
+      room.bombSolo = activePlayers.length === 1;
       room.winner = null;
       room.players.forEach((item) => { item.score = 0; item.lives = 3; item.eliminated = false; item.status = 'playing'; item.continueReady = false; });
       room.phase = 'bomb';
       await this.save();
       await this.ctx.storage.setAlarm(room.bombTurnEndsAt);
       this.broadcast({ type: 'bomb' });
+      return;
+    }
+
+    if (action.type === 'bomb-skip' && room.phase === 'bomb' && player.id === room.bombTurnPlayerId && !player.eliminated) {
+      const result = Date.now() >= room.bombTurnEndsAt ? 'timeout' : 'skip';
+      room.bombLastResult = { playerId: player.id, result, turnNumber: room.bombTurnNumber };
+      await this.advanceBombTurn(room, true);
       return;
     }
 
@@ -516,7 +525,7 @@ export class GameRoom extends DurableObject {
       if (current.lives <= 0) current.eliminated = true;
     }
     const alive = room.players.filter((item) => !item.eliminated && item.lives > 0);
-    if (alive.length <= 1) {
+    if (alive.length === 0 || (alive.length === 1 && room.bombSolo !== true)) {
       room.phase = 'finished';
       room.bombTurnEndsAt = 0;
       room.winner = alive[0] ? { id: alive[0].id, name: alive[0].name, lives: alive[0].lives } : null;
