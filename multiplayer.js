@@ -83,6 +83,9 @@
     target.textContent = message;
     target.classList.toggle('error', isError);
   }
+  window.reportRoomCatalogProgress = (message) => {
+    if (state.session?.host && $('.launch-button')?.disabled) showNotice(message);
+  };
 
   function setRoomCode(code) {
     const roomCode = String(code || '').trim();
@@ -976,13 +979,15 @@
     const request = ++state.prepareRequest;
     usedRoundSongs.clear();
     const room = getRoomState();
-    showNotice('Loading the song catalog…');
-    activeCatalog = await loadGenreCatalog(room.genre || 'Everything');
-    if (!Array.isArray(activeCatalog) || activeCatalog.length < 4) activeCatalog = roundSongs;
     const desiredDifficulty = room.difficulty || 'medium';
     const choiceCount = Math.max(4, Math.min(8, Number(room.choiceCount) || 4));
     const roundCount = Math.max(1, Math.min(50, Number(room.roundCount) || ROUND_COUNT));
-    const catalogs = await window.getRoundSongCatalogs?.(room.genre || 'Everything') || [{ name: room.genre || 'Everything', songs: activeCatalog }];
+    const selectedGenre = room.genre || 'Everything';
+    showNotice('Preparing playable songs…');
+    const catalogs = await window.getRoomStartupCatalogs?.(selectedGenre, roundCount * choiceCount, desiredDifficulty)
+      || await window.getRoundSongCatalogs?.(selectedGenre)
+      || [{ name: selectedGenre, songs: activeCatalog }];
+    activeCatalog = catalogs.flatMap((pool) => pool.songs || []);
     const pools = catalogs.map(({ name, songs }) => ({
       name,
       songs: [...new Map(songs.filter((song) => window.getSongDifficulty?.(song) === desiredDifficulty)

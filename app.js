@@ -138,12 +138,13 @@ const songAssetCache = new Map();
 function normalizeSongText(value){return String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
 let itunesRequestQueue=Promise.resolve();
 let itunesNextRequestAt=0;
-function fetchItunesSearch(url,{timeoutMs=12000,status=''}={}){
+function fetchItunesSearch(url,{timeoutMs=12000,status='',intervalMs=3100}={}){
   const request=itunesRequestQueue.then(async()=>{
     const waitMs=Math.max(0,itunesNextRequestAt-Date.now());
     if(waitMs)await new Promise(resolve=>setTimeout(resolve,waitMs));
-    itunesNextRequestAt=Date.now()+3100;
+    itunesNextRequestAt=Date.now()+Math.max(0,Number(intervalMs)||0);
     if(status&&!gameView.hidden&&gameView.dataset.catalogPreparing==='true'){const feedback=gameView.querySelector('.round-feedback');if(feedback)feedback.textContent=status;}
+    if(status)window.reportRoomCatalogProgress?.(status);
     return fetch(url,{signal:AbortSignal.timeout(timeoutMs)});
   });
   itunesRequestQueue=request.then(()=>undefined,()=>undefined);
@@ -364,7 +365,7 @@ async function removeCatalogStorage(key){
   }catch{}
   try{localStorage.removeItem(key);}catch{}
 }
-async function loadSingleGenreCatalogInner(genre) {
+async function loadSingleGenreCatalogInner(genre, requestedTarget=null) {
   genre = genreAliases[genre] || genre;
   const artists = genreArtistSeeds[genre];
   const searchTerms = animeSeriesSearchTerms[genre] || artists;
@@ -372,7 +373,8 @@ async function loadSingleGenreCatalogInner(genre) {
   if (genreCatalogCache.has(genre)) return genreCatalogCache.get(genre);
 
   const hasAnimeSource = Boolean(animeSeriesSearchTerms[genre]);
-  const catalogTarget=getGenreCatalogTarget(genre);
+  const fullCatalogTarget=getGenreCatalogTarget(genre);
+  const catalogTarget=requestedTarget!==null&&requestedTarget!==undefined&&Number.isFinite(Number(requestedTarget))?Math.max(4,Math.min(fullCatalogTarget,Math.round(Number(requestedTarget)))):fullCatalogTarget;
   const storageKey = getGenreCatalogStorageKey(genre);
   const previousStorageKeys = [
     'sonora-song-catalog-v8-' + genre,
@@ -385,7 +387,7 @@ async function loadSingleGenreCatalogInner(genre) {
   ];
   const savedRecord=await readCatalogStorage(storageKey);
   const savedSongs=Array.isArray(savedRecord)?savedRecord:(Array.isArray(savedRecord?.songs)?savedRecord.songs:[]);
-  const savedComplete=Array.isArray(savedRecord)?savedSongs.length>=catalogTarget:Boolean(savedRecord?.complete&&(genre!=='Vocaloid'||savedSongs.length>=catalogTarget));
+  const savedComplete=Array.isArray(savedRecord)?savedSongs.length>=fullCatalogTarget:Boolean(savedRecord?.complete&&(genre!=='Vocaloid'||savedSongs.length>=fullCatalogTarget));
   const cleanSaved=dedupeCatalogSongs(savedSongs.filter(song=>!isExcludedCatalogTrack(song,hasAnimeSource,null,genre)));
   if(savedComplete&&cleanSaved.length>=4){
     for(const song of cleanSaved){
@@ -419,6 +421,7 @@ async function loadSingleGenreCatalogInner(genre) {
     if(Array.isArray(previous))for(const song of previous)addSong(song);
   }
   if(catalog.length>catalogTarget)catalog.length=catalogTarget;
+  if(requestedTarget&&catalog.length>=catalogTarget){catalogSnapshotByGenre.set(genre,catalog);return catalog;}
 
   let searchesComplete=true;
   for (let offset = 0; offset < searchTerms.length && catalog.length < catalogTarget; offset += 8) {
@@ -429,7 +432,7 @@ async function loadSingleGenreCatalogInner(genre) {
         const searchTerm = animeSeriesSearchTerms[genre] ? `${term} anime ${genre.endsWith('openings') ? 'opening' : 'ending'}` : genre==='Vocaloid' ? `${term} Vocaloid` : term;
         const url = 'https://itunes.apple.com/search?term=' + encodeURIComponent(searchTerm)
           + '&entity=song&country=' + country + '&limit=200';
-        const response = await fetchItunesSearch(url,{timeoutMs:15000,status:`Searching ${genre} catalog…`});
+        const response = await fetchItunesSearch(url,{timeoutMs:15000,status:`Searching ${genre} catalog…`,intervalMs:requestedTarget?600:3100});
         if (!response.ok) return { tracks: [], anime: animeSeriesSearchTerms[genre] ? term : '', ok: false };
         const data = await response.json();
         return { tracks: data.results || [], anime: animeSeriesSearchTerms[genre] ? term : '', ok: true };
@@ -460,7 +463,7 @@ async function loadSingleGenreCatalogInner(genre) {
       }
       if (catalog.length >= catalogTarget) break;
     }
-    const batchComplete=catalog.length>=catalogTarget||(genre!=='Vocaloid'&&offset+batch.length>=searchTerms.length&&searchesComplete);
+    const batchComplete=catalog.length>=fullCatalogTarget||(genre!=='Vocaloid'&&offset+batch.length>=searchTerms.length&&searchesComplete);
     if(catalog.length>0){
       const stored=await writeCatalogStorage(storageKey,{complete:batchComplete,songs:catalog});
       if(stored)for(const previousStorageKey of previousStorageKeys)await removeCatalogStorage(previousStorageKey);
@@ -470,9 +473,9 @@ async function loadSingleGenreCatalogInner(genre) {
     if(!gameView.hidden&&gameView.dataset.catalogPreparing==='true'){const feedback=gameView.querySelector('.round-feedback');if(feedback)feedback.textContent=`${genre}: ${catalog.length.toLocaleString()} screened songs found.`;}
   }
 
-  genreCatalogCache.set(genre, catalog);
+  if(!requestedTarget||catalog.length>=fullCatalogTarget)genreCatalogCache.set(genre, catalog);
   if(catalog.length>0){
-    const complete=catalog.length>=catalogTarget||(genre!=='Vocaloid'&&searchesComplete);
+    const complete=catalog.length>=fullCatalogTarget||(genre!=='Vocaloid'&&searchesComplete&&(!requestedTarget||catalog.length<catalogTarget));
     const stored=await writeCatalogStorage(storageKey,{complete,songs:catalog});
     if(stored)for(const previousStorageKey of previousStorageKeys)await removeCatalogStorage(previousStorageKey);
   }
@@ -486,11 +489,21 @@ async function loadSingleGenreCatalog(genre){
   genreCatalogLoadTasks.set(genre,task);
   try{return await task;}finally{if(genreCatalogLoadTasks.get(genre)===task)genreCatalogLoadTasks.delete(genre);}
 }
+async function loadQuickGenreCatalog(genre,target){
+  genre=genreAliases[genre]||genre;
+  if(genreCatalogCache.has(genre))return genreCatalogCache.get(genre);
+  const key=`${genre}:${target}`;
+  if(quickCatalogLoadTasks.has(key))return quickCatalogLoadTasks.get(key);
+  const task=loadSingleGenreCatalogInner(genre,target);
+  quickCatalogLoadTasks.set(key,task);
+  try{return await task;}finally{if(quickCatalogLoadTasks.get(key)===task)quickCatalogLoadTasks.delete(key);}
+}
 const sourceGenres=['Pop anthems','Indie & alternative','Hip-hop & R&B','Throwback classics','Thai songs','J-Pop','Anime openings','Anime endings','Vocaloid'];
 const combinedGenres=['Everything',...sourceGenres];
 let catalogSnapshotsReady=false;
 const catalogSnapshotByGenre=new Map();
 const catalogExpansionTasks=new Map();
+const quickCatalogLoadTasks=new Map();
 const deferredCatalogExpansionGenres=new Set();
 async function loadCachedGenreSnapshot(genre){
   const hasAnimeSource=Boolean(animeSeriesSearchTerms[genre]);
@@ -589,6 +602,49 @@ window.getRoundSongCatalogs=async(genre='Everything')=>{
   }
   if(catalogExpansionTasks.has(genre)||deferredCatalogExpansionGenres.has(genre))return [{name:genre,songs:catalogSnapshotByGenre.get(genre)||roundSongs}];
   return [{name:genre,songs:await loadSingleGenreCatalog(genre)}];
+};
+window.getCachedRoundSongCatalogs=async(genre='Everything')=>{
+  genre=genreAliases[genre]||genre;
+  if(genre==='Everything'){
+    const songs=await prepareCatalogSnapshots();
+    const catalogs=[...everythingGenreCatalogs].filter(([,entries])=>entries.length>=4).map(([name,entries])=>({name,songs:entries}));
+    return catalogs.length?catalogs:[{name:'Everything',songs}];
+  }
+  if(genre==='Anime'){
+    const [openings,endings]=await Promise.all([loadCachedGenreSnapshot('Anime openings'),loadCachedGenreSnapshot('Anime endings')]);
+    catalogSnapshotByGenre.set('Anime openings',openings);
+    catalogSnapshotByGenre.set('Anime endings',endings);
+    const catalogs=[['Anime openings',openings],['Anime endings',endings]].filter(([,entries])=>entries.length>=4).map(([name,entries])=>({name,songs:entries}));
+    return catalogs.length?catalogs:[{name:'Anime',songs:dedupeCatalogSongs([...openings,...endings])}];
+  }
+  const songs=await loadCachedGenreSnapshot(genre);
+  catalogSnapshotByGenre.set(genre,songs);
+  return [{name:genre,songs}];
+};
+window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficulty='medium')=>{
+  genre=genreAliases[genre]||genre;
+  const required=Math.max(4,Math.min(400,Number(requiredCount)||40));
+  const playableCount=catalogs=>(catalogs||[]).reduce((sum,pool)=>sum+(pool.songs||[]).filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty).length,0);
+  let catalogs=await window.getCachedRoundSongCatalogs(genre);
+  if(playableCount(catalogs)>=required)return catalogs;
+  if(genre==='Everything'){
+    const groups=new Map(catalogs.filter(pool=>pool.name!=='Everything').map(pool=>[pool.name,pool.songs||[]]));
+    const genres=[...sourceGenres].sort(()=>Math.random()-.5).slice(0,3);
+    const target=Math.ceil(required/genres.length)+4;
+    for(const sourceGenre of genres){
+      const songs=await loadQuickGenreCatalog(sourceGenre,target);
+      groups.set(sourceGenre,songs);
+    }
+    catalogs=[...groups].map(([name,songs])=>({name,songs}));
+  }else if(genre==='Anime'){
+    const target=Math.ceil(required/2)+4;
+    const [openings,endings]=await Promise.all([loadQuickGenreCatalog('Anime openings',target),loadQuickGenreCatalog('Anime endings',target)]);
+    catalogs=[{name:'Anime openings',songs:openings},{name:'Anime endings',songs:endings}];
+  }else{
+    catalogs=[{name:genre,songs:await loadQuickGenreCatalog(genre,required+4)}];
+  }
+  if(playableCount(catalogs)<required)throw new Error(`Only ${playableCount(catalogs)} playable ${difficulty} songs are cached for ${genre}. Check your connection and try again.`);
+  return catalogs;
 };
 function getSongDifficulty(song,asset){
   const streamCount=[song?.totalStreams,song?.streams,song?.[7],asset?.totalStreams,asset?.playCount,asset?.streams]
