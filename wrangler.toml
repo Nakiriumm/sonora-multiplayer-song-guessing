@@ -1,4 +1,4 @@
-name = "sonora-multiplayer"
+name = "sonora-multiplayer-song-guessing"
 main = "worker.js"
 compatibility_date = "2026-10-10"
 
