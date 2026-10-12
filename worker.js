@@ -7,7 +7,9 @@ const ROUND_COUNT = 10;
 const STAGES = [0.1, 0.5, 2, 8, 15];
 const STAGE_STARTS = [0, ...STAGES.slice(0, -1)];
 const ROUND_POINTS = [100, 80, 60, 35, 20];
-const BOMB_TURN_SECONDS = 20;
+const bombTurnSeconds = (room) => [30, 45, 60].includes(Number(room.durationSeconds))
+  ? Number(room.durationSeconds)
+  : DEFAULT_ROUND_SECONDS;
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -159,6 +161,7 @@ export class GameRoom extends DurableObject {
       roundEndsAt: room.roundEndsAt,
       breakEndsAt: room.breakEndsAt,
       playback: room.playback,
+      bombLog: (room.bombLog || []).map(({ playerId, name, result, turnNumber }) => ({ playerId, name, result, turnNumber })),
       bomb: room.phase === 'bomb' ? {
         turnPlayerId: room.bombTurnPlayerId,
         turnNumber: room.bombTurnNumber,
@@ -408,8 +411,9 @@ export class GameRoom extends DurableObject {
       room.bombSongIndex = 0;
       room.bombTurnNumber = 1;
       room.bombTurnPlayerId = room.players.find((item) => !item.eliminated)?.id || player.id;
-      room.bombTurnEndsAt = Date.now() + BOMB_TURN_SECONDS * 1000;
+      room.bombTurnEndsAt = Date.now() + bombTurnSeconds(room) * 1000;
       room.bombLastResult = null;
+      room.bombLog = [];
       room.winner = null;
       room.players.forEach((item) => { item.score = 0; item.lives = 3; item.eliminated = false; item.status = 'playing'; item.continueReady = false; });
       room.phase = 'bomb';
@@ -501,6 +505,12 @@ export class GameRoom extends DurableObject {
   async advanceBombTurn(room, loseLife) {
     const oldTurnIndex = room.players.findIndex((item) => item.id === room.bombTurnPlayerId);
     const current = oldTurnIndex >= 0 ? room.players[oldTurnIndex] : null;
+    const result = room.bombLastResult;
+    if (result && result.turnNumber === room.bombTurnNumber && current) {
+      room.bombLog ||= [];
+      room.bombLog.push({ playerId: current.id, name: current.name, result: result.result, turnNumber: room.bombTurnNumber });
+      if (room.bombLog.length > 80) room.bombLog.splice(0, room.bombLog.length - 80);
+    }
     if (loseLife && current) {
       current.lives = Math.max(0, (Number.isInteger(current.lives) ? current.lives : 3) - 1);
       if (current.lives <= 0) current.eliminated = true;
@@ -525,7 +535,7 @@ export class GameRoom extends DurableObject {
     room.bombTurnPlayerId = next.id;
     room.bombTurnNumber += 1;
     room.bombSongIndex = (room.bombSongIndex + 1) % room.bombSongs.length;
-    room.bombTurnEndsAt = Date.now() + BOMB_TURN_SECONDS * 1000;
+    room.bombTurnEndsAt = Date.now() + bombTurnSeconds(room) * 1000;
     await this.save();
     await this.ctx.storage.setAlarm(room.bombTurnEndsAt);
     this.broadcast({ type: 'bomb' });

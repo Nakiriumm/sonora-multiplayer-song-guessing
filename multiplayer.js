@@ -563,23 +563,20 @@
     $('.bomb-submit').disabled = !isMyTurn || state.bombSubmitting;
     input.placeholder = isMyTurn ? 'Type a song name or artist…' : 'Waiting for your turn…';
     const turnKey = `${bomb.turnNumber}:${bomb.turnPlayerId}`;
+    const priorTurnNumber = Number(state.lastBombTurnKey.split(':')[0]) || 0;
     if (state.lastBombTurnKey !== turnKey) {
       state.lastBombTurnKey = turnKey;
       state.bombSubmitting = false;
       input.value = '';
       $('.bomb-suggestions').replaceChildren();
-      $('.bomb-message').textContent = '';
     }
-    const lastResult = bomb.lastResult;
-    const resultKey = lastResult ? `${lastResult.turnNumber}:${lastResult.playerId}:${lastResult.result}` : '';
+    const bombLog = room.bombLog || [];
+    renderBombLog(bombLog);
+    const latestLog = bombLog[bombLog.length - 1];
+    const resultKey = latestLog ? `${latestLog.turnNumber}:${latestLog.playerId}:${latestLog.result}` : '';
     if (resultKey && resultKey !== state.bombMessageKey) {
       state.bombMessageKey = resultKey;
-      const player = room.players.find((item) => item.id === lastResult.playerId);
-      const message = lastResult.result === 'correct'
-        ? `${player?.name || 'A player'} guessed correctly. Bomb passed!`
-        : `${player?.name || 'A player'} lost a life${lastResult.result === 'timeout' ? ' when time ran out' : ''}.`;
-      $('.bomb-message').textContent = message;
-      $('.bomb-message').className = `bomb-message ${lastResult.result === 'correct' ? 'is-correct' : 'is-incorrect'}`;
+      if (latestLog.result === 'timeout' && latestLog.turnNumber === priorTurnNumber) triggerBombExplosion();
     }
     const arena = $('.bomb-arena');
     const seats = $('.bomb-seats');
@@ -613,12 +610,47 @@
       state.activeAudio.volume = Number($('.game-view [aria-label="Volume"]')?.value || 65) / 100;
       $('.bomb-audio-status').textContent = 'Starting song preview…';
       state.activeAudio.play().then(() => {
-        if (state.bombAudioKey === audioKey) { $('.bomb-audio-status').textContent = 'Song preview playing'; $('.bomb-audio-toggle').textContent = 'Pause song'; }
+        if (state.bombAudioKey === audioKey) $('.bomb-audio-status').textContent = 'Song preview playing';
       }).catch(() => {
-        if (state.bombAudioKey === audioKey) { $('.bomb-audio-status').textContent = 'Tap “Play song” to hear the preview'; $('.bomb-audio-toggle').textContent = 'Play song'; }
+        if (state.bombAudioKey === audioKey) $('.bomb-audio-status').textContent = 'Tap “Play song” to hear the preview';
       });
     }
     updateTimer(bomb.turnEndsAt, '.bomb-timer', `bomb:${bomb.turnNumber}:${bomb.turnEndsAt}`);
+  }
+
+  function renderBombLog(log) {
+    const container = $('.bomb-log');
+    if (!container) return;
+    container.replaceChildren();
+    log.forEach((entry, index) => {
+      const line = document.createElement('p');
+      line.className = `bomb-log-entry${entry.result === 'correct' ? ' is-correct' : ''}${index === log.length - 1 ? ' is-latest' : ''}`;
+      line.textContent = entry.result === 'correct'
+        ? `${entry.name} guessed correctly. The bomb passed on.`
+        : `${entry.name} lost a life.`;
+      line.style.opacity = String(Math.max(0.2, 1 - (log.length - 1 - index) * 0.12));
+      container.appendChild(line);
+    });
+    container.scrollTop = container.scrollHeight;
+  }
+
+  function triggerBombExplosion() {
+    const core = $('.bomb-core');
+    if (!core) return;
+    const rect = core.getBoundingClientRect();
+    const explosion = document.createElement('div');
+    explosion.className = 'bomb-explosion';
+    explosion.setAttribute('aria-hidden', 'true');
+    explosion.style.left = `${rect.left + rect.width / 2}px`;
+    explosion.style.top = `${rect.top + rect.height / 2}px`;
+    for (let index = 0; index < 14; index += 1) {
+      const spark = document.createElement('i');
+      spark.style.setProperty('--spark-angle', `${index * (360 / 14)}deg`);
+      spark.style.setProperty('--spark-distance', `${72 + Math.random() * 72}px`);
+      explosion.appendChild(spark);
+    }
+    document.body.appendChild(explosion);
+    setTimeout(() => explosion.remove(), 950);
   }
 
   function renderRoundEnd(room) {
@@ -684,6 +716,14 @@
     clearRoomTimer();
     stopSyncedAudio();
     enterGame(room.mode || 'Classic');
+    const latestBombEvent = room.mode === 'SongBomb' ? room.bombLog?.[room.bombLog.length - 1] : null;
+    if (latestBombEvent?.result === 'timeout') {
+      const resultKey = `${latestBombEvent.turnNumber}:${latestBombEvent.playerId}:${latestBombEvent.result}`;
+      if (state.bombMessageKey !== resultKey) {
+        state.bombMessageKey = resultKey;
+        triggerBombExplosion();
+      }
+    }
     const winner = room.winner || [...(room.players || [])].sort((a, b) => b.score - a.score)[0];
     $('#winner-title').textContent = winner ? `${winner.name} wins!` : 'Game complete';
     $('.winner-score').textContent = winner ? (room.mode === 'SongBomb' ? `Last player standing \u00b7 ${winner.lives} lives left` : `Final score \u00b7 ${winner.score} points`) : '';
@@ -769,8 +809,6 @@
         renderSongBomb(room);
         break;
       case 'bomb-result':
-        $('.bomb-message').textContent = message.correct ? 'Correct! The bomb passes to the next player.' : 'Incorrect — you lost a life.';
-        $('.bomb-message').className = `bomb-message ${message.correct ? 'is-correct' : 'is-incorrect'}`;
         break;
       case 'guess-result':
         if (message.playerId === state.session?.playerId) {
@@ -1025,14 +1063,8 @@
     if (target.matches('.bomb-audio-toggle')) {
       event.preventDefault();
       if (!state.activeAudio) return;
-      if (state.activeAudio.paused) {
-        try { await state.activeAudio.play(); $('.bomb-audio-toggle').textContent = 'Pause song'; $('.bomb-audio-status').textContent = 'Song preview playing'; }
-        catch { $('.bomb-audio-status').textContent = 'Unable to play this preview.'; }
-      } else {
-        state.activeAudio.pause();
-        $('.bomb-audio-toggle').textContent = 'Play song';
-        $('.bomb-audio-status').textContent = 'Song preview paused';
-      }
+      try { await state.activeAudio.play(); $('.bomb-audio-status').textContent = 'Song preview playing'; }
+      catch { $('.bomb-audio-status').textContent = 'Unable to play this preview.'; }
       return;
     }
     if (!state.session && target.matches('.game-play, .game-skip, .song-choice, .continue-round, .winner-exit, .game-exit')) return;
