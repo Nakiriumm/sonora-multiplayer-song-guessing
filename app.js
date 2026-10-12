@@ -196,9 +196,8 @@ async function loadSingleGenreCatalog(genre) {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
     if (Array.isArray(saved) && saved.length >= GENRE_CATALOG_SIZE) {
-      for (const [catalogIndex, song] of saved.entries()) {
+      for (const song of saved) {
         if (Array.isArray(song) && song.length >= 4) {
-          if (!song[5]) song[5] = catalogIndex % 50 + 1;
           songAssetCache.set(song[0] + '|' + song[1], Promise.resolve({
             trackName: song[0], artistName: song[1], artworkUrl100: song[2], previewUrl: song[3],
             releaseDate: song[4] || '', catalogRank: song[5] || 0
@@ -228,8 +227,7 @@ async function loadSingleGenreCatalog(genre) {
     try {
       const previous = JSON.parse(localStorage.getItem(previousStorageKey) || 'null');
       if (Array.isArray(previous)) {
-        for (const [catalogIndex, song] of previous.entries()) {
-          if (Array.isArray(song) && !song[5]) song[5] = catalogIndex % 50 + 1;
+        for (const song of previous) {
           addSong(song);
         }
       }
@@ -330,12 +328,28 @@ window.getRoundSongCatalogs=async(genre='Everything')=>{
   return [{name:genre,songs:await loadSingleGenreCatalog(genre)}];
 };
 function getSongDifficulty(song,asset){
-  const year=Number.parseInt(song?.[4]||asset?.releaseDate||'',10)||0;
+  const streamCount=[song?.totalStreams,song?.streams,song?.[7],asset?.totalStreams,asset?.playCount,asset?.streams]
+    .map(Number).find((value)=>Number.isFinite(value)&&value>0);
+  if(streamCount){
+    if(streamCount>=1_000_000_000)return 'easy';
+    if(streamCount>=100_000_000)return 'medium';
+    if(streamCount>=10_000_000)return 'hard';
+    return 'extreme';
+  }
+  const popularityValue=[song?.popularity,song?.[8],asset?.popularity]
+    .map(Number).find((value)=>Number.isFinite(value)&&value>=0&&value<=100);
+  if(popularityValue!==undefined){
+    if(popularityValue>=90)return 'easy';
+    if(popularityValue>=70)return 'medium';
+    if(popularityValue>=30)return 'hard';
+    return 'extreme';
+  }
   const rank=Number(song?.[5]||asset?.catalogRank||asset?.searchRank)||0;
-  const isOld=year>0&&year<=2000;
-  if(rank>=40||(isOld&&rank>30))return 'extreme';
-  if(rank>=25||(isOld&&rank>20))return 'hard';
-  if((rank>0&&rank<=8)||(isOld&&rank<=20))return 'easy';
+  // Apple Search has no stream totals; its result order is the available popularity proxy.
+  if(rank>0&&rank<=8)return 'easy';
+  if(rank<=18&&rank>8)return 'medium';
+  if(rank<=38&&rank>18)return 'hard';
+  if(rank>38)return 'extreme';
   return 'medium';
 }
 const jpopTitleAliases = new Map([
