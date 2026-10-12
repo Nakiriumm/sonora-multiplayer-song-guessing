@@ -48,6 +48,10 @@ function roomEventType(room) {
   return 'game-ended';
 }
 
+function connectedPlayersFinished(room) {
+  return room.players.filter((player) => player.connected !== false).every((player) => player.status !== 'playing');
+}
+
 function cleanRound(round) {
   if (!round || !Array.isArray(round.choices) || round.choices.length < 4 || round.choices.length > 8) return null;
   if (!Number.isInteger(round.answerIndex) || round.answerIndex < 0 || round.answerIndex >= round.choices.length) return null;
@@ -349,7 +353,7 @@ export class GameRoom extends DurableObject {
       if (room.phase === 'bomb') {
         if (leftBombTurn || room.players.filter((item) => !item.eliminated && item.lives > 0).length <= 1) await this.advanceBombTurn(room, false);
         else this.broadcast({ type: 'bomb' });
-      } else if (room.phase === 'game' && room.players.every((item) => item.status !== 'playing')) await this.endRound(room);
+      } else if (room.phase === 'game' && connectedPlayersFinished(room)) await this.endRound(room);
       else if (room.phase === 'break' && room.players.filter((item) => item.connected && item.continueReady).length >= Math.max(1, Math.ceil(room.players.filter((item) => item.connected).length / 2))) await this.beginNextRound(room);
       else this.broadcast({ type: roomEventType(room) });
       ws.close(1000, 'Left room');
@@ -559,7 +563,7 @@ export class GameRoom extends DurableObject {
         this.broadcast({ type: 'guess-result', playerId: player.id, correct: false, points: -5 });
       }
       await this.save();
-      if (room.players.every((item) => item.status !== 'playing')) await this.endRound(room);
+      if (connectedPlayersFinished(room)) await this.endRound(room);
       else this.broadcast({ type: 'game' });
       return;
     }
@@ -717,6 +721,10 @@ export class GameRoom extends DurableObject {
     const anotherConnection = this.ctx.getWebSockets().some((socket) => socket !== ws && socket.deserializeAttachment()?.playerId === playerId);
     player.connected = connected || anotherConnection;
     await this.save();
+    if (room.phase === 'game' && !player.connected && connectedPlayersFinished(room)) {
+      await this.endRound(room);
+      return;
+    }
     if (room.phase === 'break' && room.players.filter((item) => item.connected && item.continueReady).length >= Math.max(1, Math.ceil(room.players.filter((item) => item.connected).length / 2))) {
       await this.beginNextRound(room);
       return;
