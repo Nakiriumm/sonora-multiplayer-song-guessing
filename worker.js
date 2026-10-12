@@ -31,7 +31,7 @@ function cleanBombSong(song) {
   try { if (!new URL(previewUrl).hostname.endsWith('.itunes.apple.com')) return null; } catch { return null; }
   const artwork = String(song.artwork || '').slice(0, 1000);
   try { if (artwork && !new URL(artwork).hostname.endsWith('.mzstatic.com')) return null; } catch { return null; }
-  return { title: String(song.title).slice(0, 160), artist: String(song.artist).slice(0, 160), artwork, previewUrl };
+  return { title: String(song.title).slice(0, 160), artist: String(song.artist).slice(0, 160), subtitle: String(song.subtitle || '').slice(0, 220), artwork, previewUrl };
 }
 
 function normalizeGuess(value) {
@@ -76,6 +76,7 @@ function cleanRound(round) {
     answer: {
       title: String(answer.title).slice(0, 160),
       artist: String(answer.artist).slice(0, 160),
+      subtitle: String(answer.subtitle || '').slice(0, 220),
       artwork: safeArtwork(answer.artwork),
       previewUrl: String(answer.previewUrl).slice(0, 2000),
     },
@@ -163,7 +164,7 @@ export class GameRoom extends DurableObject {
       roundEndsAt: room.roundEndsAt,
       breakEndsAt: room.breakEndsAt,
       playback: room.playback,
-      bombLog: (room.bombLog || []).map(({ playerId, name, result, turnNumber, answerTitle }) => ({ playerId, name, result, turnNumber, answerTitle })),
+      bombLog: (room.bombLog || []).map(({ playerId, name, result, turnNumber, answerTitle, answerSubtitle }) => ({ playerId, name, result, turnNumber, answerTitle, answerSubtitle })),
       bomb: room.phase === 'bomb' ? {
         turnPlayerId: room.bombTurnPlayerId,
         turnNumber: room.bombTurnNumber,
@@ -470,6 +471,7 @@ export class GameRoom extends DurableObject {
         result,
         turnNumber: room.bombTurnNumber,
         answerTitle: room.bombSongs?.[room.bombSongIndex]?.title || '',
+        answerSubtitle: room.bombSongs?.[room.bombSongIndex]?.subtitle || '',
       };
       await this.advanceBombTurn(room, true);
       return;
@@ -482,6 +484,7 @@ export class GameRoom extends DurableObject {
           result: 'timeout',
           turnNumber: room.bombTurnNumber,
           answerTitle: room.bombSongs?.[room.bombSongIndex]?.title || '',
+          answerSubtitle: room.bombSongs?.[room.bombSongIndex]?.subtitle || '',
         };
         await this.advanceBombTurn(room, true);
         return;
@@ -502,6 +505,7 @@ export class GameRoom extends DurableObject {
         result: correct ? 'correct' : 'wrong',
         turnNumber: room.bombTurnNumber,
         answerTitle: correct ? '' : answer?.title || '',
+        answerSubtitle: correct ? '' : answer?.subtitle || '',
       };
       this.send(ws, { type: 'bomb-result', correct });
       await this.advanceBombTurn(room, !correct);
@@ -580,6 +584,7 @@ export class GameRoom extends DurableObject {
         result: result.result,
         turnNumber: room.bombTurnNumber,
         answerTitle: result.answerTitle || (result.result !== 'correct' ? room.bombSongs?.[room.bombSongIndex]?.title || '' : ''),
+        answerSubtitle: result.answerSubtitle || (result.result !== 'correct' ? room.bombSongs?.[room.bombSongIndex]?.subtitle || '' : ''),
       });
       if (room.bombLog.length > 80) room.bombLog.splice(0, room.bombLog.length - 80);
     }
@@ -679,6 +684,7 @@ export class GameRoom extends DurableObject {
         result: 'timeout',
         turnNumber: room.bombTurnNumber,
         answerTitle: room.bombSongs?.[room.bombSongIndex]?.title || '',
+        answerSubtitle: room.bombSongs?.[room.bombSongIndex]?.subtitle || '',
       };
       await this.advanceBombTurn(room, true);
     } else if (room.phase === 'game' && room.playback.playing && now >= room.playback.endsAt && now < room.roundEndsAt) {
