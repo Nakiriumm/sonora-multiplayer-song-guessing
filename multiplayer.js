@@ -671,6 +671,12 @@
           answer.className = 'bomb-log-answer';
           answer.textContent = entry.answerTitle;
           line.appendChild(answer);
+          if (entry.answerArtist) {
+            const artist = document.createElement('small');
+            artist.className = 'bomb-log-artist';
+            artist.textContent = ` - (${entry.answerArtist})`;
+            line.appendChild(artist);
+          }
           if (entry.answerSubtitle) {
             const subtitle = document.createElement('small');
             subtitle.className = 'song-title-subtitle';

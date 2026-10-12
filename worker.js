@@ -168,7 +168,7 @@ export class GameRoom extends DurableObject {
       roundEndsAt: room.roundEndsAt,
       breakEndsAt: room.breakEndsAt,
       playback: room.playback,
-      bombLog: (room.bombLog || []).map(({ playerId, name, result, turnNumber, answerTitle, answerSubtitle }) => ({ playerId, name, result, turnNumber, answerTitle, answerSubtitle })),
+      bombLog: (room.bombLog || []).map(({ playerId, name, result, turnNumber, answerTitle, answerArtist, answerSubtitle }) => ({ playerId, name, result, turnNumber, answerTitle, answerArtist, answerSubtitle })),
       bomb: room.phase === 'bomb' ? {
         turnPlayerId: room.bombTurnPlayerId,
         turnNumber: room.bombTurnNumber,
@@ -475,6 +475,7 @@ export class GameRoom extends DurableObject {
         result,
         turnNumber: room.bombTurnNumber,
         answerTitle: room.bombSongs?.[room.bombSongIndex]?.title || '',
+        answerArtist: room.bombSongs?.[room.bombSongIndex]?.artist || '',
         answerSubtitle: room.bombSongs?.[room.bombSongIndex]?.subtitle || '',
       };
       await this.advanceBombTurn(room, true);
@@ -488,6 +489,7 @@ export class GameRoom extends DurableObject {
           result: 'timeout',
           turnNumber: room.bombTurnNumber,
           answerTitle: room.bombSongs?.[room.bombSongIndex]?.title || '',
+          answerArtist: room.bombSongs?.[room.bombSongIndex]?.artist || '',
           answerSubtitle: room.bombSongs?.[room.bombSongIndex]?.subtitle || '',
         };
         await this.advanceBombTurn(room, true);
@@ -509,6 +511,7 @@ export class GameRoom extends DurableObject {
         result: correct ? 'correct' : 'wrong',
         turnNumber: room.bombTurnNumber,
         answerTitle: correct ? '' : answer?.title || '',
+        answerArtist: correct ? '' : answer?.artist || '',
         answerSubtitle: correct ? '' : answer?.subtitle || '',
       };
       this.send(ws, { type: 'bomb-result', correct });
@@ -588,6 +591,7 @@ export class GameRoom extends DurableObject {
         result: result.result,
         turnNumber: room.bombTurnNumber,
         answerTitle: result.answerTitle || (result.result !== 'correct' ? room.bombSongs?.[room.bombSongIndex]?.title || '' : ''),
+        answerArtist: result.answerArtist || (result.result !== 'correct' ? room.bombSongs?.[room.bombSongIndex]?.artist || '' : ''),
         answerSubtitle: result.answerSubtitle || (result.result !== 'correct' ? room.bombSongs?.[room.bombSongIndex]?.subtitle || '' : ''),
       });
       if (room.bombLog.length > 80) room.bombLog.splice(0, room.bombLog.length - 80);
@@ -688,6 +692,7 @@ export class GameRoom extends DurableObject {
         result: 'timeout',
         turnNumber: room.bombTurnNumber,
         answerTitle: room.bombSongs?.[room.bombSongIndex]?.title || '',
+        answerArtist: room.bombSongs?.[room.bombSongIndex]?.artist || '',
         answerSubtitle: room.bombSongs?.[room.bombSongIndex]?.subtitle || '',
       };
       await this.advanceBombTurn(room, true);
