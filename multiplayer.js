@@ -963,8 +963,7 @@
         leaveRoom();
         break;
       case 'kicked':
-        leaveRoom();
-        showNotice('The host removed you from the lobby.', true);
+        leaveRoom({ kicked: true });
         break;
       case 'pong':
         break;
@@ -1145,9 +1144,32 @@
     $('#player-name').focus();
   }
 
-  function leaveRoom() {
+  function resetJoinForm() {
+    const name = $('#player-name');
+    const code = $('#join-code');
+    const button = $('.join-form button[type="submit"]');
+    if (name) name.disabled = false;
+    if (code) {
+      code.value = '';
+      code.disabled = false;
+      code.placeholder = '1234567';
+    }
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = 'Join room <span>→</span>';
+    }
+    const status = $('.join-status');
+    if (status) {
+      status.textContent = '';
+      status.className = 'join-status';
+    }
+    $('.joined-room-panel').hidden = true;
+    setRoomCode('');
+  }
+
+  function leaveRoom({ kicked = false } = {}) {
     window.setSongBombVolumePlacement?.(false);
-    if (state.session && state.socket?.readyState === WebSocket.OPEN) send('leave');
+    if (!kicked && state.session && state.socket?.readyState === WebSocket.OPEN) send('leave');
     state.manuallyClosed = true;
     clearInterval(state.heartbeat);
     clearRoomTimer();
@@ -1159,17 +1181,22 @@
     state.socket = null;
     state.room = null;
     sessionStore.clear();
+    resetJoinForm();
     $('.winner-backdrop').hidden = true;
     $('.round-result-backdrop').hidden = true;
     $('.game-view').hidden = true;
     $('.song-bomb-panel').hidden = true;
     $('.modal-backdrop').hidden = true;
-    $('.join-page').hidden = true;
+    $('.join-page').hidden = !kicked;
     $('main').hidden = false;
     $('.site-footer').hidden = false;
     document.body.style.overflow = '';
     window.scrollTo(0, 0);
-    if (document.body.dataset.roomPage === 'true') location.assign('index.html');
+    if (kicked) {
+      showJoinPage();
+      $('.join-status').textContent = 'You were removed from the room. Enter a room code to join another room.';
+      $('.join-status').className = 'join-status error';
+    } else if (document.body.dataset.roomPage === 'true') location.assign('index.html');
   }
 
   function returnToLobby() {
@@ -1394,7 +1421,16 @@
     event.preventDefault();
     event.stopImmediatePropagation();
     const name = $('#player-name').value.trim();
-    if (state.session && !state.session.host) {
+    const isRoomMember = Boolean(state.session && !state.session.host
+      && state.room?.players?.some((player) => player.id === state.session.playerId));
+    if (state.session && !state.session.host && !isRoomMember) {
+      leaveRoom();
+      showJoinPage();
+      $('.join-status').textContent = 'Your room session ended. Enter a room code to join again.';
+      $('.join-status').className = 'join-status error';
+      return;
+    }
+    if (isRoomMember) {
       if (!name) { $('.join-status').textContent = 'Enter your name first.'; $('.join-status').className = 'join-status error'; return; }
       if (state.room?.phase !== 'lobby') { $('.join-status').textContent = 'Names can only be changed while waiting in the lobby.'; $('.join-status').className = 'join-status error'; return; }
       const button = $('.join-form .primary-button');
