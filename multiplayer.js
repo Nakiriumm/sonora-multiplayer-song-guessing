@@ -24,6 +24,11 @@
     localRound: 0,
     prepareRequest: 0,
     timerKey: '',
+    bombAudioKey: '',
+    bombSearchRequest: 0,
+    bombSearchTimer: 0,
+    bombSubmitting: false,
+    bombMessageKey: '',
     scoreboardKey: '',
     configureTimer: 0,
   };
@@ -99,7 +104,7 @@
       hostName.dispatchEvent(new Event('input', { bubbles: true }));
     }
     const launch = $('.launch-button');
-    if (launch) launch.innerHTML = state.session?.host ? 'Start the room <span>→</span>' : 'Create room <span>→</span>';
+    if (launch) launch.innerHTML = state.session?.host ? (window.getSelectedGameMode?.() === 'SongBomb' ? 'Start Song Bomb <span>&rarr;</span>' : 'Start Classic <span>&rarr;</span>') : 'Create room <span>&rarr;</span>';
     if (nameGate) nameGate.hidden = true;
     modal.hidden = false;
     modal.classList.add('page-view');
@@ -117,6 +122,7 @@
       genre,
       difficulty: $('.difficulty-option.selected')?.dataset.difficulty || saved.difficulty || 'medium',
       choiceCount: Number.parseInt($('.choice-stepper strong')?.textContent, 10) || saved.choiceCount || 4,
+      roundCount: Number.parseInt($('.rounds-stepper strong')?.textContent, 10) || saved.roundCount || 10,
       durationSeconds: Number.parseInt($('.duration-stepper strong')?.textContent, 10) || Number.parseInt(saved.time, 10) || 30,
     };
   }
@@ -124,7 +130,7 @@
   async function createRoom(name) {
     const mode = window.getSelectedGameMode?.();
     if (!mode) throw new Error('Choose a game mode before creating a room.');
-    if (mode !== 'Quickfire') throw new Error('Solo play does not create a room.');
+    if (!['Quickfire', 'SongBomb'].includes(mode)) throw new Error('Solo play does not create a room.');
     // The room API requires a host name, so create with a temporary label and
     // ask for the real name as soon as the room and invite code exist.
     const settings = currentSettings(name || 'Host');
@@ -196,7 +202,7 @@
       if (!name) state.pendingHost = true;
       if (launch) {
         launch.disabled = false;
-        launch.innerHTML = 'Start the room <span>→</span>';
+        launch.innerHTML = window.getSelectedGameMode?.() === 'SongBomb' ? 'Start Song Bomb <span>→</span>' : 'Start Classic <span>→</span>';
       }
     });
   };
@@ -273,13 +279,14 @@
     const roomLabel = $('.joined-room-heading .eyebrow');
     if (roomLabel) roomLabel.textContent = 'Cloudflare room';
     const hostSettings = $$('.host-settings strong');
-    if (hostSettings.length >= 6) {
-      hostSettings[0].textContent = 'Classic';
+    if (hostSettings.length >= 7) {
+      hostSettings[0].textContent = room.mode === 'SongBomb' ? 'Song Bomb' : 'Classic';
       hostSettings[1].textContent = `${room.maxPlayers} max`;
       hostSettings[2].textContent = room.genre;
       hostSettings[3].textContent = `${room.durationSeconds || 30} sec`;
       hostSettings[4].textContent = (room.difficulty || 'medium').replace(/^./, (letter) => letter.toUpperCase());
       hostSettings[5].textContent = `${room.choiceCount || 4} choices`;
+      hostSettings[6].textContent = `${room.roundCount || 10}`;
     }
     if (state.session?.host) {
       const playerStepper = $('.player-stepper strong');
@@ -288,6 +295,8 @@
       if (durationStepper) durationStepper.textContent = `${room.durationSeconds || 30} seconds`;
       const choiceStepper = $('.choice-stepper strong');
       if (choiceStepper) choiceStepper.textContent = `${room.choiceCount || 4} choices`;
+      const roundsStepper = $('.rounds-stepper strong');
+      if (roundsStepper) roundsStepper.textContent = `${room.roundCount || 10} rounds`;
     }
     const listMarkup = players.map((player, index) => `<div class="joined-player"><span class="joined-avatar ${index === 0 ? 'avatar-yellow' : 'avatar-blue'}">${escapeHtml(player.name.slice(0, 2).toUpperCase())}</span><span><strong>${escapeHtml(player.name)}</strong><small>${index === 0 ? 'Host' : 'Joined'}${player.connected ? '' : ' · reconnecting'}</small></span><i>${index === 0 ? '★' : '✓'}</i></div>`).join('');
     const free = Math.max(0, room.maxPlayers - players.length);
@@ -312,13 +321,14 @@
     if (launch) {
       launch.disabled = !state.session?.host || room.phase !== 'lobby' || !window.getSelectedGameMode?.();
       launch.setAttribute('aria-disabled', String(launch.disabled));
-      launch.title = launch.disabled ? 'Only the host can start the room' : 'Start the room';
+      launch.title = launch.disabled ? 'Only the host can start the room' : room.mode === 'SongBomb' ? 'Start Song Bomb' : 'Start Classic';
     }
     if (state.session?.host && room.phase === 'lobby') {
       const settings = currentSettings($('.host-name-input')?.value.trim());
       const host = players.find((player) => player.id === state.session.playerId);
-      if (host && (settings.name !== host.name || settings.maxPlayers !== room.maxPlayers || settings.genre !== room.genre || settings.difficulty !== (room.difficulty || 'medium') || settings.choiceCount !== (room.choiceCount || 4) || settings.durationSeconds !== room.durationSeconds)) send('configure', settings);
+      if (host && (settings.name !== host.name || settings.mode !== room.mode || settings.maxPlayers !== room.maxPlayers || settings.genre !== room.genre || settings.difficulty !== (room.difficulty || 'medium') || settings.choiceCount !== (room.choiceCount || 4) || settings.roundCount !== (room.roundCount || 10) || settings.durationSeconds !== room.durationSeconds)) send('configure', settings);
     }
+    window.applyAppLanguage?.(window.getAppLanguage?.() || 'EN');
   }
 
   function updateScoreboard(room) {
@@ -371,6 +381,7 @@
     state.audioFrame = 0;
     if (state.activeAudio) state.activeAudio.pause();
     state.activeAudio = null;
+    state.bombAudioKey = '';
     $('.game-play')?.classList.remove('is-playing');
     $('.game-play')?.setAttribute('aria-label', 'Play current section');
   }
@@ -459,6 +470,9 @@
     if (!room) return;
     state.room = room;
     enterGame();
+    $('.game-layout').hidden = false;
+    $('.song-bomb-panel').hidden = true;
+    $('.game-topbar>span').textContent = `ROUND ${room.roundNumber || 1} / ${room.roundCount || 10}`;
     $('.round-result-backdrop').hidden = true;
     $('.winner-backdrop').hidden = true;
     updateScoreboard(room);
@@ -495,7 +509,7 @@
         $('.track-line i').style.width = '0%';
         $('.round-feedback').textContent = 'Choose quickly for the highest score.';
       }
-      if (renderChoices) container.innerHTML = choices.map((choice, index) => `<button class="song-choice" data-choice-index="${index}" type="button"><span class="cover-art cover-${(number + index) % 4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeHtml(choice.title)}</strong></span><i>${String.fromCharCode(65 + index)}</i></button>`).join('');
+      if (renderChoices) container.innerHTML = choices.map((choice, index) => `<button class="song-choice" data-choice-index="${index}" type="button"><span class="cover-art cover-${(number + index) % 4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeHtml(choice.title)}</strong>${choice.subtitle ? `<small class="song-title-subtitle">${escapeHtml(choice.subtitle)}</small>` : ''}${choice.anime ? `<small class="song-origin">From ${escapeHtml(choice.anime)}</small>` : ''}</span><i>${String.fromCharCode(65 + index)}</i></button>`).join('');
       if (renderChoices) choices.forEach((choice, index) => {
         const cover = container.querySelector(`[data-choice-index="${index}"] .cover-art`);
       if (cover && choice.artwork) {
@@ -514,12 +528,93 @@
         $('.guess-status').textContent = 'Wrong guess · waiting for other players';
       } else if (mine?.status === 'correct') {
         container.classList.add('locked');
+        container.querySelectorAll('.song-choice').forEach((button) => button.classList.add('dimmed'));
         $('.guess-status').textContent = 'Correct · waiting for the others';
       } else {
         $('.guess-status').textContent = `${choices.length} choices`;
       }
       updateRoundTimer(room);
     }
+  }
+
+  function renderSongBomb(room) {
+    if (!room?.bomb) return;
+    state.room = room;
+    enterGame();
+    clearRoomTimer();
+    $('.round-result-backdrop').hidden = true;
+    $('.winner-backdrop').hidden = true;
+    $('.game-layout').hidden = true;
+    $('.song-bomb-panel').hidden = false;
+    $('.game-topbar>span').textContent = 'SONG BOMB';
+    const bomb = room.bomb;
+    const activePlayer = room.players.find((player) => player.id === bomb.turnPlayerId);
+    const me = room.players.find((player) => player.id === state.session?.playerId);
+    const isMyTurn = Boolean(me && !me.eliminated && me.id === bomb.turnPlayerId);
+    const lives = Math.max(0, Number(me?.lives) || 0);
+    $('.bomb-lives').textContent = me?.eliminated ? 'You are out' : `Your lives: ${'♥'.repeat(lives)}${'♡'.repeat(Math.max(0, 3 - lives))}`;
+    $('.bomb-turn-status').textContent = isMyTurn ? 'Your turn — name the song or artist!' : `${activePlayer?.name || 'A player'} has the bomb`;
+    const input = $('#bomb-song-input');
+    input.disabled = !isMyTurn || state.bombSubmitting;
+    $('.bomb-submit').disabled = !isMyTurn || state.bombSubmitting;
+    input.placeholder = isMyTurn ? 'Type a song name or artist…' : 'Waiting for your turn…';
+    const turnKey = `${bomb.turnNumber}:${bomb.turnPlayerId}`;
+    if (state.lastBombTurnKey !== turnKey) {
+      state.lastBombTurnKey = turnKey;
+      state.bombSubmitting = false;
+      input.value = '';
+      $('.bomb-suggestions').replaceChildren();
+      $('.bomb-message').textContent = '';
+    }
+    const lastResult = bomb.lastResult;
+    const resultKey = lastResult ? `${lastResult.turnNumber}:${lastResult.playerId}:${lastResult.result}` : '';
+    if (resultKey && resultKey !== state.bombMessageKey) {
+      state.bombMessageKey = resultKey;
+      const player = room.players.find((item) => item.id === lastResult.playerId);
+      const message = lastResult.result === 'correct'
+        ? `${player?.name || 'A player'} guessed correctly. Bomb passed!`
+        : `${player?.name || 'A player'} lost a life${lastResult.result === 'timeout' ? ' when time ran out' : ''}.`;
+      $('.bomb-message').textContent = message;
+      $('.bomb-message').className = `bomb-message ${lastResult.result === 'correct' ? 'is-correct' : 'is-incorrect'}`;
+    }
+    const arena = $('.bomb-arena');
+    const seats = $('.bomb-seats');
+    seats.replaceChildren();
+    const radius = Math.min(arena.clientWidth, arena.clientHeight) * 0.39;
+    room.players.forEach((player, index) => {
+      const angle = -Math.PI / 2 + (Math.PI * 2 * index) / room.players.length;
+      const x = arena.clientWidth / 2 + Math.cos(angle) * radius;
+      const y = arena.clientHeight / 2 + Math.sin(angle) * radius;
+      const seat = document.createElement('div');
+      seat.className = `bomb-player${player.id === bomb.turnPlayerId ? ' is-turn' : ''}${player.eliminated ? ' is-eliminated' : ''}`;
+      seat.style.left = `${x}px`;
+      seat.style.top = `${y}px`;
+      seat.innerHTML = `<span class="bomb-avatar">${escapeHtml(player.name.slice(0, 1).toUpperCase())}</span><strong class="bomb-player-name">${escapeHtml(player.name)}</strong><small class="bomb-player-lives">${'♥'.repeat(Math.max(0, player.lives || 0))}${'♡'.repeat(Math.max(0, 3 - (player.lives || 0)))}</small>`;
+      seats.appendChild(seat);
+      if (player.id === bomb.turnPlayerId) {
+        const pointer = $('.bomb-pointer');
+        const pointerRadius = radius * 0.63;
+        pointer.style.left = `${arena.clientWidth / 2 + Math.cos(angle) * pointerRadius}px`;
+        pointer.style.top = `${arena.clientHeight / 2 + Math.sin(angle) * pointerRadius}px`;
+        pointer.style.transform = `translate(-50%, -50%) rotate(${angle * 180 / Math.PI}deg)`;
+      }
+    });
+    const audioUrl = room.currentRound?.previewUrl;
+    const audioKey = `${bomb.turnNumber}:${audioUrl || ''}`;
+    if (audioUrl && audioKey !== state.bombAudioKey) {
+      stopSyncedAudio();
+      state.bombAudioKey = audioKey;
+      state.activeAudio = new Audio(audioUrl);
+      state.activeAudio.preload = 'auto';
+      state.activeAudio.volume = Number($('.game-view [aria-label="Volume"]')?.value || 65) / 100;
+      $('.bomb-audio-status').textContent = 'Starting song preview…';
+      state.activeAudio.play().then(() => {
+        if (state.bombAudioKey === audioKey) { $('.bomb-audio-status').textContent = 'Song preview playing'; $('.bomb-audio-toggle').textContent = 'Pause song'; }
+      }).catch(() => {
+        if (state.bombAudioKey === audioKey) { $('.bomb-audio-status').textContent = 'Tap “Play song” to hear the preview'; $('.bomb-audio-toggle').textContent = 'Play song'; }
+      });
+    }
+    updateTimer(bomb.turnEndsAt, '.bomb-timer', `bomb:${bomb.turnNumber}:${bomb.turnEndsAt}`);
   }
 
   function renderRoundEnd(room) {
@@ -546,6 +641,39 @@
     updateBreakTimer(room);
   }
 
+  function searchBombSuggestions(query) {
+    clearTimeout(state.bombSearchTimer);
+    const list = $('.bomb-suggestions');
+    const value = query.trim();
+    const request = ++state.bombSearchRequest;
+    if (value.length < 2) { list.replaceChildren(); return; }
+    list.innerHTML = '<p class="bomb-suggestions-hint">Searching songs…</p>';
+    state.bombSearchTimer = setTimeout(async () => {
+      const country = ['Anime', 'J-Pop', 'Thai songs'].includes(state.room?.genre) ? 'JP' : 'US';
+      try {
+        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(value)}&entity=song&country=${country}&limit=8`;
+        const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+        const data = response.ok ? await response.json() : { results: [] };
+        if (request !== state.bombSearchRequest || value !== $('#bomb-song-input').value.trim()) return;
+        const results = (data.results || []).filter((song) => song.trackName && song.artistName).slice(0, 8);
+        list.innerHTML = results.length ? results.map((song) => `<button class="bomb-suggestion" type="button" role="option" data-title="${escapeHtml(song.trackName)}" data-artist="${escapeHtml(song.artistName)}"><strong>${escapeHtml(song.trackName)}</strong><small>${escapeHtml(song.artistName)}</small></button>`).join('') : '<p class="bomb-suggestions-hint">No matching songs found.</p>';
+      } catch {
+        if (request === state.bombSearchRequest) list.innerHTML = '<p class="bomb-suggestions-hint">Song suggestions are unavailable right now.</p>';
+      }
+    }, 220);
+  }
+
+  function submitBombGuess(guess, title = '', artist = '') {
+    if (state.bombSubmitting || state.room?.phase !== 'bomb') return;
+    state.bombSubmitting = true;
+    const sent = send('bomb-guess', { guess, title, artist });
+    if (sent) {
+      $('.bomb-submit').disabled = true;
+      $('#bomb-song-input').disabled = true;
+      $('.bomb-suggestions').replaceChildren();
+    } else state.bombSubmitting = false;
+  }
+
   function renderWinner(room) {
     if (state.winnerShown) return;
     state.winnerShown = true;
@@ -554,7 +682,7 @@
     enterGame();
     const winner = room.winner || [...(room.players || [])].sort((a, b) => b.score - a.score)[0];
     $('#winner-title').textContent = winner ? `${winner.name} wins!` : 'Game complete';
-    $('.winner-score').textContent = winner ? `Final score · ${winner.score} points` : '';
+    $('.winner-score').textContent = winner ? (room.mode === 'SongBomb' ? `Last player standing \u00b7 ${winner.lives} lives left` : `Final score \u00b7 ${winner.score} points`) : '';
     $('.winner-backdrop').hidden = false;
     if (window.sprayNoteConfetti) window.sprayNoteConfetti({ winner: true });
   }
@@ -591,7 +719,7 @@
             $('.join-page').hidden = true;
             $('main').hidden = false;
             $('.site-footer').hidden = false;
-            window.selectQuickfireModeForHost?.();
+            window.selectQuickfireModeForHost?.(room.mode);
             openSetup(promotedPlayer?.name || $('.host-name-input')?.value || '');
             setRoomCode(room.code);
           }
@@ -614,11 +742,19 @@
         state.winnerShown = false;
         renderGame(room);
         break;
+      case 'bomb':
+        state.winnerShown = false;
+        renderSongBomb(room);
+        break;
+      case 'bomb-result':
+        $('.bomb-message').textContent = message.correct ? 'Correct! The bomb passes to the next player.' : 'Incorrect — you lost a life.';
+        $('.bomb-message').className = `bomb-message ${message.correct ? 'is-correct' : 'is-incorrect'}`;
+        break;
       case 'guess-result':
         if (message.playerId === state.session?.playerId) {
           if (message.correct) {
             if (window.sprayNoteConfetti) window.sprayNoteConfetti();
-            $('.round-feedback').textContent = `Correct! +${message.points} points. Waiting for the others.`;
+            $('.round-feedback').textContent = `Correct! +${message.points} points. Waiting for the other players.`;
           } else {
             if (window.triggerWrongMark) window.triggerWrongMark();
             $('.round-feedback').textContent = 'Wrong guess · 5 points deducted. Waiting for the other players…';
@@ -651,6 +787,7 @@
     if (!Array.isArray(activeCatalog) || activeCatalog.length < 4) activeCatalog = roundSongs;
     const desiredDifficulty = room.difficulty || 'medium';
     const choiceCount = Math.max(4, Math.min(8, Number(room.choiceCount) || 4));
+    const roundCount = Math.max(1, Math.min(50, Number(room.roundCount) || ROUND_COUNT));
     const catalogs = await window.getRoundSongCatalogs?.(room.genre || 'Everything') || [{ name: room.genre || 'Everything', songs: activeCatalog }];
     const pools = catalogs.map(({ name, songs }) => ({
       name,
@@ -659,7 +796,7 @@
     }));
     const usedKeys = new Set();
     const rounds = [];
-    for (let roundIndex = 0; roundIndex < ROUND_COUNT; roundIndex += 1) {
+    for (let roundIndex = 0; roundIndex < roundCount; roundIndex += 1) {
       if (request !== state.prepareRequest) throw new Error('Song preparation was cancelled.');
       const blocked = new Set();
       let selected = null;
@@ -679,7 +816,7 @@
             collected.push({ song, asset });
             if (collected.length >= choiceCount) break;
           }
-          showNotice(`Preparing round ${roundIndex + 1}/${ROUND_COUNT} ? ${pool.name}`);
+          showNotice(`Preparing round ${roundIndex + 1}/${roundCount} · ${pool.name}`);
         }
         if (collected.length < choiceCount) { blocked.add(pool.name); continue; }
         const entries = collected.slice(0, choiceCount);
@@ -688,7 +825,7 @@
       }
       if (!selected) throw new Error(`Could not find ${choiceCount} playable ${desiredDifficulty} songs from one genre for round ${roundIndex + 1}. Try another difficulty or genre.`);
       const { genre, entries } = selected;
-      const choiceRecords = entries.map(({ song, asset }) => ({ title: song[0], artwork: asset.artworkUrl100 || song[2] || '' }));
+      const choiceRecords = entries.map(({ song, asset }) => ({ title: song[0], artwork: asset.artworkUrl100 || song[2] || '', anime: song[6] || '', subtitle: window.getJPopSubtitle?.(song, genre) || '' }));
       const answerIndex = Math.floor(Math.random() * entries.length);
       const { song, asset } = entries[answerIndex];
       const answer = { title: song[0], artist: song[1], artwork: asset.artworkUrl100 || song[2] || '', previewUrl: song[3] || asset.previewUrl };
@@ -697,13 +834,48 @@
     return rounds;
   }
 
+  async function prepareBombSongs() {
+    const request = ++state.prepareRequest;
+    usedRoundSongs.clear();
+    const settings = getRoomState();
+    activeCatalog = await loadGenreCatalog(settings.genre || 'Everything');
+    const catalogs = await window.getRoundSongCatalogs?.(settings.genre || 'Everything') || [{ name: settings.genre || 'Everything', songs: activeCatalog }];
+    const difficulty = settings.difficulty || 'medium';
+    const candidates = [...new Map(catalogs.flatMap(({ songs }) => songs || [])
+      .filter((song) => window.getSongDifficulty?.(song) === difficulty)
+      .map((song) => [`${song[0]}|${song[1]}`, song])).values()].sort(() => Math.random() - 0.5);
+    const songs = [];
+    for (let offset = 0; offset < candidates.length && songs.length < 100; offset += 12) {
+      if (request !== state.prepareRequest) throw new Error('Song preparation was cancelled.');
+      const batch = candidates.slice(offset, offset + 12);
+      const results = await Promise.all(batch.map(async (song) => ({ song, asset: await loadSongAsset(song) })));
+      for (const { song, asset } of results) {
+        const previewUrl = song[3] || asset?.previewUrl;
+        if (!previewUrl || !asset?.previewUrl) continue;
+        songs.push({ title: song[0], artist: song[1], artwork: asset.artworkUrl100 || song[2] || '', previewUrl });
+        if (songs.length >= 100) break;
+      }
+      showNotice(`Preparing Song Bomb songs… ${Math.min(songs.length, 100)}/100`);
+    }
+    if (songs.length < 4) throw new Error('Could not prepare enough playable songs. Try another genre or difficulty.');
+    return songs;
+  }
+
   async function startGame() {
     if (!state.session?.host) return showNotice('Only the host can start the room.', true);
     if (!window.getSelectedGameMode?.()) return showNotice('Choose a game mode on the home page before starting.', true);
     const button = $('.launch-button');
     button.disabled = true;
-    button.textContent = 'Preparing songs…';
+    button.textContent = window.getSelectedGameMode?.() === 'SongBomb' ? 'Preparing Song Bomb…' : 'Preparing songs…';
     try {
+      if (window.getSelectedGameMode?.() === 'SongBomb') {
+        const songs = await prepareBombSongs();
+        if (state.socket?.readyState !== WebSocket.OPEN) throw new Error('The room connection was lost. Reconnect and try again.');
+        closeModal();
+        enterGame();
+        send('start-bomb', { songs });
+        return;
+      }
       const rounds = await prepareRounds();
       if (state.socket?.readyState !== WebSocket.OPEN) throw new Error('The room connection was lost. Reconnect and try again.');
       closeModal();
@@ -714,7 +886,7 @@
       showNotice(error.message, true);
     } finally {
       button.disabled = false;
-      button.innerHTML = 'Start the room <span>→</span>';
+      button.innerHTML = window.getSelectedGameMode?.() === 'SongBomb' ? 'Start Song Bomb <span>&rarr;</span>' : 'Start Classic <span>&rarr;</span>';
       if (state.room) renderLobby(state.room);
     }
   }
@@ -781,6 +953,24 @@
   document.addEventListener('click', async (event) => {
     const target = event.target.closest('button');
     if (!target) return;
+    if (target.matches('.bomb-suggestion')) {
+      event.preventDefault();
+      submitBombGuess('', target.dataset.title || '', target.dataset.artist || '');
+      return;
+    }
+    if (target.matches('.bomb-audio-toggle')) {
+      event.preventDefault();
+      if (!state.activeAudio) return;
+      if (state.activeAudio.paused) {
+        try { await state.activeAudio.play(); $('.bomb-audio-toggle').textContent = 'Pause song'; $('.bomb-audio-status').textContent = 'Song preview playing'; }
+        catch { $('.bomb-audio-status').textContent = 'Unable to play this preview.'; }
+      } else {
+        state.activeAudio.pause();
+        $('.bomb-audio-toggle').textContent = 'Play song';
+        $('.bomb-audio-status').textContent = 'Song preview paused';
+      }
+      return;
+    }
     if (!state.session && target.matches('.game-play, .game-skip, .song-choice, .continue-round, .winner-exit, .game-exit')) return;
 
     if (target.matches('.modal-close') && state.session) {
@@ -895,7 +1085,7 @@
       event.preventDefault();
       event.stopImmediatePropagation();
       if (state.creatingRoom) return;
-      if (!state.session && window.getSelectedGameMode?.() === 'Quickfire') {
+      if (!state.session && ['Quickfire', 'SongBomb'].includes(window.getSelectedGameMode?.())) {
         const name = $('.host-name-input')?.value.trim() || '';
         try { await finishRoomCreation(name, currentSettings(name)); }
         catch (error) { showNotice(error.message, true); }
@@ -949,6 +1139,13 @@
   }, true);
 
   document.addEventListener('submit', async (event) => {
+    if (event.target.matches('.bomb-guess-form')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const guess = $('#bomb-song-input').value.trim();
+      if (guess) submitBombGuess(guess);
+      return;
+    }
     if (!event.target.matches('.join-form')) return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -983,10 +1180,15 @@
   document.addEventListener('input', (event) => {
     if (event.target.matches('.host-name-input')) configureFromForm();
     if (event.target.matches('.game-view [aria-label="Volume"]') && state.activeAudio) state.activeAudio.volume = Number(event.target.value) / 100;
+    if (event.target.matches('#bomb-song-input')) searchBombSuggestions(event.target.value);
   });
 
   document.addEventListener('click', (event) => {
-    if (event.target.closest('.genre-option') || event.target.closest('.stepper-arrow') || event.target.closest('.difficulty-option')) configureFromForm();
+    if (event.target.closest('.genre-option') || event.target.closest('.stepper-arrow') || event.target.closest('.difficulty-option') || event.target.closest('.mode-choice')) configureFromForm();
+  });
+
+  document.addEventListener('change', (event) => {
+    if (event.target.matches('.room-setting')) configureFromForm();
   });
 
   const inviteCode = new URLSearchParams(location.search).get('join');
@@ -1042,7 +1244,7 @@
       }
       if (launch) {
         launch.disabled = false;
-        launch.innerHTML = 'Start the room <span>→</span>';
+        launch.innerHTML = window.getSelectedGameMode?.() === 'SongBomb' ? 'Start Song Bomb <span>→</span>' : 'Start Classic <span>→</span>';
       }
     });
   } else if (state.session) {

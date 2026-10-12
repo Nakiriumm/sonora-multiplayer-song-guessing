@@ -2,8 +2,8 @@ const modeCards = document.querySelectorAll('.mode-card');
 const modal = document.querySelector('.modal-backdrop');
 const selectedModeLabel = document.querySelector('.selected-mode-label');
 const copyStatus = document.querySelector('.copy-status');
-const availableModes = new Set(['Quickfire', 'Solo']);
-const modeDisplayNames = { Quickfire: 'Classic', Solo: 'Solo play' };
+const availableModes = new Set(['Quickfire', 'SongBomb', 'Solo']);
+const modeDisplayNames = { Quickfire: 'Classic', SongBomb: 'Song Bomb', Solo: 'Solo Play' };
 let selectedMode = null;
 try {
   // A saved session must not select Solo on the home page. Only restore the
@@ -12,9 +12,10 @@ try {
     const pendingMode = JSON.parse(sessionStorage.getItem('sonora-pending-room') || 'null')?.settings?.mode;
     const sessionMode = JSON.parse(sessionStorage.getItem('sonora-cloudflare-session') || 'null')?.mode;
     const requestedMode = new URLSearchParams(location.search).get('mode');
-    if (new URLSearchParams(location.search).get('setup') === '1') selectedMode = 'Quickfire';
-    else if (availableModes.has(requestedMode)) selectedMode = requestedMode;
-    else if (pendingMode === 'Quickfire' || sessionMode === 'Quickfire') selectedMode = 'Quickfire';
+    if (availableModes.has(requestedMode) && requestedMode !== 'Solo') selectedMode = requestedMode;
+    else if (new URLSearchParams(location.search).get('setup') === '1') selectedMode = 'Quickfire';
+    else if (availableModes.has(pendingMode) && pendingMode !== 'Solo') selectedMode = pendingMode;
+    else if (availableModes.has(sessionMode) && sessionMode !== 'Solo') selectedMode = sessionMode;
   }
 } catch {}
 window.getSelectedGameMode = () => selectedMode;
@@ -36,7 +37,7 @@ modeCards.forEach((card) => {
     room.mode = selectedMode;
     saveRoomState(room);
     if (selectedMode !== 'Solo') {
-      location.assign(new URL('room.html?setup=1&mode=Quickfire', location.href).href);
+      location.assign(new URL(`room.html?setup=1&mode=${encodeURIComponent(selectedMode)}`, location.href).href);
       return;
     }
     openModal();
@@ -51,7 +52,7 @@ document.body.appendChild(joinPage);
 const joinNameInput = joinPage.querySelector('#player-name');
 const joinedRoomPanel = document.createElement('div');
 joinedRoomPanel.className = 'joined-room-panel';
-joinedRoomPanel.innerHTML = '<div class="joined-room-heading"><p class="eyebrow">Cloudflare room</p><h3>Your crew is <em>here.</em></h3><div class="host-settings"><span><small>Mode</small><strong>Classic</strong></span><span><small>Players</small><strong>8 max</strong></span><span><small>Genre</small><strong>Everything</strong></span><span><small>Per song</small><strong>30 sec</strong></span><span><small>Difficulty</small><strong>Medium</strong></span><span><small>Choices</small><strong>4 choices</strong></span></div></div><div class="joined-room-list"></div>';
+joinedRoomPanel.innerHTML = '<div class="joined-room-heading"><p class="eyebrow">Cloudflare room</p><h3>Your crew is <em>here.</em></h3><div class="host-settings"><span><small>Mode</small><strong>Classic</strong></span><span><small>Players</small><strong>8 max</strong></span><span><small>Genre</small><strong>Everything</strong></span><span><small>Per song</small><strong>30 sec</strong></span><span><small>Difficulty</small><strong>Medium</strong></span><span><small>Choices</small><strong>4 choices</strong></span><span><small>Rounds</small><strong>10</strong></span></div></div><div class="joined-room-list"></div>';
 joinedRoomPanel.hidden = true;
 joinPage.querySelector('.join-content').appendChild(joinedRoomPanel);
 
@@ -80,6 +81,11 @@ const gameView = document.createElement('section');
 gameView.className = 'game-view'; gameView.hidden = true;
 gameView.innerHTML = `<header class="game-topbar"><button class="game-exit" type="button">← Leave room</button><b>SONORA</b><span>ROUND <strong class="game-round">1</strong> / 10</span></header><div class="game-layout"><section class="round-play"><div class="round-heading"><div><p class="eyebrow">Listen close</p><h1>Name that <em>track.</em></h1></div><div class="round-clock"><strong>30</strong><small>SECONDS LEFT</small></div></div><div class="vinyl-stage"><div class="game-vinyl"><span>?</span></div><p>THE NEXT SONG IS READY</p></div><div class="track-progress"><div class="track-line"><i></i></div><div class="track-marks"><span class="active">0.1s</span><span>0.5s</span><span>2s</span><span>8s</span><span>15s</span></div></div><div class="player-controls"><label><span class="speaker-icon">◖))</span><input aria-label="Volume" type="range" min="0" max="100" value="65"></label><button class="game-play" type="button" aria-label="Play current section"><span class="play-icon" aria-hidden="true"></span></button><button class="game-skip" type="button">Skip <span>→</span></button></div><div class="answer-heading"><strong>Pick the song</strong><span class="difficulty-meter difficulty-medium" role="status" aria-label="Song difficulty: medium"><span class="difficulty-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span><b class="difficulty-label">Medium</b></span><span class="guess-status">4 choices</span></div><div class="song-choices"></div><p class="round-feedback" aria-live="polite">Choose quickly for the highest score.</p></section><aside class="game-leaderboard"><p class="eyebrow">Live scores</p><h2>Leaderboard</h2><div class="score-list"></div><div class="scoring-note"><b>How scoring works</b><p>Correct at 0.1s earns the most. Wrong guesses, later clues, and slower answers reduce your points.</p></div></aside></div>`;
 document.body.appendChild(gameView);
+const songBombView = document.createElement('section');
+songBombView.className = 'song-bomb-panel';
+songBombView.hidden = true;
+songBombView.innerHTML = `<p class="eyebrow bomb-mode-label">SONG BOMB</p><div class="bomb-hud"><strong class="bomb-lives"></strong><span class="bomb-turn-status" aria-live="polite"></span></div><div class="bomb-arena"><div class="bomb-seats"></div><div class="bomb-pointer" aria-hidden="true">➤</div><div class="bomb-core"><span class="bomb-icon" aria-hidden="true">💣</span><strong class="bomb-timer">20</strong><small>SECONDS</small></div></div><p class="bomb-instruction">Name the song or artist before the bomb goes off.</p><form class="bomb-guess-form"><label class="visually-hidden" for="bomb-song-input">Song name or artist</label><input id="bomb-song-input" type="text" maxlength="160" autocomplete="off" placeholder="Type a song name or artist…" /><button class="primary-button bomb-submit" type="submit">Submit guess</button></form><div class="bomb-suggestions" role="listbox" aria-label="Song suggestions"></div><div class="bomb-actions"><button class="secondary-button bomb-audio-toggle" type="button">Play song</button><span class="bomb-audio-status" aria-live="polite">Song preview</span></div><p class="bomb-message" aria-live="polite"></p>`;
+gameView.appendChild(songBombView);
 const roundResult = document.createElement('div');
 roundResult.className = 'round-result-backdrop';
 roundResult.hidden = true;
@@ -173,8 +179,9 @@ async function loadSingleGenreCatalog(genre) {
   if (!searchTerms) return roundSongs;
   if (genreCatalogCache.has(genre)) return genreCatalogCache.get(genre);
 
-  const storageKey = 'sonora-song-catalog-v3-' + genre;
-  const previousStorageKeys = ['sonora-song-catalog-v2-' + genre, 'sonora-song-catalog-v1-' + genre];
+  const hasAnimeSource = Boolean(animeSeriesSearchTerms[genre]);
+  const storageKey = 'sonora-song-catalog-' + (hasAnimeSource ? 'v4-' : 'v3-') + genre;
+  const previousStorageKeys = hasAnimeSource ? [] : ['sonora-song-catalog-v2-' + genre, 'sonora-song-catalog-v1-' + genre];
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
     if (Array.isArray(saved) && saved.length >= GENRE_CATALOG_SIZE) {
@@ -227,14 +234,14 @@ async function loadSingleGenreCatalog(genre) {
         const url = 'https://itunes.apple.com/search?term=' + encodeURIComponent(searchTerm)
           + '&entity=song&country=' + country + '&limit=50';
         const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-        if (!response.ok) return [];
+        if (!response.ok) return { tracks: [], anime: animeSeriesSearchTerms[genre] ? term : '' };
         const data = await response.json();
-        return data.results || [];
+        return { tracks: data.results || [], anime: animeSeriesSearchTerms[genre] ? term : '' };
       } catch {
-        return [];
+        return { tracks: [], anime: animeSeriesSearchTerms[genre] ? term : '' };
       }
     }));
-    for (const tracks of results) {
+    for (const { tracks, anime } of results) {
       for (const [trackIndex, track] of tracks.entries()) {
         if (!track.previewUrl || !track.trackName || !track.artistName) continue;
         addSong([
@@ -243,7 +250,8 @@ async function loadSingleGenreCatalog(genre) {
           track.artworkUrl100 || '',
           track.previewUrl,
           track.releaseDate || '',
-          trackIndex + 1
+          trackIndex + 1,
+          anime
         ], { ...track, catalogRank: trackIndex + 1 });
         if (catalog.length >= GENRE_CATALOG_SIZE) break;
       }
@@ -319,6 +327,86 @@ function getSongDifficulty(song,asset){
   if((rank>0&&rank<=8)||(isOld&&rank<=20))return 'easy';
   return 'medium';
 }
+const jpopTitleAliases = new Map([
+  ['\u591c\u306b\u99c6\u3051\u308b', { english: 'Into the Night', romaji: 'Yoru ni Kakeru' }],
+  ['\u602a\u7269', { english: 'Monster', romaji: 'Kaibutsu' }],
+  ['\u7fa4\u9752', { english: 'Blue', romaji: 'Gunjou' }],
+  ['\u52c7\u8005', { english: 'The Brave', romaji: 'Yuusha' }],
+  ['\u30a2\u30a4\u30c9\u30eb', { english: 'Idol', romaji: 'Aidoru' }],
+  ['\u795d\u798f', { english: 'The Blessing', romaji: 'Shukufuku' }],
+  ['\u4e09\u539f\u8272', { english: 'RGB', romaji: 'Sangenshoku' }],
+  ['\u305f\u3076\u3093', { english: 'Probably', romaji: 'Tabun' }],
+  ['\u3042\u306e\u5922\u3092\u306a\u305e\u3063\u3066', { english: 'Tracing That Dream', romaji: 'Ano Yume wo Nazotte' }],
+  ['\u65b0\u6642\u4ee3', { english: 'New Genesis', romaji: 'Shin Jidai' }],
+  ['\u79c1\u306f\u6700\u5f37', { english: "I'm Invincible", romaji: 'Watashi wa Saikyou' }],
+  ['\u9006\u5149', { english: 'Backlight', romaji: 'Gyakkou' }],
+  ['\u9752\u306e\u3059\u307f\u304b', { english: 'Where Our Blue Is', romaji: 'Ao no Sumika' }],
+  ['\u305f\u3060\u541b\u306b\u6674\u308c', { english: 'Just a Sunny Day for You', romaji: 'Tada Kimi ni Hare' }],
+  ['\u6625\u6ce5\u68d2', { english: 'Spring Thief', romaji: 'Haru Dorobou' }],
+  ['\u82b1\u306b\u306a\u3063\u3066', { english: 'Be a Flower', romaji: 'Hana ni Natte' }],
+  ['\u512a\u3057\u3044\u5f57\u661f', { english: 'Comet', romaji: 'Yasashii Suisei' }],
+  ['\u6c38\u9060\u306e\u3042\u304f\u308b\u65e5', { romaji: 'Eien no Akuru Hi' }],
+  ['\u5411\u65e5\u8475', { romaji: 'Himawari' }],
+  ['\u611f\u96fb', { romaji: 'Kanden' }],
+  ['\u99ac\u3068\u9e7f', { romaji: 'Uma to Shika' }],
+  ['\u5730\u7403\u5100', { english: 'Spinning Globe', romaji: 'Chikyuu Gi' }],
+  ['\u7070\u8272\u3068\u9752', { english: 'Gray and Blue', romaji: 'Haiiro to Ao' }],
+  ['\u88f8\u306e\u5fc3', { romaji: 'Hadaka no Kokoro' }],
+  ['\u541b\u306f\u30ed\u30c3\u30af\u3092\u8074\u304b\u306a\u3044', { romaji: 'Kimi wa Rock wo Kikanai' }],
+  ['\u30de\u30ea\u30fc\u30b4\u30fc\u30eb\u30c9', { romaji: 'Marigold' }],
+  ['\u30ab\u30bf\u30aa\u30e2\u30a4', { romaji: 'Kataomoi' }],
+  ['\u7d05\u84ee\u83ef', { romaji: 'Gurenge' }],
+  ['\u708e', { romaji: 'Homura' }],
+  ['\u6b8b\u97ff\u6563\u6b4c', { romaji: 'Zankyosanka' }],
+  ['\u30ae\u30e9\u30ae\u30e9', { romaji: 'Gira Gira' }],
+  ['\u963f\u4fee\u7f85\u3061\u3083\u3093', { romaji: 'Ashura-chan' }],
+  ['\u4f1a\u3044\u305f\u304f\u3066', { romaji: 'Aitakute' }],
+  ['\u3082\u3057\u3082\u547d\u304c\u63cf\u3051\u305f\u3089', { english: 'If I Could Draw Life', romaji: 'Moshimo Inochi ga Egaketara' }],
+  ['\u6bce\u65e5', { romaji: 'Mainichi' }],
+  ['\u541b\u3068\u590f\u30d5\u30a7\u30b9', { romaji: 'Kimi to Natsu Fesu' }],
+  ['\u5f37\u98a8\u30aa\u30fc\u30eb\u30d0\u30c3\u30af', { romaji: 'Kyoufuu All Back' }],
+]);
+const kanaToRomaji = new Map(Object.entries({
+  '\u3042':'a','\u3044':'i','\u3046':'u','\u3048':'e','\u304a':'o','\u304b':'ka','\u304d':'ki','\u304f':'ku','\u3051':'ke','\u3053':'ko','\u3055':'sa','\u3057':'shi','\u3059':'su','\u305b':'se','\u305d':'so','\u305f':'ta','\u3061':'chi','\u3064':'tsu','\u3066':'te','\u3068':'to','\u306a':'na','\u306b':'ni','\u306c':'nu','\u306d':'ne','\u306e':'no','\u306f':'ha','\u3072':'hi','\u3075':'fu','\u3078':'he','\u307b':'ho','\u307e':'ma','\u307f':'mi','\u3080':'mu','\u3081':'me','\u3082':'mo','\u3084':'ya','\u3086':'yu','\u3088':'yo','\u3089':'ra','\u308a':'ri','\u308b':'ru','\u308c':'re','\u308d':'ro','\u308f':'wa','\u3090':'wi','\u3091':'we','\u3092':'o','\u3093':'n',
+  '\u304c':'ga','\u304e':'gi','\u3050':'gu','\u3052':'ge','\u3054':'go','\u3056':'za','\u3058':'ji','\u305a':'zu','\u305c':'ze','\u305e':'zo','\u3060':'da','\u3062':'ji','\u3065':'zu','\u3067':'de','\u3069':'do','\u3070':'ba','\u3073':'bi','\u3076':'bu','\u3079':'be','\u307c':'bo','\u3071':'pa','\u3074':'pi','\u3077':'pu','\u307a':'pe','\u307d':'po','\u3094':'vu',
+  '\u3041':'a','\u3043':'i','\u3045':'u','\u3047':'e','\u3049':'o','\u3083':'ya','\u3085':'yu','\u3087':'yo','\u3063':'','\u30fc':'-'
+}));
+const kanaDigraphs = new Map(Object.entries({
+  '\u304d\u3083':'kya','\u304d\u3085':'kyu','\u304d\u3087':'kyo','\u3057\u3083':'sha','\u3057\u3085':'shu','\u3057\u3087':'sho','\u3061\u3083':'cha','\u3061\u3085':'chu','\u3061\u3087':'cho','\u306b\u3083':'nya','\u306b\u3085':'nyu','\u306b\u3087':'nyo','\u3072\u3083':'hya','\u3072\u3085':'hyu','\u3072\u3087':'hyo','\u307f\u3083':'mya','\u307f\u3085':'myu','\u307f\u3087':'myo','\u308a\u3083':'rya','\u308a\u3085':'ryu','\u308a\u3087':'ryo','\u304e\u3083':'gya','\u304e\u3085':'gyu','\u304e\u3087':'gyo','\u3058\u3083':'ja','\u3058\u3085':'ju','\u3058\u3087':'jo','\u3073\u3083':'bya','\u3073\u3085':'byu','\u3073\u3087':'byo','\u3074\u3083':'pya','\u3074\u3085':'pyu','\u3074\u3087':'pyo'
+}));
+function romanizeKana(value) {
+  const hiragana = value.replace(/[\u30a1-\u30f6]/g, (character) => String.fromCharCode(character.charCodeAt(0) - 0x60));
+  const output = [];
+  let geminate = false;
+  for (let index = 0; index < hiragana.length; index += 1) {
+    const character = hiragana[index];
+    if (character === '\u3063') { geminate = true; continue; }
+    if (character === '\u30fc') {
+      const previous = output.at(-1) || '';
+      const vowel = previous.match(/[aeiou](?!.*[aeiou])/i)?.[0];
+      if (vowel) output.push(vowel);
+      continue;
+    }
+    const pair = kanaDigraphs.get(character + (hiragana[index + 1] || ''));
+    const romaji = pair || kanaToRomaji.get(character);
+    if (!romaji) { output.push(character); geminate = false; continue; }
+    if (pair) index += 1;
+    const next = geminate && romaji ? romaji[0] + romaji : romaji;
+    if (character === '\u3093' && /^[aeiouy]/i.test(next)) output.push("n'");
+    else output.push(next);
+    geminate = false;
+  }
+  return output.join('').replace(/\s+/g, ' ').trim();
+}
+function getJPopSubtitle(song, genre = activeRoundGenre) {
+  if (genre !== 'J-Pop' || !song?.[0] || !/[\u3040-\u30ff\u3400-\u9fff]/u.test(song[0])) return '';
+  const alias = song[7] && typeof song[7] === 'object' ? song[7] : {};
+  const known = jpopTitleAliases.get(song[0].normalize('NFC')) || {};
+  if (alias.english || known.english) return `Official English: ${alias.english || known.english}`;
+  const romaji = alias.romaji || song[8] || known.romaji || romanizeKana(song[0]);
+  return romaji && !/[\u3400-\u9fff]/u.test(romaji) ? `Romaji: ${romaji}` : '';
+}
+window.getJPopSubtitle = getJPopSubtitle;
 function updateDifficultyMeter(difficulty='medium'){
   const levels=['easy','medium','hard','extreme'];
   const level=levels.includes(difficulty)?difficulty:'medium';
@@ -331,7 +419,7 @@ function updateDifficultyMeter(difficulty='medium'){
 window.getSongDifficulty=getSongDifficulty;
 window.updateDifficultyMeter=updateDifficultyMeter;
 function applySongArtwork(element,asset){if(!element||!asset?.artworkUrl100)return;const imageUrl=asset.artworkUrl100.replace(/^http:/,'https:');const image=new Image();image.onload=()=>{element.style.backgroundImage=`url("${imageUrl}")`;element.style.backgroundSize='cover';element.style.backgroundPosition='center';element.classList.add('cover-loaded');};image.src=imageUrl;}
-const choiceArtworkObserver=new MutationObserver(()=>{const currentRound=roundNo;gameView.querySelectorAll('.song-choice').forEach(choice=>{const title=choice.querySelector('.song-title strong')?.textContent;const artist=choice.dataset.artist;const song=[...activeCatalog,...roundSongs].find(item=>item[0]===title&&(!artist||item[1]===artist));if(song)loadSongAsset(song).then(asset=>{if(currentRound===roundNo&&choice.isConnected)applySongArtwork(choice.querySelector('.cover-art'),asset);});});});
+const choiceArtworkObserver=new MutationObserver(()=>{const currentRound=roundNo;gameView.querySelectorAll('.song-choice').forEach(choice=>{const title=choice.querySelector('.song-title strong')?.textContent;const artist=choice.dataset.artist;const song=[...activeCatalog,...roundSongs].find(item=>item[0]===title&&(!artist||item[1]===artist));if(song){const subtitle=getJPopSubtitle(song,activeRoundGenre);if(subtitle&&!choice.querySelector('.song-title-subtitle')){const node=document.createElement('small');node.className='song-title-subtitle';node.textContent=subtitle;const origin=choice.querySelector('.song-origin');choice.querySelector('.song-title').insertBefore(node,origin);}loadSongAsset(song).then(asset=>{if(currentRound===roundNo&&choice.isConnected)applySongArtwork(choice.querySelector('.cover-art'),asset);});}});});
 choiceArtworkObserver.observe(gameView.querySelector('.song-choices'),{childList:true});
 const resultArtworkObserver=new MutationObserver(()=>{if(roundResult.hidden)return;const title=roundResult.querySelector('#round-result-title').textContent;const song=activeRoundSong||roundSongs.find(item=>item[0]===title);if(song)loadSongAsset(song).then(asset=>{if(!roundResult.hidden&&roundResult.querySelector('#round-result-title').textContent===title)applySongArtwork(roundResult.querySelector('.result-vinyl span'),asset);});});
 resultArtworkObserver.observe(roundResult,{attributes:true,attributeFilter:['hidden']});
@@ -345,7 +433,7 @@ function continueKey(){return `sonora-continue-${roundNo}`;}
 function continueNames(){try{return JSON.parse(localStorage.getItem(continueKey())||'[]');}catch{return [];}}
 function updateContinueStatus(button){const ready=continueNames();button.textContent=`Continue (${ready.length}/${roundPlayers.length})`;if(ready.length>=roundPlayers.length){clearInterval(breakTick);nextRound();}}
 window.addEventListener('storage',event=>{if(event.key===continueKey()){const button=roundResult.querySelector('.continue-round');if(button)updateContinueStatus(button);}});
-async function nextRound(){clearInterval(roundTick);clearInterval(attemptTick);clearInterval(breakTick);playRequest++;pauseCurrentPlayback();roundResult.hidden=true;if(gameAudio){gameAudio.pause();gameAudio=null;}if(roundNo>=10){const winner=[...roundPlayers].sort((a,b)=>b.score-a.score)[0]||{name:'You',score:0};winnerResult.querySelector('#winner-title').textContent=`${winner.name} wins!`;winnerResult.querySelector('.winner-score').textContent=`Final score · ${winner.score} points`;winnerResult.hidden=false;sprayNoteConfetti({winner:true});return;}roundNo++;const loadingRound=roundNo;localStorage.removeItem(continueKey());stageNo=0;elapsed=0;roundLeft=[30,45,60].includes(Number.parseInt(getRoomState().time,10))?Number.parseInt(getRoomState().time,10):30;gameView.querySelector('.round-clock').classList.remove('is-urgent');gameView.querySelector('.round-feedback').textContent='Finding songs with playable previews…';const choices=await pickPlayableChoices();if(loadingRound!==roundNo)return;if(!choices.length){gameView.querySelector('.round-feedback').textContent='No playable preview songs are available. Check your connection and try again.';return;}const answerIndex=Math.floor(Math.random()*choices.length);const song=choices[answerIndex];activeRoundSong=song;updateDifficultyMeter(getSongDifficulty(song));gameView.dataset.answer=song[0];gameView.querySelector('.game-round').textContent=roundNo;gameView.querySelector('.round-clock strong').textContent=roundLeft;gameView.querySelector('.attempt-clock').textContent='';gameView.querySelector('.vinyl-stage p').textContent=`ROUND GENRE - ${activeRoundGenre.toUpperCase()}`;gameView.querySelector('.round-feedback').textContent='Choose quickly for the highest score.';gameView.querySelector('.track-line i').style.width='0';gameView.querySelector('.game-skip').disabled=false;gameView.querySelectorAll('.track-marks span').forEach((m,i)=>m.classList.toggle('active',i===0));gameView.querySelector('.song-choices').classList.remove('locked','wrong-locked');gameView.querySelector('.guess-status').textContent=`${choices.length} choices`;gameView.querySelector('.song-choices').innerHTML=choices.map((s,i)=>`<button class="song-choice" data-artist="${escapeRoomText(s[1])}" data-correct="${s===song}" type="button"><span class="cover-art cover-${(roundNo+i)%4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeRoomText(s[0])}</strong></span><i>${String.fromCharCode(65+i)}</i></button>`).join('');scoreBoard();roundTick=setInterval(()=>{roundLeft--;gameView.querySelector('.round-clock strong').textContent=roundLeft;gameView.querySelector('.round-clock').classList.toggle('is-urgent',roundLeft<=5);if(roundLeft<=0)endRound(`Time is up. It was ${song[0]}.`);},1000);attemptTick=setInterval(()=>{if(!gameView.querySelector('.song-choices').classList.contains('locked'))elapsed++;gameView.querySelector('.attempt-clock').textContent=`00:${String(elapsed).padStart(2,'0')}`;},1000);}
+async function nextRound(){clearInterval(roundTick);clearInterval(attemptTick);clearInterval(breakTick);playRequest++;pauseCurrentPlayback();roundResult.hidden=true;if(gameAudio){gameAudio.pause();gameAudio=null;}if(roundNo>=Math.max(1,Math.min(50,Number(getRoomState().roundCount)||10))){const winner=[...roundPlayers].sort((a,b)=>b.score-a.score)[0]||{name:'You',score:0};winnerResult.querySelector('#winner-title').textContent=`${winner.name} wins!`;winnerResult.querySelector('.winner-score').textContent=`Final score · ${winner.score} points`;winnerResult.hidden=false;sprayNoteConfetti({winner:true});return;}roundNo++;gameView.querySelector(".game-topbar>span").textContent="ROUND "+roundNo+" / "+Math.max(1,Math.min(50,Number(getRoomState().roundCount)||10));const loadingRound=roundNo;localStorage.removeItem(continueKey());stageNo=0;elapsed=0;roundLeft=[30,45,60].includes(Number.parseInt(getRoomState().time,10))?Number.parseInt(getRoomState().time,10):30;gameView.querySelector('.round-clock').classList.remove('is-urgent');gameView.querySelector('.round-feedback').textContent='Finding songs with playable previews…';const choices=await pickPlayableChoices();if(loadingRound!==roundNo)return;if(!choices.length){gameView.querySelector('.round-feedback').textContent='No playable preview songs are available. Check your connection and try again.';return;}const answerIndex=Math.floor(Math.random()*choices.length);const song=choices[answerIndex];activeRoundSong=song;updateDifficultyMeter(getSongDifficulty(song));gameView.dataset.answer=song[0];gameView.querySelector('.game-round').textContent=roundNo;gameView.querySelector('.round-clock strong').textContent=roundLeft;gameView.querySelector('.attempt-clock').textContent='';gameView.querySelector('.vinyl-stage p').textContent=`ROUND GENRE - ${activeRoundGenre.toUpperCase()}`;gameView.querySelector('.round-feedback').textContent='Choose quickly for the highest score.';gameView.querySelector('.track-line i').style.width='0';gameView.querySelector('.game-skip').disabled=false;gameView.querySelectorAll('.track-marks span').forEach((m,i)=>m.classList.toggle('active',i===0));gameView.querySelector('.song-choices').classList.remove('locked','wrong-locked');gameView.querySelector('.guess-status').textContent=`${choices.length} choices`;gameView.querySelector('.song-choices').innerHTML=choices.map((s,i)=>`<button class="song-choice" data-artist="${escapeRoomText(s[1])}" data-correct="${s===song}" type="button"><span class="cover-art cover-${(roundNo+i)%4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeRoomText(s[0])}</strong>${s[6] ? `<small class="song-origin">From ${escapeRoomText(s[6])}</small>` : ''}</span><i>${String.fromCharCode(65+i)}</i></button>`).join('');scoreBoard();roundTick=setInterval(()=>{roundLeft--;gameView.querySelector('.round-clock strong').textContent=roundLeft;gameView.querySelector('.round-clock').classList.toggle('is-urgent',roundLeft<=5);if(roundLeft<=0)endRound(`Time is up. It was ${song[0]}.`);},1000);attemptTick=setInterval(()=>{if(!gameView.querySelector('.song-choices').classList.contains('locked'))elapsed++;gameView.querySelector('.attempt-clock').textContent=`00:${String(elapsed).padStart(2,'0')}`;},1000);}
 function endRound(message){clearInterval(roundTick);clearInterval(attemptTick);playRequest++;pauseCurrentPlayback();if(gameAudio){gameAudio.pause();gameAudio=null;}const feedback=gameView.querySelector('.round-feedback');let seconds=5;const song=activeRoundSong;roundResult.querySelector('.result-vinyl').style.setProperty('--result-cover',`var(--cover-${(roundNo-1)%4})`);roundResult.querySelector('.result-vinyl').className=`result-vinyl cover-${(roundNo-1)%4}`;roundResult.querySelector('#round-result-title').textContent=song[0];roundResult.querySelector('.result-artist').textContent=song[1];const playerResult=roundResult.querySelector('.result-player-status'),guessedCorrectly=Boolean(gameView.querySelector('.song-choice.correct'));playerResult.textContent=guessedCorrectly?'You guessed correctly':'You\u2019re incorrect';playerResult.className=`result-player-status ${guessedCorrectly?'is-correct':'is-incorrect'}`;roundResult.querySelector('.continue-round').textContent=`Continue (0/${roundPlayers.length})`;roundResult.querySelector('.result-countdown b').textContent=seconds;roundResult.hidden=false;feedback.textContent=message;gameView.querySelectorAll('.song-choice').forEach(b=>b.disabled=true);const continueButton=roundResult.querySelector('.continue-round');continueButton.onclick=()=>{const room=getRoomState();const playerName=localStorage.getItem(profileNameKey)||room.players[0]?.name||roundPlayers[0].name;const ready=continueNames();if(!ready.includes(playerName)){ready.push(playerName);localStorage.setItem(continueKey(),JSON.stringify(ready));}updateContinueStatus(continueButton);};breakTick=setInterval(()=>{seconds--;const count=roundResult.querySelector('.result-countdown b');if(count)count.textContent=seconds;if(seconds<=0){clearInterval(breakTick);nextRound();}},1000);}
 function setPlayButton(playing){const button=gameView.querySelector('.game-play');button.classList.toggle('is-playing',playing);button.setAttribute('aria-label',playing?'Pause current section':'Play current section');}
 function pauseCurrentPlayback(){if(gameAudio)gameAudio.pause();cancelAnimationFrame(progressFrame);setPlayButton(false);}
@@ -364,7 +452,7 @@ gameVolumeInput.addEventListener('input', event => {
 gameView.querySelector('.game-skip').addEventListener('click',async()=>{if(stageNo>=4)return;const boundaries=[0,.1,.5,2,8,15];playRequest++;pauseCurrentPlayback();const markTime=boundaries[stageNo+1];stageNo++;gameView.querySelectorAll('.track-marks span').forEach((m,i)=>m.classList.toggle('active',i<=stageNo));gameView.querySelector('.round-feedback').textContent=`Continuing to the ${boundaries[stageNo+1]} second mark. Fewer points are available now.`;await playCurrentSection(false,markTime);if(stageNo===4)gameView.querySelector('.game-skip').disabled=true;});
 function sprayNoteConfetti(options={}){const winner=Boolean(options.winner),burst=document.createElement('div');burst.className=`note-confetti-burst${winner?' winner-confetti':''}`;const count=winner?220:72,symbols=winner?['♫','♪','♬','✦','★','✧','◆','●']:['♫','♪','♬'];for(let i=0;i<count;i++){const note=document.createElement('span');note.textContent=symbols[i%symbols.length];note.style.left=`${Math.random()*100}%`;note.style.setProperty('--note-x',`${(Math.random()-.5)*(winner?420:260)}px`);note.style.setProperty('--note-r',`${(Math.random()-.5)*(winner?720:360)}deg`);note.style.setProperty('--note-delay',`${Math.random()*(winner?450:180)}ms`);note.style.setProperty('--confetti-size',`${18+Math.random()*(winner?28:18)}px`);burst.appendChild(note);}document.body.appendChild(burst);setTimeout(()=>burst.remove(),winner?3700:1450);}
 function triggerWrongMark(){const button=gameView.querySelector('.game-play'),rect=button.getBoundingClientRect(),mark=document.createElement('div');mark.className='wrong-guess-mark';mark.style.setProperty('--cross-x',`${rect.left+rect.width/2}px`);mark.style.setProperty('--cross-y',`${rect.top+rect.height/2}px`);mark.setAttribute('aria-hidden','true');mark.innerHTML='<span></span><span></span>';document.body.appendChild(mark);setTimeout(()=>mark.remove(),950);}
-gameView.querySelector('.song-choices').addEventListener('click',e=>{const b=e.target.closest('.song-choice');if(!b||b.disabled)return;if(b.dataset.correct==='true'){const pts=Math.max(5,[100,80,60,35,20][stageNo]-Math.min(25,Math.floor(elapsed/4)*5));roundPlayers[0].score+=pts;scoreBoard();b.classList.add('correct');gameView.querySelector('.song-choices').classList.add('locked');gameView.querySelectorAll('.song-choice').forEach(x=>x.disabled=true);gameView.querySelector('.guess-status').textContent='You got it · waiting for everyone';gameView.querySelector('.round-feedback').textContent=`Correct! +${pts} points. You’re locked in until the round ends.`;sprayNoteConfetti();if(roundPlayers.length===1)endRound('Correct answer!');}else{triggerWrongMark();roundPlayers[0].score=Math.max(0,roundPlayers[0].score-5);scoreBoard();gameView.querySelector('.song-choices').classList.add('wrong-locked');gameView.querySelectorAll('.song-choice').forEach(x=>{x.disabled=true;x.classList.add('dimmed');});gameView.querySelector('.round-feedback').textContent='Wrong guess — 5 points deducted. Choices are dimmed and locked until the next round.';if(roundPlayers.length===1)endRound(`No correct guesses. It was ${activeRoundSong[0]}.`);}});
+gameView.querySelector('.song-choices').addEventListener('click',e=>{const b=e.target.closest('.song-choice');if(!b||b.disabled)return;if(b.dataset.correct==='true'){const pts=Math.max(5,[100,80,60,35,20][stageNo]-Math.min(25,Math.floor(elapsed/4)*5));roundPlayers[0].score+=pts;scoreBoard();b.classList.add('correct');gameView.querySelector('.song-choices').classList.add('locked');gameView.querySelectorAll('.song-choice').forEach(x=>{x.disabled=true;x.classList.add('dimmed');});gameView.querySelector('.guess-status').textContent='You got it · waiting for everyone';gameView.querySelector('.round-feedback').textContent=`Correct! +${pts} points. You’re locked in until the round ends.`;sprayNoteConfetti();if(roundPlayers.length===1)endRound('Correct answer!');}else{triggerWrongMark();roundPlayers[0].score=Math.max(0,roundPlayers[0].score-5);scoreBoard();gameView.querySelector('.song-choices').classList.add('wrong-locked');gameView.querySelectorAll('.song-choice').forEach(x=>{x.disabled=true;x.classList.add('dimmed');});gameView.querySelector('.round-feedback').textContent='Wrong guess — 5 points deducted. Choices are dimmed and locked until the next round.';if(roundPlayers.length===1)endRound(`No correct guesses. It was ${activeRoundSong[0]}.`);}});
 winnerResult.querySelector('.winner-exit').addEventListener('click',()=>gameView.querySelector('.game-exit').click());
 gameView.querySelector('.game-exit').addEventListener('click',()=>{clearInterval(roundTick);clearInterval(attemptTick);clearInterval(breakTick);playRequest++;pauseCurrentPlayback();winnerResult.hidden=true;roundResult.hidden=true;gameView.hidden=true;document.querySelector('main').hidden=false;document.querySelector('.site-footer').hidden=false;window.scrollTo(0,0);});
 document.querySelector('.launch-button').addEventListener('click',()=>{
@@ -465,7 +553,7 @@ document.querySelector('.setup-modal').appendChild(joinedPanel);
 const roomStateKey = 'sonora-room-state';
 const profileNameKey = 'sonora-profile-name';
 const setupNameKey = 'sonora-room-setup-name';
-const defaultRoomState = { hostName: '', maxPlayers: 8, mode: 'Quickfire', genre: '', difficulty: 'medium', choiceCount: 4, duration: 30, time: '30 seconds', active: true, players: [{ name: '', role: 'Host' }] };
+const defaultRoomState = { hostName: '', maxPlayers: 8, mode: 'Quickfire', genre: '', difficulty: 'medium', choiceCount: 4, roundCount: 10, duration: 30, time: '30 seconds', active: true, players: [{ name: '', role: 'Host' }] };
 
 function getRoomState() {
   try {
@@ -473,6 +561,7 @@ function getRoomState() {
     if (!availableModes.has(room.mode)) room.mode = 'Quickfire';
     if (!['easy', 'medium', 'hard', 'extreme'].includes(room.difficulty)) room.difficulty = 'medium';
     if (![4, 5, 6, 7, 8].includes(Number(room.choiceCount))) room.choiceCount = 4;
+    if (!Number.isInteger(Number(room.roundCount)) || Number(room.roundCount) < 1 || Number(room.roundCount) > 50) room.roundCount = 10;
     return room;
   } catch { return structuredClone(defaultRoomState); }
 }
@@ -483,6 +572,11 @@ function saveRoomState(room) {
   updateLaunchAvailability();
 }
 
+const languageStorageKey = 'sonora-language';
+let currentLanguage = (() => {
+  try { return localStorage.getItem(languageStorageKey) === 'TH' ? 'TH' : 'EN'; } catch { return 'EN'; }
+})();
+
 const durationField = [...document.querySelectorAll('.setup-field')].find((field) => field.querySelector('span')?.textContent.trim() === 'Round length');
 if (durationField) {
   durationField.classList.add('time-setting-field');
@@ -492,12 +586,12 @@ if (durationField) {
   durationField.querySelector('strong')?.replaceWith(stepper);
   const durationValue = stepper.querySelector('strong');
   const savedDuration = Number.parseInt(getRoomState().time, 10);
-  durationValue.textContent = `${[30, 45, 60].includes(savedDuration) ? savedDuration : 30} seconds`;
+  durationValue.textContent = `${[30, 45, 60].includes(savedDuration) ? savedDuration : 30} ${currentLanguage === 'TH' ? '\u0e27\u0e34\u0e19\u0e32\u0e17\u0e35' : 'seconds'}`;
   const updateDuration = (direction) => {
     const values = [30, 45, 60];
     const current = Number.parseInt(durationValue.textContent, 10) || 30;
     const next = values[Math.max(0, Math.min(values.length - 1, values.indexOf(current) + direction))];
-    durationValue.textContent = `${next} seconds`;
+    durationValue.textContent = `${next} ${currentLanguage === 'TH' ? '\u0e27\u0e34\u0e19\u0e32\u0e17\u0e35' : 'seconds'}`;
     const room = getRoomState();
     room.duration = next;
     room.time = `${next} seconds`;
@@ -509,19 +603,36 @@ if (durationField) {
 
 const choiceCountField = document.createElement('div');
 choiceCountField.className = 'setup-field choice-count-field';
-choiceCountField.innerHTML = '<span>Answer choices</span><div class="player-stepper choice-stepper"><button type="button" class="stepper-arrow" aria-label="Decrease answer choices">&#8722;</button><strong>4 choices</strong><button type="button" class="stepper-arrow" aria-label="Increase answer choices">&#43;</button></div><small>Choose between 4 and 8 songs per round</small>';
-choiceCountField.querySelector('strong').textContent = `${getRoomState().choiceCount || 4} choices`;
+choiceCountField.innerHTML = '<span>Answer choices</span><div class="player-stepper choice-stepper"><button type="button" class="stepper-arrow" aria-label="Decrease answer choices">&#8722;</button><strong>4 choices</strong><button type="button" class="stepper-arrow" aria-label="Increase answer choices">&#43;</button></div><small>Choose from 4 to 8 songs per round</small>';
+choiceCountField.querySelector('strong').textContent = `${getRoomState().choiceCount || 4} ${currentLanguage === 'TH' ? '\u0e15\u0e31\u0e27\u0e40\u0e25\u0e37\u0e2d\u0e01' : 'choices'}`;
 durationField?.parentElement.insertBefore(choiceCountField, document.querySelector('.difficulty-setting-field'));
 choiceCountField.querySelector('[aria-label="Decrease answer choices"]').addEventListener('click', () => updateChoiceCount(-1));
 choiceCountField.querySelector('[aria-label="Increase answer choices"]').addEventListener('click', () => updateChoiceCount(1));
 function updateChoiceCount(direction) {
   const value = choiceCountField.querySelector('strong');
   const next = Math.max(4, Math.min(8, (Number.parseInt(value.textContent, 10) || 4) + direction));
-  value.textContent = `${next} choices`;
+  value.textContent = `${next} ${currentLanguage === 'TH' ? '\u0e15\u0e31\u0e27\u0e40\u0e25\u0e37\u0e2d\u0e01' : 'choices'}`;
   const room = getRoomState();
   room.choiceCount = next;
   saveRoomState(room);
 }
+
+const roundsField = document.createElement('div');
+roundsField.className = 'setup-field rounds-setting-field';
+roundsField.innerHTML = '<span>Rounds</span><div class="player-stepper rounds-stepper"><button type="button" class="stepper-arrow" aria-label="Decrease rounds">&#8722;</button><strong>10 rounds</strong><button type="button" class="stepper-arrow" aria-label="Increase rounds">&#43;</button></div><small>Choose how many rounds to play</small>';
+const roundsValue = roundsField.querySelector('strong');
+roundsValue.textContent = `${getRoomState().roundCount || 10} ${currentLanguage === 'TH' ? '\u0e23\u0e2d\u0e1a' : 'rounds'}`;
+choiceCountField.after(roundsField);
+function updateRoundCount(direction) {
+  const next = Math.max(1, Math.min(50, (Number.parseInt(roundsValue.textContent, 10) || 10) + direction));
+  roundsValue.textContent = `${next} ${currentLanguage === 'TH' ? '\u0e23\u0e2d\u0e1a' : 'rounds'}`;
+  const room = getRoomState();
+  room.roundCount = next;
+  saveRoomState(room);
+  updateModeSelection?.(true);
+}
+roundsField.querySelector('[aria-label="Decrease rounds"]').addEventListener('click', () => updateRoundCount(-1));
+roundsField.querySelector('[aria-label="Increase rounds"]').addEventListener('click', () => updateRoundCount(1));
 
 const difficultyOptions = document.querySelectorAll('.difficulty-option');
 const savedDifficulty = getRoomState().difficulty || 'medium';
@@ -555,7 +666,7 @@ function updateLaunchAvailability() {
   );
   launchButton.disabled = !ready;
   launchButton.setAttribute('aria-disabled', String(!ready));
-  launchButton.title = ready ? (solo ? 'Start solo play' : 'Start the room') : 'Complete the game settings first';
+  launchButton.title = ready ? (solo ? 'Start solo play' : selectedMode === 'SongBomb' ? 'Start Song Bomb' : 'Start Classic') : 'Complete the game settings first';
 }
 
 function escapeRoomText(value) {
@@ -578,13 +689,14 @@ function renderRoomRosters() {
   renderRoster(document.querySelector('.joined-list'), room, 'Waiting for players');
   renderRoster(document.querySelector('.joined-room-list'), room, 'Waiting for players');
   const hostSettings = document.querySelectorAll('.host-settings strong');
-  if (hostSettings.length >= 5) {
+  if (hostSettings.length >= 7) {
     hostSettings[0].textContent = modeDisplayNames[room.mode] || room.mode;
     hostSettings[1].textContent = `${room.maxPlayers} max`;
     hostSettings[2].textContent = room.genre;
     hostSettings[3].textContent = room.time.replace(' seconds', ' sec');
     hostSettings[4].textContent = (room.difficulty || 'medium').replace(/^./, (letter) => letter.toUpperCase());
     hostSettings[5].textContent = `${room.choiceCount || 4} choices`;
+    hostSettings[6].textContent = `${room.roundCount || 10}`;
   }
 }
 
@@ -633,8 +745,7 @@ while (originalModeField.firstChild) modeField.appendChild(originalModeField.fir
 originalModeField.replaceWith(modeField);
 const modeChoices = document.createElement('div');
 modeChoices.className = 'mode-choices';
-let currentLanguage = 'EN';
-['Quickfire'].forEach((mode) => {
+['Quickfire', 'SongBomb'].forEach((mode) => {
   const choice = document.createElement('button');
   choice.type = 'button';
   choice.className = 'mode-choice';
@@ -651,11 +762,26 @@ let currentLanguage = 'EN';
 });
 modeField.appendChild(modeChoices);
 
+function getModeSummary() {
+  const room = getRoomState();
+  const rounds = Number.parseInt(document.querySelector('.rounds-stepper strong')?.textContent, 10) || Number(room.roundCount) || 10;
+  const duration = Number.parseInt(document.querySelector('.duration-stepper strong')?.textContent, 10) || Number.parseInt(room.duration || room.time, 10) || 30;
+  if (selectedMode === 'SongBomb') return currentLanguage === 'TH' ? '\u0e21\u0e35 3 \u0e0a\u0e35\u0e27\u0e34\u0e15 \u00b7 \u0e40\u0e2b\u0e25\u0e37\u0e2d\u0e23\u0e2d\u0e14\u0e40\u0e1b\u0e47\u0e19\u0e04\u0e19\u0e2a\u0e38\u0e14\u0e17\u0e49\u0e32\u0e22' : '3 lives · Last player standing';
+  if (selectedMode === 'Solo') return currentLanguage === 'TH' ? `${rounds} \u0e23\u0e2d\u0e1a` : `${rounds} rounds`;
+  if (selectedMode === 'Quickfire') return currentLanguage === 'TH' ? `${rounds} \u0e23\u0e2d\u0e1a \u00b7 ${duration} \u0e27\u0e34\u0e19\u0e32\u0e17\u0e35\u0e15\u0e48\u0e2d\u0e40\u0e1e\u0e25\u0e07` : `${rounds} rounds · ${duration} seconds each`;
+  return currentLanguage === 'TH' ? '\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e42\u0e2b\u0e21\u0e14\u0e40\u0e01\u0e21\u0e01\u0e48\u0e2d\u0e19' : 'Set by the mode you picked';
+}
+
 function updateModeSelection(showSetupSelection = false) {
   selectedModeLabel.textContent = modeDisplayNames[selectedMode] || 'Select a mode';
   modal.classList.toggle('solo-setup', selectedMode === 'Solo');
+  modal.classList.toggle('songbomb-setup', selectedMode === 'SongBomb');
+  const roundTotal = Number(getRoomState().roundCount) || 10;
+  const modeDescription = selectedModeLabel.nextElementSibling;
+  if (modeDescription) modeDescription.textContent = selectedMode === 'SongBomb' ? '3 lives · Last player standing' : selectedMode === 'Solo' ? `${roundTotal} rounds` : `${roundTotal} rounds · 30 seconds each`;
+  if (modeDescription) modeDescription.textContent = getModeSummary();
   document.querySelector('.setup-header .eyebrow').textContent = selectedMode === 'Solo' ? 'Solo game setup' : 'Room setup';
-  document.querySelector('.launch-button').innerHTML = selectedMode === 'Solo' ? 'Start solo play <span>&rarr;</span>' : 'Start the room <span>&rarr;</span>';
+  document.querySelector('.launch-button').innerHTML = selectedMode === 'Solo' ? 'Start solo play <span>&rarr;</span>' : selectedMode === 'SongBomb' ? 'Start Song Bomb <span>&rarr;</span>' : 'Start Classic <span>&rarr;</span>';
   document.querySelector('.setup-footer>span').innerHTML = selectedMode === 'Solo' ? '<i class="status-dot"></i> Single player' : '<i class="status-dot"></i> Cloudflare room';
   modeChoices.querySelectorAll('.mode-choice').forEach((choice) => {
     choice.classList.toggle('selected', showSetupSelection && choice.dataset.mode === selectedMode);
@@ -665,8 +791,8 @@ function updateModeSelection(showSetupSelection = false) {
 
 updateModeSelection(selectedMode !== null);
 updateLaunchAvailability();
-window.selectQuickfireModeForHost = () => {
-  selectedMode = 'Quickfire';
+window.selectQuickfireModeForHost = (mode = 'Quickfire') => {
+  selectedMode = availableModes.has(mode) && mode !== 'Solo' ? mode : 'Quickfire';
   updateModeSelection(true);
 };
 
@@ -808,7 +934,7 @@ function openModal(requireName = false) {
   modal.hidden = false;
   modal.classList.toggle('solo-setup', selectedMode === 'Solo');
   document.querySelector('.setup-header .eyebrow').textContent = selectedMode === 'Solo' ? 'Solo game setup' : 'Room setup';
-  document.querySelector('.launch-button').innerHTML = selectedMode === 'Solo' ? 'Start solo play <span>&rarr;</span>' : 'Start the room <span>&rarr;</span>';
+  document.querySelector('.launch-button').innerHTML = selectedMode === 'Solo' ? 'Start solo play <span>&rarr;</span>' : selectedMode === 'SongBomb' ? 'Start Song Bomb <span>&rarr;</span>' : 'Start Classic <span>&rarr;</span>';
   document.querySelector('.setup-footer>span').innerHTML = selectedMode === 'Solo' ? '<i class="status-dot"></i> Single player' : '<i class="status-dot"></i> Cloudflare room';
   modal.classList.add('page-view');
   document.body.style.overflow = 'hidden';
@@ -1107,7 +1233,6 @@ profilePanel.querySelector('.profile-save').addEventListener('click', () => {
 
 languageMenu.querySelectorAll('button').forEach((choice) => {
   choice.addEventListener('click', () => {
-    languageButton.querySelector('span').textContent = choice.dataset.language;
     setDropdownVisible(languageMenu, false);
     languageButton.setAttribute('aria-expanded', 'false');
     applyLanguage(choice.dataset.language);
@@ -1119,7 +1244,7 @@ const languageCopy = {
     navModes: 'Game modes', navHow: 'How it works', warmup: 'The room is warming up',
     heroTitle: 'Hear it.<br /><em>Know it.</em><br />Name it.', heroDescription: 'A fast, friendly music guessing game for the people who can identify a song from the first three seconds.',
     create: '＋ Create a room', join: 'Join with a code', pick: 'Pick your poison', choose: 'Choose a mode',
-    modes: [['Classic', '10 songs - 30 seconds'], ['Solo play', 'Play on your own']], genres: ['Pop anthems', 'Indie & alternative', 'Hip-hop & R&B', 'Throwback classics', 'Thai songs', 'J-Pop'],
+    modes: [['Classic', '10 songs - 30 seconds'], ['Solo Play', 'Play on your own']], genres: ['Pop anthems', 'Indie & alternative', 'Hip-hop & R&B', 'Throwback classics', 'Thai songs', 'J-Pop'],
     zero: 'ZERO FRICTION', howTitle: 'Built for the<br /><em>perfect chorus.</em>', howText: 'Make a room, send the code, and let the music do the talking. No accounts. No setup. Just your people and a playlist.',
     profile: 'Your profile', display: 'Display name', save: 'Save name', saved: 'Name saved', setup: 'Room setup', make: 'Make it <em>yours.</em>',
     gameMode: 'Game mode', modeHint: 'Set by the mode you picked', max: 'Max players', maxHint: 'Everyone gets a turn to guess', genre: 'Song genre', genreHint: 'Keep the playlist unpredictable', time: 'Time per song', timeHint: 'How long players have to lock in', invite: 'Invite your people', sendCode: 'Send them<br /><em>the code.</em>', inviteHint: 'Players can join from any device using the room code.', copy: 'Copy room code', private: 'Cloudflare room', start: 'Start the room', room: 'The room', who: 'Who is <em>in?</em>', roomHint: 'Share the code above and watch your crew appear here.', host: 'Room host', joined: 'Joined just now', waiting: 'Waiting for players', waitingHint: 'Send the invite code to your crew',
@@ -1138,29 +1263,75 @@ const languageCopy = {
 };
 
 function applyLanguage(language) {
-  currentLanguage = language;
+  currentLanguage = language === 'TH' ? 'TH' : 'EN';
+  try { localStorage.setItem(languageStorageKey, currentLanguage); } catch {}
+  languageButton.querySelector('span').textContent = currentLanguage;
   const copy = languageCopy[language] || languageCopy.EN;
   const setText = (selector, value) => { const element = document.querySelector(selector); if (element) element.textContent = value; };
   const setHtml = (selector, value) => { const element = document.querySelector(selector); if (element) element.innerHTML = value; };
   setText('.topbar-links a:first-child', copy.navModes); setText('.topbar-links a:last-child', copy.navHow); setText('.eyebrow', copy.warmup);
   setHtml('.hero h1', copy.heroTitle); setText('.hero-description', copy.heroDescription); setText('.js-create-room', copy.create); setText('.js-join-room', copy.join + ' →');
   setText('.section-heading .eyebrow', copy.pick); setText('.section-heading h2', copy.choose); setText('.how-label', `01 ${copy.zero}`); setHtml('.how-copy h2', copy.howTitle); setText('.how-copy p', copy.howText);
-  document.querySelectorAll('.mode-card').forEach((card, index) => { setTextFor(card, '.mode-name', copy.modes[index][0]); setTextFor(card, '.mode-detail', copy.modes[index][1]); });
+  document.querySelectorAll('.mode-card').forEach((card) => { const modeCopy = card.dataset.mode === 'Quickfire' ? copy.modes[0] : card.dataset.mode === 'Solo' ? copy.modes[1] : ['Song Bomb', `3 lives \u00b7 Last player standing`]; setTextFor(card, '.mode-name', modeCopy[0]); setTextFor(card, '.mode-detail', modeCopy[1]); });
   modeChoices.querySelectorAll('.mode-choice').forEach((choice) => { choice.textContent = modeDisplayNames[choice.dataset.mode] || choice.dataset.mode; });
   document.querySelectorAll('.genre-option').forEach((choice, index) => {
-    choice.textContent = index === 0 ? (language === 'TH' ? 'ทุกแนว' : 'Everything') : (copy.genres[index - 1] || choice.textContent);
+    choice.textContent = index === 0 ? (language === 'TH' ? 'ทุกแนว' : 'Everything') : language === 'TH' && choice.dataset.genre === 'J-Pop' ? 'J-Pop' : (copy.genres[index - 1] || choice.textContent);
   });
   setText('.selected-mode-label', modeDisplayNames[selectedMode] || 'Select a mode');
   setText('.profile-panel .eyebrow', copy.profile); setText('.profile-panel label', copy.display); setText('.profile-save', copy.save);
   setText('.setup-header .eyebrow', selectedMode === 'Solo' ? (language === 'TH' ? '\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\u0e40\u0e25\u0e48\u0e19\u0e04\u0e19\u0e40\u0e14\u0e35\u0e22\u0e27' : 'Solo game setup') : copy.setup); setHtml('.setup-header h2', copy.make); setText('.setup-fields .setup-field:nth-child(1)>span', copy.yourName); setText('.setup-fields .setup-field:nth-child(2)>span', copy.gameMode); setText('.setup-fields .setup-field:nth-child(2) small', copy.modeHint); setText('.setup-fields .player-setting-field>span', copy.max); setText('.setup-fields .player-setting-field small', copy.maxHint); setText('.setup-fields .genre-setting-field>span', copy.genre); setText('.setup-fields .genre-setting-field small', copy.genreHint);
-  setText('.invite-panel .eyebrow', copy.invite); setHtml('.invite-panel h3', copy.sendCode); setText('.invite-panel p:not(.eyebrow):not(.copy-status)', copy.inviteHint); setHtml('.copy-button', language === 'TH' ? 'คัดลอกลิงก์ห้อง <span aria-hidden="true">↗</span>' : 'Copy room link <span aria-hidden="true">↗</span>'); setText('.setup-footer>span', copy.private); setText('.launch-button', selectedMode === 'Solo' ? (language === 'TH' ? '\u0e40\u0e23\u0e34\u0e48\u0e21\u0e40\u0e25\u0e48\u0e19' : 'Start solo play') : copy.start);
+  setText('.setup-fields .setup-field:nth-child(2) small', selectedMode ? getModeSummary() : copy.modeHint);
+  const thaiSetup = currentLanguage === 'TH';
+  setText('.time-setting-field>span', thaiSetup ? '\u0e23\u0e30\u0e22\u0e30\u0e40\u0e27\u0e25\u0e32\u0e15\u0e48\u0e2d\u0e23\u0e2d\u0e1a' : 'Round length');
+  setText('.time-setting-field small', thaiSetup ? '\u0e01\u0e33\u0e2b\u0e19\u0e14\u0e04\u0e07\u0e17\u0e35\u0e48\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e42\u0e2b\u0e21\u0e14 Classic' : 'Fixed for the Classic game');
+  setText('.choice-count-field>span', thaiSetup ? '\u0e08\u0e33\u0e19\u0e27\u0e19\u0e15\u0e31\u0e27\u0e40\u0e25\u0e37\u0e2d\u0e01' : 'Answer choices');
+  setText('.choice-count-field small', thaiSetup ? '\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e44\u0e14\u0e49 4 \u0e16\u0e36\u0e07 8 \u0e40\u0e1e\u0e25\u0e07\u0e15\u0e48\u0e2d\u0e23\u0e2d\u0e1a' : 'Choose from 4 to 8 songs per round');
+  setText('.rounds-setting-field>span', thaiSetup ? '\u0e08\u0e33\u0e19\u0e27\u0e19\u0e23\u0e2d\u0e1a' : 'Rounds');
+  setText('.rounds-setting-field small', thaiSetup ? '\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e08\u0e33\u0e19\u0e27\u0e19\u0e23\u0e2d\u0e1a\u0e17\u0e35\u0e48\u0e08\u0e30\u0e40\u0e25\u0e48\u0e19' : 'Choose how many rounds to play');
+  setText('.difficulty-setting-field>span', thaiSetup ? '\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e04\u0e27\u0e32\u0e21\u0e22\u0e32\u0e01\u0e02\u0e2d\u0e07\u0e40\u0e1e\u0e25\u0e07' : 'Song difficulty');
+  setText('.difficulty-setting-field small', thaiSetup ? '\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e04\u0e27\u0e32\u0e21\u0e19\u0e34\u0e22\u0e21\u0e02\u0e2d\u0e07\u0e40\u0e1e\u0e25\u0e07' : 'Choose how popular or obscure the songs can be');
+  setText('.difficulty-options button.easy', thaiSetup ? '\u0e07\u0e48\u0e32\u0e22' : 'Easy'); setText('.difficulty-options button.normal', thaiSetup ? '\u0e1b\u0e01\u0e15\u0e34' : 'Medium'); setText('.difficulty-options button.hard', thaiSetup ? '\u0e22\u0e32\u0e01' : 'Hard'); setText('.difficulty-options button.extreme', thaiSetup ? '\u0e22\u0e32\u0e01\u0e21\u0e32\u0e01' : 'Extreme');
+  document.querySelector('.difficulty-setting-field [role="group"]')?.setAttribute('aria-label', thaiSetup ? '\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e04\u0e27\u0e32\u0e21\u0e22\u0e32\u0e01\u0e02\u0e2d\u0e07\u0e40\u0e1e\u0e25\u0e07' : 'Song difficulty');
+  document.querySelectorAll('.time-setting-field .stepper-arrow').forEach((button, index) => button.setAttribute('aria-label', `${thaiSetup ? '\u0e1b\u0e23\u0e31\u0e1a\u0e23\u0e30\u0e22\u0e30\u0e40\u0e27\u0e25\u0e32' : 'Adjust round length'}: ${index === 0 ? (thaiSetup ? '\u0e25\u0e14' : 'decrease') : (thaiSetup ? '\u0e40\u0e1e\u0e34\u0e48\u0e21' : 'increase')}`));
+  document.querySelectorAll('.choice-count-field .stepper-arrow').forEach((button, index) => button.setAttribute('aria-label', `${thaiSetup ? '\u0e1b\u0e23\u0e31\u0e1a\u0e08\u0e33\u0e19\u0e27\u0e19\u0e15\u0e31\u0e27\u0e40\u0e25\u0e37\u0e2d\u0e01' : 'Adjust answer choices'}: ${index === 0 ? (thaiSetup ? '\u0e25\u0e14' : 'decrease') : (thaiSetup ? '\u0e40\u0e1e\u0e34\u0e48\u0e21' : 'increase')}`));
+  document.querySelectorAll('.rounds-setting-field .stepper-arrow').forEach((button, index) => button.setAttribute('aria-label', `${thaiSetup ? '\u0e1b\u0e23\u0e31\u0e1a\u0e08\u0e33\u0e19\u0e27\u0e19\u0e23\u0e2d\u0e1a' : 'Adjust rounds'}: ${index === 0 ? (thaiSetup ? '\u0e25\u0e14' : 'decrease') : (thaiSetup ? '\u0e40\u0e1e\u0e34\u0e48\u0e21' : 'increase')}`));
+  const durationCount = Number.parseInt(document.querySelector('.duration-stepper strong')?.textContent, 10) || 30;
+  const choiceCount = Number.parseInt(document.querySelector('.choice-stepper strong')?.textContent, 10) || 4;
+  const roundCount = Number.parseInt(document.querySelector('.rounds-stepper strong')?.textContent, 10) || 10;
+  setText('.duration-stepper strong', `${durationCount} ${thaiSetup ? '\u0e27\u0e34\u0e19\u0e32\u0e17\u0e35' : 'seconds'}`);
+  setText('.choice-stepper strong', `${choiceCount} ${thaiSetup ? '\u0e15\u0e31\u0e27\u0e40\u0e25\u0e37\u0e2d\u0e01' : 'choices'}`);
+  setText('.rounds-stepper strong', `${roundCount} ${thaiSetup ? '\u0e23\u0e2d\u0e1a' : 'rounds'}`);
+  setText('.invite-panel .eyebrow', copy.invite); setHtml('.invite-panel h3', copy.sendCode); setText('.invite-panel p:not(.eyebrow):not(.copy-status)', copy.inviteHint); setHtml('.copy-button', language === 'TH' ? 'คัดลอกลิงก์ห้อง <span aria-hidden="true">↗</span>' : 'Copy room link <span aria-hidden="true">↗</span>'); setText('.setup-footer>span', copy.private); setText('.launch-button', selectedMode === 'Solo' ? (language === 'TH' ? '\u0e40\u0e23\u0e34\u0e48\u0e21\u0e40\u0e25\u0e48\u0e19' : 'Start solo play') : selectedMode === 'SongBomb' ? 'Start Song Bomb' : 'Start Classic');
   setText('.join-content .eyebrow', copy.joinRoom); setHtml('.join-content h2', copy.joinTitle); setText('.join-content>p:not(.eyebrow)', copy.joinText); setText('label[for="player-name"]', copy.yourName); setText('label[for="join-code"]', copy.roomCode); setText('.join-form .primary-button', copy.joinButton);
   setText('.joined-room-heading .eyebrow', copy.live); setHtml('.joined-room-heading h3', copy.crew); setText('.joined-room-heading .host-settings span:nth-child(1) small', copy.modeLabel); setText('.joined-room-heading .host-settings span:nth-child(2) small', copy.playersLabel); setText('.joined-room-heading .host-settings span:nth-child(3) small', copy.genreLabel); setText('.joined-room-heading .host-settings span:nth-child(4) small', copy.perSong);
   const playerValue = document.querySelector('.player-stepper strong');
   if (playerValue) playerValue.textContent = `${Number.parseInt(playerValue.textContent, 10) || 8} ${language === 'TH' ? 'ผู้เล่น' : 'players'}`;
   setText('.host-name-field small', language === 'TH' ? 'นี่คือชื่อที่เพื่อนจะเห็น' : 'This is how your crew will see you');
   setHtml('.joined-panel h3', copy.who); setText('.joined-panel .joined-subtitle', copy.roomHint); setText('.joined-panel .joined-player:first-child small', copy.host); setText('.joined-panel .joined-player:nth-child(2) small', copy.joined); setText('.joined-panel .joined-player:last-child strong', copy.waiting); setText('.joined-panel .joined-player:last-child small', copy.waitingHint); setText('.joined-room-heading .joined-subtitle', copy.roomHint); setText('.joined-room-list .joined-player:first-child small', copy.host); setText('.joined-room-list .joined-player:nth-child(2) small', copy.joined); setText('.joined-room-list .joined-player:nth-child(3) small', copy.joined); setText('.joined-room-list .joined-player:last-child small', copy.you);
+  const game = currentLanguage === 'TH' ? {
+    leave: '\u0e2d\u0e2d\u0e01\u0e08\u0e32\u0e01\u0e2b\u0e49\u0e2d\u0e07', listen: '\u0e1f\u0e31\u0e07\u0e43\u0e2b\u0e49\u0e14\u0e35', nameTrack: '\u0e17\u0e32\u0e22\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e1e\u0e25\u0e07', seconds: '\u0e27\u0e34\u0e19\u0e32\u0e17\u0e35\u0e17\u0e35\u0e48\u0e40\u0e2b\u0e25\u0e37\u0e2d', ready: '\u0e40\u0e1e\u0e25\u0e07\u0e16\u0e31\u0e14\u0e44\u0e1b\u0e1e\u0e23\u0e49\u0e2d\u0e21\u0e41\u0e25\u0e49\u0e27', pick: '\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e1e\u0e25\u0e07', choices: '\u0e15\u0e31\u0e27\u0e40\u0e25\u0e37\u0e2d\u0e01', score: '\u0e04\u0e30\u0e41\u0e19\u0e19\u0e2a\u0e14', leaderboard: '\u0e15\u0e32\u0e23\u0e32\u0e07\u0e04\u0e30\u0e41\u0e19\u0e19', scoring: '\u0e27\u0e34\u0e18\u0e35\u0e04\u0e34\u0e14\u0e04\u0e30\u0e41\u0e19\u0e19', roundComplete: '\u0e08\u0e1a\u0e23\u0e2d\u0e1a\u0e41\u0e25\u0e49\u0e27', revealed: '\u0e40\u0e1e\u0e25\u0e07\u0e40\u0e09\u0e25\u0e22', next: '\u0e23\u0e2d\u0e1a\u0e16\u0e31\u0e14\u0e44\u0e1b\u0e43\u0e19', continue: '\u0e40\u0e25\u0e48\u0e19\u0e15\u0e48\u0e2d', bomb: '\u0e40\u0e1e\u0e25\u0e07\u0e1a\u0e2d\u0e21\u0e1a\u0e4c', bombHint: '\u0e1e\u0e34\u0e21\u0e1e\u0e4c\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e1e\u0e25\u0e07\u0e2b\u0e23\u0e37\u0e2d\u0e28\u0e34\u0e25\u0e1b\u0e34\u0e19\u0e43\u0e2b\u0e49\u0e17\u0e31\u0e19\u0e01\u0e48\u0e2d\u0e19\u0e23\u0e30\u0e40\u0e1a\u0e34\u0e14'
+  } : { leave: '← Leave room', listen: 'Listen close', nameTrack: 'Name that track.', seconds: 'SECONDS LEFT', ready: 'THE NEXT SONG IS READY', pick: 'Pick the song', choices: 'choices', score: 'Live scores', leaderboard: 'Leaderboard', scoring: 'How scoring works', roundComplete: 'Round complete', revealed: 'Song revealed', next: 'Next round in', continue: 'Continue', bomb: 'SONG BOMB', bombHint: 'Name the song or artist before the bomb goes off.' };
+  setText('.game-exit', game.leave); setText('.round-heading .eyebrow', game.listen); setHtml('.round-heading h1', game.nameTrack); setText('.round-clock small', game.seconds); setText('.answer-heading>strong', game.pick); setText('.game-leaderboard>.eyebrow', game.score); setText('.game-leaderboard h2', game.leaderboard); setText('.scoring-note>b', game.scoring); setText('.round-result-card>.eyebrow', game.roundComplete); setText('.bomb-mode-label', game.bomb); setText('.bomb-instruction', game.bombHint);
   document.documentElement.lang = language === 'TH' ? 'th' : 'en';
 }
 
 function setTextFor(parent, selector, value) { const element = parent.querySelector(selector); if (element) element.textContent = value; }
+
+window.applyAppLanguage = applyLanguage;
+window.getAppLanguage = () => currentLanguage;
+languageButton.querySelector('span').textContent = currentLanguage;
+applyLanguage(currentLanguage);
+const translatedGameLabels = ['.game-exit', '.round-heading .eyebrow', '.round-heading h1', '.round-clock small', '.answer-heading>strong', '.game-leaderboard>.eyebrow', '.game-leaderboard h2', '.scoring-note>b', '.round-result-card>.eyebrow', '.bomb-mode-label', '.bomb-instruction'];
+const gameLanguageObserver = new MutationObserver(() => {
+  if (!gameView.isConnected) return;
+  const language = currentLanguage;
+  const game = language === 'TH'
+    ? { leave: '\u0e2d\u0e2d\u0e01\u0e08\u0e32\u0e01\u0e2b\u0e49\u0e2d\u0e07', listen: '\u0e1f\u0e31\u0e07\u0e43\u0e2b\u0e49\u0e14\u0e35', nameTrack: '\u0e17\u0e32\u0e22\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e1e\u0e25\u0e07', seconds: '\u0e27\u0e34\u0e19\u0e32\u0e17\u0e35\u0e17\u0e35\u0e48\u0e40\u0e2b\u0e25\u0e37\u0e2d', pick: '\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e1e\u0e25\u0e07', score: '\u0e04\u0e30\u0e41\u0e19\u0e19\u0e2a\u0e14', leaderboard: '\u0e15\u0e32\u0e23\u0e32\u0e07\u0e04\u0e30\u0e41\u0e19\u0e19', scoring: '\u0e27\u0e34\u0e18\u0e35\u0e04\u0e34\u0e14\u0e04\u0e30\u0e41\u0e19\u0e19', roundComplete: '\u0e08\u0e1a\u0e23\u0e2d\u0e1a\u0e41\u0e25\u0e49\u0e27', bomb: '\u0e40\u0e1e\u0e25\u0e07\u0e1a\u0e2d\u0e21\u0e1a\u0e4c', bombHint: '\u0e1e\u0e34\u0e21\u0e1e\u0e4c\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e1e\u0e25\u0e07\u0e2b\u0e23\u0e37\u0e2d\u0e28\u0e34\u0e25\u0e1b\u0e34\u0e19\u0e43\u0e2b\u0e49\u0e17\u0e31\u0e19\u0e01\u0e48\u0e2d\u0e19\u0e23\u0e30\u0e40\u0e1a\u0e34\u0e14' }
+    : { leave: '← Leave room', listen: 'Listen close', nameTrack: 'Name that track.', seconds: 'SECONDS LEFT', pick: 'Pick the song', score: 'Live scores', leaderboard: 'Leaderboard', scoring: 'How scoring works', roundComplete: 'Round complete', bomb: 'SONG BOMB', bombHint: 'Name the song or artist before the bomb goes off.' };
+  const values = [game.leave, game.listen, game.nameTrack, game.seconds, game.pick, game.score, game.leaderboard, game.scoring, game.roundComplete, game.bomb, game.bombHint];
+  translatedGameLabels.forEach((selector, index) => { const element = gameView.querySelector(selector); if (element && element.textContent !== values[index]) element.textContent = values[index]; });
+});
+gameLanguageObserver.observe(gameView, { childList: true, subtree: true });
+window.addEventListener('storage', (event) => {
+  if (event.key === languageStorageKey && event.newValue) applyLanguage(event.newValue);
+});

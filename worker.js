@@ -7,6 +7,7 @@ const ROUND_COUNT = 10;
 const STAGES = [0.1, 0.5, 2, 8, 15];
 const STAGE_STARTS = [0, ...STAGES.slice(0, -1)];
 const ROUND_POINTS = [100, 80, 60, 35, 20];
+const BOMB_TURN_SECONDS = 20;
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -22,6 +23,27 @@ function validName(value) {
   return typeof value === 'string' && value.trim().length > 0 && value.trim().length <= 20;
 }
 
+function cleanBombSong(song) {
+  if (!song?.title || !song?.artist || !song?.previewUrl) return null;
+  const previewUrl = String(song.previewUrl).slice(0, 2000);
+  try { if (!new URL(previewUrl).hostname.endsWith('.itunes.apple.com')) return null; } catch { return null; }
+  const artwork = String(song.artwork || '').slice(0, 1000);
+  try { if (artwork && !new URL(artwork).hostname.endsWith('.mzstatic.com')) return null; } catch { return null; }
+  return { title: String(song.title).slice(0, 160), artist: String(song.artist).slice(0, 160), artwork, previewUrl };
+}
+
+function normalizeGuess(value) {
+  return String(value || '').normalize('NFKD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function roomEventType(room) {
+  if (room.phase === 'lobby') return 'lobby';
+  if (room.phase === 'bomb') return 'bomb';
+  if (room.phase === 'game') return 'game';
+  if (room.phase === 'break') return 'round-ended';
+  return 'game-ended';
+}
+
 function cleanRound(round) {
   if (!round || !Array.isArray(round.choices) || round.choices.length < 4 || round.choices.length > 8) return null;
   if (!Number.isInteger(round.answerIndex) || round.answerIndex < 0 || round.answerIndex >= round.choices.length) return null;
@@ -31,7 +53,9 @@ function cleanRound(round) {
   };
   const choices = round.choices.map((choice) => ({
     title: String(choice?.title || '').slice(0, 160),
+    subtitle: String(choice?.subtitle || '').slice(0, 220),
     artwork: safeArtwork(choice?.artwork),
+    anime: String(choice?.anime || '').slice(0, 120),
   }));
   const answer = round.answer;
   if (!answer || !choices[round.answerIndex].title || !answer.title || !answer.artist || !answer.previewUrl) return null;
@@ -67,7 +91,7 @@ export default {
       return stub.fetch('https://room.internal/create', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ code, name: body.name.trim(), maxPlayers: body.maxPlayers, genre: body.genre, difficulty: body.difficulty, choiceCount: body.choiceCount, durationSeconds: body.durationSeconds }),
+        body: JSON.stringify({ code, name: body.name.trim(), mode: body.mode, maxPlayers: body.maxPlayers, genre: body.genre, difficulty: body.difficulty, choiceCount: body.choiceCount, roundCount: body.roundCount, durationSeconds: body.durationSeconds }),
       });
     }
 
@@ -119,21 +143,39 @@ export class GameRoom extends DurableObject {
     return {
       code: room.code,
       hostId: room.hostId,
+      mode: room.mode === 'SongBomb' ? 'SongBomb' : 'Quickfire',
       winner: room.winner || null,
       maxPlayers: room.maxPlayers,
       genre: room.genre,
       difficulty: ['easy', 'medium', 'hard', 'extreme'].includes(room.difficulty) ? room.difficulty : 'medium',
       choiceCount: Math.max(4, Math.min(8, Number(room.choiceCount) || 4)),
+      roundCount: Math.max(1, Math.min(50, Math.round(Number(room.roundCount) || ROUND_COUNT))),
       durationSeconds: room.durationSeconds || DEFAULT_ROUND_SECONDS,
       phase: room.phase,
-      players: room.players.map(({ id, name, score, connected, status, continueReady }) => ({ id, name, score, connected, status, continueReady })),
+      players: room.players.map(({ id, name, score, connected, status, continueReady, lives, eliminated }) => ({ id, name, score, connected, status, continueReady, lives: Number.isInteger(lives) ? lives : 3, eliminated: Boolean(eliminated) })),
       roundNumber: room.roundIndex >= 0 ? room.roundIndex + 1 : 0,
       stage: room.stage,
       roundStartedAt: room.roundStartedAt,
       roundEndsAt: room.roundEndsAt,
       breakEndsAt: room.breakEndsAt,
       playback: room.playback,
-      currentRound: room.phase === 'game' || room.phase === 'break'
+      bomb: room.phase === 'bomb' ? {
+        turnPlayerId: room.bombTurnPlayerId,
+        turnNumber: room.bombTurnNumber,
+        turnEndsAt: room.bombTurnEndsAt,
+        songIndex: room.bombSongIndex,
+        playerCount: room.players.filter((player) => !player.eliminated).length,
+        lastResult: room.bombLastResult || null,
+      } : null,
+      currentRound: room.phase === 'bomb'
+        ? {
+            choices: [],
+            previewUrl: room.bombSongs?.[room.bombSongIndex]?.previewUrl || '',
+            artwork: room.bombSongs?.[room.bombSongIndex]?.artwork || '',
+            difficulty: room.difficulty || 'medium',
+            genre: room.genre || 'Everything',
+          }
+        : room.phase === 'game' || room.phase === 'break'
         ? {
             choices: room.rounds[room.roundIndex]?.choices || [],
             previewUrl: room.rounds[room.roundIndex]?.answer.previewUrl || '',
@@ -173,13 +215,15 @@ export class GameRoom extends DurableObject {
       this.state = {
         code: body.code,
         hostId,
+        mode: body.mode === 'SongBomb' ? 'SongBomb' : 'Quickfire',
         maxPlayers: Math.max(2, Math.min(20, Number(body.maxPlayers) || 8)),
         genre: String(body.genre || 'Everything').slice(0, 60),
         difficulty: ['easy', 'medium', 'hard', 'extreme'].includes(body.difficulty) ? body.difficulty : 'medium',
         choiceCount: Math.max(4, Math.min(8, Number(body.choiceCount) || 4)),
+        roundCount: Math.max(1, Math.min(50, Math.round(Number(body.roundCount) || ROUND_COUNT))),
         durationSeconds: [30, 45, 60].includes(Number(body.durationSeconds)) ? Number(body.durationSeconds) : DEFAULT_ROUND_SECONDS,
         phase: 'lobby',
-        players: [{ id: hostId, token, name: body.name, score: 0, connected: false, status: 'playing', continueReady: false }],
+        players: [{ id: hostId, token, name: body.name, score: 0, connected: false, status: 'playing', continueReady: false, lives: 3, eliminated: false }],
         rounds: [],
         roundIndex: -1,
         stage: 0,
@@ -188,6 +232,11 @@ export class GameRoom extends DurableObject {
         breakEndsAt: 0,
         playback: { playing: false, playAt: 0, offset: 0 },
         revealedSong: null,
+        bombSongs: [],
+        bombSongIndex: 0,
+        bombTurnNumber: 0,
+        bombTurnPlayerId: null,
+        bombTurnEndsAt: 0,
         createdAt: Date.now(),
       };
       await this.save();
@@ -206,7 +255,7 @@ export class GameRoom extends DurableObject {
       const player = { id: crypto.randomUUID(), token: crypto.randomUUID(), name: body.name.trim(), score: 0, connected: false, status: 'playing', continueReady: false };
       room.players.push(player);
       await this.save();
-      this.broadcast({ type: room.phase === 'lobby' ? 'lobby' : room.phase === 'game' ? 'game' : room.phase === 'break' ? 'round-ended' : 'game-ended' });
+      this.broadcast({ type: roomEventType(room) });
       return json({ code: room.code, playerId: player.id, token: player.token, host: false, room: this.publicRoom() });
     }
 
@@ -222,8 +271,8 @@ export class GameRoom extends DurableObject {
       this.ctx.acceptWebSocket(server);
       player.connected = true;
       await this.save();
-      this.send(server, { type: room.phase === 'lobby' ? 'lobby' : room.phase === 'game' ? 'game' : room.phase === 'break' ? 'round-ended' : 'game-ended', room: this.publicRoom() });
-      this.broadcast({ type: room.phase === 'lobby' ? 'lobby' : room.phase === 'game' ? 'game' : room.phase === 'break' ? 'round-ended' : 'game-ended' });
+      this.send(server, { type: roomEventType(room), room: this.publicRoom() });
+      this.broadcast({ type: roomEventType(room) });
       return new Response(null, { status: 101, webSocket: client });
     }
 
@@ -259,16 +308,21 @@ export class GameRoom extends DurableObject {
         return;
       }
       if (room.phase === 'finished' && !room.winner) room.winner = this.getWinner(room);
+      const leftBombTurn = room.phase === 'bomb' && room.bombTurnPlayerId === player.id;
       room.players = room.players.filter((item) => item.id !== player.id);
       if (!room.players.length) {
         await this.ctx.storage.deleteAll();
         this.state = null;
         return;
       }
+      if (room.hostId === player.id) room.hostId = room.players[0].id;
       await this.save();
-      if (room.phase === 'game' && room.players.every((item) => item.status !== 'playing')) await this.endRound(room);
+      if (room.phase === 'bomb') {
+        if (leftBombTurn || room.players.filter((item) => !item.eliminated && item.lives > 0).length <= 1) await this.advanceBombTurn(room, false);
+        else this.broadcast({ type: 'bomb' });
+      } else if (room.phase === 'game' && room.players.every((item) => item.status !== 'playing')) await this.endRound(room);
       else if (room.phase === 'break' && room.players.every((item) => item.continueReady)) await this.beginNextRound(room);
-      else this.broadcast({ type: room.phase === 'lobby' ? 'lobby' : room.phase === 'game' ? 'game' : room.phase === 'break' ? 'round-ended' : 'game-ended' });
+      else this.broadcast({ type: roomEventType(room) });
       ws.close(1000, 'Left room');
       return;
     }
@@ -279,16 +333,20 @@ export class GameRoom extends DurableObject {
         ? Math.max(room.players.length, Math.min(20, Math.max(2, Number(action.maxPlayers))))
         : room.maxPlayers;
       const genre = typeof action.genre === 'string' ? action.genre.slice(0, 60) : room.genre;
+      const mode = action.mode === 'SongBomb' || action.mode === 'Quickfire' ? action.mode : (room.mode || 'Quickfire');
       const difficulty = ['easy', 'medium', 'hard', 'extreme'].includes(action.difficulty) ? action.difficulty : (room.difficulty || 'medium');
       const choiceCount = Math.max(4, Math.min(8, Number(action.choiceCount) || Number(room.choiceCount) || 4));
+      const roundCount = Math.max(1, Math.min(50, Math.round(Number(action.roundCount) || Number(room.roundCount) || ROUND_COUNT)));
       const durationSeconds = [30, 45, 60].includes(Number(action.durationSeconds)) ? Number(action.durationSeconds) : room.durationSeconds;
-      if (name === player.name && maxPlayers === room.maxPlayers && genre === room.genre && difficulty === (room.difficulty || 'medium') && choiceCount === (room.choiceCount || 4) && durationSeconds === room.durationSeconds) return;
+      if (name === player.name && maxPlayers === room.maxPlayers && genre === room.genre && mode === (room.mode || 'Quickfire') && difficulty === (room.difficulty || 'medium') && choiceCount === (room.choiceCount || 4) && roundCount === (room.roundCount || ROUND_COUNT) && durationSeconds === room.durationSeconds) return;
       player.name = name;
       room.players[0].name = name;
       room.maxPlayers = maxPlayers;
       room.genre = genre;
+      room.mode = mode;
       room.difficulty = difficulty;
       room.choiceCount = choiceCount;
+      room.roundCount = roundCount;
       room.durationSeconds = durationSeconds;
       await this.save();
       this.broadcast({ type: 'lobby' });
@@ -316,9 +374,17 @@ export class GameRoom extends DurableObject {
       room.roundEndsAt = 0;
       room.breakEndsAt = 0;
       room.revealedSong = null;
+      room.bombSongs = [];
+      room.bombSongIndex = 0;
+      room.bombTurnNumber = 0;
+      room.bombTurnPlayerId = null;
+      room.bombTurnEndsAt = 0;
+      room.bombLastResult = null;
       room.playback = { playing: false, playAt: 0, offset: 0, endsAt: 0 };
       room.players.forEach((item) => {
         item.score = 0;
+        item.lives = 3;
+        item.eliminated = false;
         item.status = 'playing';
         item.continueReady = false;
       });
@@ -328,9 +394,54 @@ export class GameRoom extends DurableObject {
       return;
     }
 
+    if (action.type === 'start-bomb' && room.phase === 'lobby' && room.mode === 'SongBomb' && player.id === room.hostId) {
+      if (room.players.filter((item) => !item.eliminated).length < 2) {
+        this.send(ws, { type: 'error', error: 'Song Bomb needs at least two players in the room.' });
+        return;
+      }
+      const songs = Array.isArray(action.songs) ? action.songs.slice(0, 100).map(cleanBombSong).filter(Boolean) : [];
+      if (songs.length < 4) {
+        this.send(ws, { type: 'error', error: 'The host could not prepare enough playable songs. Try again.' });
+        return;
+      }
+      room.bombSongs = songs;
+      room.bombSongIndex = 0;
+      room.bombTurnNumber = 1;
+      room.bombTurnPlayerId = room.players.find((item) => !item.eliminated)?.id || player.id;
+      room.bombTurnEndsAt = Date.now() + BOMB_TURN_SECONDS * 1000;
+      room.bombLastResult = null;
+      room.winner = null;
+      room.players.forEach((item) => { item.score = 0; item.lives = 3; item.eliminated = false; item.status = 'playing'; item.continueReady = false; });
+      room.phase = 'bomb';
+      await this.save();
+      await this.ctx.storage.setAlarm(room.bombTurnEndsAt);
+      this.broadcast({ type: 'bomb' });
+      return;
+    }
+
+    if (action.type === 'bomb-guess' && room.phase === 'bomb' && player.id === room.bombTurnPlayerId && !player.eliminated) {
+      if (Date.now() >= room.bombTurnEndsAt) {
+        room.bombLastResult = { playerId: player.id, result: 'timeout', turnNumber: room.bombTurnNumber };
+        await this.advanceBombTurn(room, true);
+        return;
+      }
+      const answer = room.bombSongs?.[room.bombSongIndex];
+      const guess = normalizeGuess(action.guess);
+      const title = normalizeGuess(action.title);
+      const artist = normalizeGuess(action.artist);
+      const correct = Boolean(answer) && (title && artist
+        ? title === normalizeGuess(answer.title) && artist === normalizeGuess(answer.artist)
+        : guess === normalizeGuess(answer.title) || guess === normalizeGuess(answer.artist));
+      room.bombLastResult = { playerId: player.id, result: correct ? 'correct' : 'wrong', turnNumber: room.bombTurnNumber };
+      this.send(ws, { type: 'bomb-result', correct });
+      await this.advanceBombTurn(room, !correct);
+      return;
+    }
+
     if (action.type === 'start' && room.phase === 'lobby' && player.id === room.hostId) {
-      if (!Array.isArray(action.rounds) || action.rounds.length !== ROUND_COUNT) {
-        this.send(ws, { type: 'error', error: 'The host needs to prepare ten playable rounds before starting.' });
+      const roundCount = Math.max(1, Math.min(50, Math.round(Number(room.roundCount) || ROUND_COUNT)));
+      if (!Array.isArray(action.rounds) || action.rounds.length !== roundCount) {
+        this.send(ws, { type: 'error', error: `The host needs to prepare ${roundCount} playable rounds before starting.` });
         return;
       }
       const rounds = action.rounds.map(cleanRound);
@@ -377,6 +488,39 @@ export class GameRoom extends DurableObject {
       this.broadcast({ type: 'round-ended' });
       if (room.players.every((item) => item.continueReady)) await this.beginNextRound(room);
     }
+  }
+
+  async advanceBombTurn(room, loseLife) {
+    const oldTurnIndex = room.players.findIndex((item) => item.id === room.bombTurnPlayerId);
+    const current = oldTurnIndex >= 0 ? room.players[oldTurnIndex] : null;
+    if (loseLife && current) {
+      current.lives = Math.max(0, (Number.isInteger(current.lives) ? current.lives : 3) - 1);
+      if (current.lives <= 0) current.eliminated = true;
+    }
+    const alive = room.players.filter((item) => !item.eliminated && item.lives > 0);
+    if (alive.length <= 1) {
+      room.phase = 'finished';
+      room.bombTurnEndsAt = 0;
+      room.winner = alive[0] ? { id: alive[0].id, name: alive[0].name, lives: alive[0].lives } : null;
+      await this.save();
+      await this.ctx.storage.setAlarm(room.createdAt + 24 * 60 * 60 * 1000);
+      this.broadcast({ type: 'game-ended' });
+      return;
+    }
+    let next = null;
+    for (let offset = 1; offset <= room.players.length; offset += 1) {
+      const startIndex = oldTurnIndex >= 0 ? oldTurnIndex : -1;
+      const candidate = room.players[(startIndex + offset + room.players.length) % room.players.length];
+      if (!candidate.eliminated && candidate.lives > 0) { next = candidate; break; }
+    }
+    if (!next) return;
+    room.bombTurnPlayerId = next.id;
+    room.bombTurnNumber += 1;
+    room.bombSongIndex = (room.bombSongIndex + 1) % room.bombSongs.length;
+    room.bombTurnEndsAt = Date.now() + BOMB_TURN_SECONDS * 1000;
+    await this.save();
+    await this.ctx.storage.setAlarm(room.bombTurnEndsAt);
+    this.broadcast({ type: 'bomb' });
   }
 
   async beginRound(room) {
@@ -439,14 +583,17 @@ export class GameRoom extends DurableObject {
       this.state = null;
       return;
     }
-    if (room.phase === 'game' && room.playback.playing && now >= room.playback.endsAt && now < room.roundEndsAt) {
+    if (room.phase === 'bomb' && now >= room.bombTurnEndsAt) {
+      room.bombLastResult = { playerId: room.bombTurnPlayerId, result: 'timeout', turnNumber: room.bombTurnNumber };
+      await this.advanceBombTurn(room, true);
+    } else if (room.phase === 'game' && room.playback.playing && now >= room.playback.endsAt && now < room.roundEndsAt) {
       room.playback = { playing: false, playAt: 0, offset: STAGE_STARTS[room.stage], endsAt: 0 };
       await this.save();
       await this.ctx.storage.setAlarm(room.roundEndsAt);
       this.broadcast({ type: 'game' });
     } else if (room.phase === 'game' && now >= room.roundEndsAt) await this.endRound(room);
     else if (room.phase === 'break' && now >= room.breakEndsAt) await this.beginNextRound(room);
-    else await this.ctx.storage.setAlarm(room.phase === 'game' ? room.roundEndsAt : room.breakEndsAt || room.createdAt + 24 * 60 * 60 * 1000);
+    else await this.ctx.storage.setAlarm(room.phase === 'bomb' ? room.bombTurnEndsAt : room.phase === 'game' ? room.roundEndsAt : room.breakEndsAt || room.createdAt + 24 * 60 * 60 * 1000);
   }
 
   async webSocketClose(ws) {
@@ -469,6 +616,6 @@ export class GameRoom extends DurableObject {
     const anotherConnection = this.ctx.getWebSockets().some((socket) => socket !== ws && socket.deserializeAttachment()?.playerId === playerId);
     player.connected = connected || anotherConnection;
     await this.save();
-    this.broadcast({ type: room.phase === 'lobby' ? 'lobby' : room.phase === 'game' ? 'game' : room.phase === 'break' ? 'round-ended' : 'game-ended' });
+    this.broadcast({ type: roomEventType(room) });
   }
 }
