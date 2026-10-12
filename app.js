@@ -622,15 +622,17 @@ window.getCachedRoundSongCatalogs=async(genre='Everything')=>{
   catalogSnapshotByGenre.set(genre,songs);
   return [{name:genre,songs}];
 };
-window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficulty='medium')=>{
+window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficulty='medium',minimumChoiceCount=4)=>{
   genre=genreAliases[genre]||genre;
   const required=Math.max(4,Math.min(500,Number(requiredCount)||40));
+  const minimumPerPool=Math.max(4,Math.min(8,Number(minimumChoiceCount)||4));
   const difficultyMultiplier={easy:2,medium:4,hard:8,extreme:12}[difficulty]||4;
   const rankCoverageTarget={easy:64,medium:144,hard:304,extreme:480}[difficulty]||144;
   const expansionTarget=(count,sourceGenre)=>Math.min(getGenreCatalogTarget(sourceGenre),Math.max(count+4,count*difficultyMultiplier+4,rankCoverageTarget));
   const playableCount=catalogs=>(catalogs||[]).reduce((sum,pool)=>sum+(pool.songs||[]).filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty).length,0);
+  const hasPlayablePool=catalogs=>(catalogs||[]).some(pool=>(pool.songs||[]).filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty).length>=minimumPerPool);
   let catalogs=await window.getCachedRoundSongCatalogs(genre);
-  if(playableCount(catalogs)>=required)return catalogs;
+  if(playableCount(catalogs)>=required&&hasPlayablePool(catalogs))return catalogs;
   if(genre==='Everything'){
     const groups=new Map(catalogs.filter(pool=>pool.name!=='Everything').map(pool=>[pool.name,pool.songs||[]]));
     const genres=[...sourceGenres].sort(()=>Math.random()-.5).slice(0,3);
@@ -639,7 +641,8 @@ window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficul
       const target=expansionTarget(perGenreRequired,sourceGenre);
       const songs=await loadQuickGenreCatalog(sourceGenre,target);
       groups.set(sourceGenre,songs);
-      if(playableCount([...groups].map(([name,entries])=>({name,songs:entries})))>=required)break;
+      const groupedCatalogs=[...groups].map(([name,entries])=>({name,songs:entries}));
+      if(playableCount(groupedCatalogs)>=required&&hasPlayablePool(groupedCatalogs))break;
     }
     catalogs=[...groups].map(([name,songs])=>({name,songs}));
   }else if(genre==='Anime'){
@@ -649,7 +652,7 @@ window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficul
   }else{
     catalogs=[{name:genre,songs:await loadQuickGenreCatalog(genre,expansionTarget(required,genre))}];
   }
-  if(playableCount(catalogs)<required)throw new Error(`Only ${playableCount(catalogs)} playable ${difficulty} songs are cached for ${genre}. Check your connection and try again.`);
+  if(playableCount(catalogs)<required||!hasPlayablePool(catalogs))throw new Error(`Only ${playableCount(catalogs)} playable ${difficulty} songs are cached for ${genre}. Check your connection and try again.`);
   return catalogs;
 };
 function getSongDifficulty(song,asset){
@@ -912,10 +915,9 @@ async function launchGame(){
     if(activeCatalog.length<4)activeCatalog=roundSongs;
     const choiceCount=Math.max(4,Math.min(8,Number(r.choiceCount)||4));
     const difficulty=r.difficulty||'medium';
-    const cachedPlayableCount=activeCatalog.filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty).length;
-    if(cachedPlayableCount<choiceCount&&window.getRoomStartupCatalogs){
+    if(window.getRoomStartupCatalogs){
       feedback.textContent='Finding playable songs for the first round…';
-      const startupCatalogs=await window.getRoomStartupCatalogs(selectedGenre,choiceCount,difficulty);
+      const startupCatalogs=await window.getRoomStartupCatalogs(selectedGenre,choiceCount,difficulty,choiceCount);
       activeCatalog=startupCatalogs.flatMap(pool=>pool.songs||[]);
     }
     await nextRound();
@@ -925,7 +927,7 @@ async function launchGame(){
         const selectedGenre=deferredExpansionGenre;
         const target=Math.min(500,((Number(r.roundCount)||ROUND_COUNT)+1)*choiceCount);
         const task=(window.getRoomStartupCatalogs
-          ? window.getRoomStartupCatalogs(selectedGenre,target,difficulty)
+          ? window.getRoomStartupCatalogs(selectedGenre,target,difficulty,choiceCount)
           : loadGenreCatalog(selectedGenre).then(catalog=>[{name:selectedGenre,songs:catalog}])).then(catalogs=>{
           activeCatalog=catalogs.flatMap(pool=>pool.songs||[]);
           for(const {name,songs} of catalogs){

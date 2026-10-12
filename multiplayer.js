@@ -835,11 +835,12 @@
   }
 
   function renderWinner(room) {
-    if (state.winnerShown) return;
+    const firstDisplay = !state.winnerShown;
     state.winnerShown = true;
     clearRoomTimer();
     stopSyncedAudio();
     enterGame(room.mode || 'Classic');
+    $('.round-result-backdrop').hidden = true;
     if (room.mode === 'SongBomb') renderBombLog(room.bombLog || []);
     const latestBombEvent = room.mode === 'SongBomb' ? room.bombLog?.[room.bombLog.length - 1] : null;
     if (latestBombEvent?.result === 'timeout') {
@@ -853,7 +854,7 @@
     $('#winner-title').textContent = winner ? `${winner.name} wins!` : 'Game complete';
     $('.winner-score').textContent = winner ? (room.mode === 'SongBomb' ? `Last player standing \u00b7 ${winner.lives} lives left` : `Final score \u00b7 ${winner.score} points`) : '';
     $('.winner-backdrop').hidden = false;
-    if (window.sprayNoteConfetti) window.sprayNoteConfetti({ winner: true });
+    if (firstDisplay && window.sprayNoteConfetti) window.sprayNoteConfetti({ winner: true });
   }
 
   function handleMessage(message) {
@@ -887,6 +888,7 @@
       if (launch) launch.disabled = false;
       return;
     }
+    const previousRoom = state.room;
     const room = message.room;
     if (room) {
       state.room = room;
@@ -907,6 +909,11 @@
         }
       }
     }
+    // Recover from a missed finish event using the authoritative room phase.
+    if (room?.phase === 'finished' && message.type !== 'lobby') {
+      renderWinner(room);
+      return;
+    }
     switch (message.type) {
       case 'lobby':
         // A lobby transition can mean the host is starting a fresh match in
@@ -922,13 +929,21 @@
           choices.dataset.stage = '-1';
           choices.classList.remove('locked', 'wrong-locked');
         }
-        if (state.winnerShown && !state.session?.host) {
+        if (previousRoom?.phase === 'finished' || state.winnerShown) {
           state.winnerShown = false;
           $('.winner-backdrop').hidden = true;
           $('.round-result-backdrop').hidden = true;
           $('.game-view').hidden = true;
-          showJoinPage();
-          $('.joined-room-panel').hidden = false;
+          $('.song-bomb-panel').hidden = true;
+          if (state.session?.host) {
+            $('main').hidden = false;
+            $('.site-footer').hidden = false;
+            const host = room.players?.find((player) => player.id === state.session.playerId);
+            openSetup(host?.name || $('.host-name-input')?.value || '');
+          } else {
+            showJoinPage();
+            $('.joined-room-panel').hidden = false;
+          }
         }
         renderLobby(room);
         break;
@@ -984,7 +999,7 @@
     const roundCount = Math.max(1, Math.min(50, Number(room.roundCount) || ROUND_COUNT));
     const selectedGenre = room.genre || 'Everything';
     showNotice('Preparing playable songs…');
-    const catalogs = await window.getRoomStartupCatalogs?.(selectedGenre, roundCount * choiceCount, desiredDifficulty)
+    const catalogs = await window.getRoomStartupCatalogs?.(selectedGenre, roundCount * choiceCount, desiredDifficulty, choiceCount)
       || await window.getRoundSongCatalogs?.(selectedGenre)
       || [{ name: selectedGenre, songs: activeCatalog }];
     activeCatalog = catalogs.flatMap((pool) => pool.songs || []);
@@ -1227,7 +1242,11 @@
     clearTimeout(state.startTimer);
     state.startTimer = 0;
     stopSyncedAudio();
-    if (state.session?.host && state.room?.phase === 'finished') send('return-lobby');
+    if (state.session?.host && state.room?.phase === 'finished' && !send('return-lobby')) {
+      showNotice('Reconnecting to the room. Select Back to room again when connected.', true);
+      connect();
+      return;
+    }
     $('.winner-backdrop').hidden = true;
     $('.round-result-backdrop').hidden = true;
     $('.game-view').hidden = true;
