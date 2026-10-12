@@ -25,6 +25,7 @@
     prepareRequest: 0,
     timerKey: '',
     bombAudioKey: '',
+    revealAudioKey: '',
     bombSearchRequest: 0,
     bombServerSuggestions: [],
     bombSearchTimer: 0,
@@ -304,7 +305,7 @@
       const roundsStepper = $('.rounds-stepper strong');
       if (roundsStepper) roundsStepper.textContent = `${room.roundCount || 10} rounds`;
     }
-    const listMarkup = players.map((player, index) => `<div class="joined-player"><span class="joined-avatar ${index === 0 ? 'avatar-yellow' : 'avatar-blue'}">${escapeHtml(player.name.slice(0, 2).toUpperCase())}</span><span><strong>${escapeHtml(player.name)}</strong><small>${index === 0 ? 'Host' : 'Joined'}${player.connected ? '' : ' · reconnecting'}</small></span><i>${index === 0 ? '★' : '✓'}</i></div>`).join('');
+    const listMarkup = players.map((player, index) => `<div class="joined-player"><span class="joined-avatar ${index === 0 ? 'avatar-yellow' : 'avatar-blue'}">${escapeHtml(player.name.slice(0, 2).toUpperCase())}</span><span><strong>${escapeHtml(player.name)}</strong><small>${index === 0 ? 'Host' : 'Joined'}${player.connected ? '' : ' · reconnecting'}</small></span>${state.session?.playerId === room.hostId && player.id !== room.hostId ? `<button class="kick-player" type="button" data-player-id="${escapeHtml(player.id)}" aria-label="Kick ${escapeHtml(player.name)} from lobby" title="Kick from lobby">×</button>` : `<i>${index === 0 ? '★' : '✓'}</i>`}</div>`).join('');
     const free = Math.max(0, room.maxPlayers - players.length);
     const waitingMarkup = free ? `<div class="joined-player waiting"><span class="joined-avatar">+</span><span><strong>Waiting for players</strong><small>${free} spot${free === 1 ? '' : 's'} open</small></span></div>` : '';
     const combined = listMarkup + waitingMarkup;
@@ -342,11 +343,11 @@
     if (!list) return;
     const players = [...(room.players || [])]
       .sort((a, b) => b.score - a.score);
-    const key = players.map((player) => `${player.id}:${player.name}:${player.score}`).join('|');
+    const key = players.map((player) => `${player.id}:${player.name}:${player.score}:${player.connected}`).join('|');
     if (key === state.scoreboardKey) return;
     state.scoreboardKey = key;
     list.innerHTML = players
-      .map((player, index) => `<div class="score-row"><span>0${index + 1}</span><strong>${escapeHtml(player.name)}</strong><b>${player.score}</b></div>`)
+      .map((player, index) => `<div class="score-row${player.connected ? '' : ' is-disconnected'}"><span>0${index + 1}</span><strong>${escapeHtml(player.name)}</strong><b>${player.score}</b></div>`)
       .join('');
   }
 
@@ -488,6 +489,7 @@
     const isNewRound = state.localRound !== number;
     if (isNewRound) {
       stopSyncedAudio();
+      state.revealAudioKey = '';
       state.localRound = number;
       state.localStage = 0;
     }
@@ -692,7 +694,6 @@
     if (!room) return;
     renderGame(room);
     clearRoomTimer();
-    stopSyncedAudio();
     const answer = room.revealedSong;
     if (answer) {
       $('#round-result-title').textContent = answer.title;
@@ -701,12 +702,23 @@
       if (cover && answer.artwork) applySongArtwork(cover, { artworkUrl100: answer.artwork });
       $('.song-choice[data-choice-index="' + answer.answerIndex + '"]')?.classList.add('correct');
     }
+    const revealKey = `${room.roundNumber}:${answer?.previewUrl || ''}`;
+    if (answer?.previewUrl && revealKey !== state.revealAudioKey) {
+      stopSyncedAudio();
+      state.revealAudioKey = revealKey;
+      state.activeAudio = new Audio(answer.previewUrl);
+      state.activeAudio.preload = 'auto';
+      state.activeAudio.volume = Number($('.game-view [aria-label="Volume"]')?.value || 65) / 100;
+      void state.activeAudio.play().catch(() => {});
+    }
     const mine = room.players.find((player) => player.id === state.session?.playerId);
     const guessedCorrectly = mine?.status === 'correct';
     const playerResult = $('.result-player-status');
     playerResult.textContent = guessedCorrectly ? 'You guessed correctly' : 'You’re incorrect';
     playerResult.className = `result-player-status ${guessedCorrectly ? 'is-correct' : 'is-incorrect'}`;
-    $('.continue-round').textContent = `Continue (${room.readyCount || 0}/${room.players.length})`;
+    const connectedPlayers = room.players.filter((player) => player.connected).length;
+    const continueNeeded = Math.max(1, Math.ceil(connectedPlayers / 2));
+    $('.continue-round').textContent = `Continue (${room.readyCount || 0}/${continueNeeded})`;
     $('.continue-round').disabled = Boolean(room.players.find((player) => player.id === state.session?.playerId)?.continueReady);
     $('.round-result-backdrop').hidden = false;
     updateBreakTimer(room);
@@ -943,6 +955,10 @@
         showNotice('The host closed this room.', true);
         leaveRoom();
         break;
+      case 'kicked':
+        leaveRoom();
+        showNotice('The host removed you from the lobby.', true);
+        break;
       case 'pong':
         break;
       default:
@@ -1169,6 +1185,13 @@
   document.addEventListener('click', async (event) => {
     const target = event.target.closest('button');
     if (!target) return;
+
+    if (target.matches('.kick-player')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (state.session?.playerId === state.room?.hostId && state.room?.phase === 'lobby') send('kick', { playerId: target.dataset.playerId });
+      return;
+    }
     if (target.matches('.bomb-suggestion')) {
       event.preventDefault();
       submitBombGuess('', target.dataset.title || '', target.dataset.artist || '');

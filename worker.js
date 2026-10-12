@@ -190,7 +190,7 @@ export class GameRoom extends DurableObject {
           }
         : null,
       revealedSong: room.phase === 'break' || room.phase === 'finished' ? room.revealedSong : null,
-      readyCount: room.players.filter((player) => player.continueReady).length,
+      readyCount: room.players.filter((player) => player.connected && player.continueReady).length,
     };
   }
 
@@ -349,9 +349,22 @@ export class GameRoom extends DurableObject {
         if (leftBombTurn || room.players.filter((item) => !item.eliminated && item.lives > 0).length <= 1) await this.advanceBombTurn(room, false);
         else this.broadcast({ type: 'bomb' });
       } else if (room.phase === 'game' && room.players.every((item) => item.status !== 'playing')) await this.endRound(room);
-      else if (room.phase === 'break' && room.players.every((item) => item.continueReady)) await this.beginNextRound(room);
+      else if (room.phase === 'break' && room.players.filter((item) => item.connected && item.continueReady).length >= Math.max(1, Math.ceil(room.players.filter((item) => item.connected).length / 2))) await this.beginNextRound(room);
       else this.broadcast({ type: roomEventType(room) });
       ws.close(1000, 'Left room');
+      return;
+    }
+
+    if (action.type === 'kick' && room.phase === 'lobby' && player.id === room.hostId) {
+      const targetId = String(action.playerId || '');
+      const target = room.players.find((item) => item.id === targetId && item.id !== room.hostId);
+      if (!target) return;
+      room.players = room.players.filter((item) => item.id !== target.id);
+      await this.save();
+      const targetSockets = this.ctx.getWebSockets().filter((socket) => socket.deserializeAttachment()?.playerId === target.id);
+      for (const socket of targetSockets) this.send(socket, { type: 'kicked' });
+      this.broadcast({ type: 'lobby' });
+      for (const socket of targetSockets) socket.close(1000, 'Removed by host');
       return;
     }
 
@@ -551,7 +564,7 @@ export class GameRoom extends DurableObject {
       player.continueReady = true;
       await this.save();
       this.broadcast({ type: 'round-ended' });
-      if (room.players.every((item) => item.continueReady)) await this.beginNextRound(room);
+      if (room.players.filter((item) => item.connected && item.continueReady).length >= Math.max(1, Math.ceil(room.players.filter((item) => item.connected).length / 2))) await this.beginNextRound(room);
     }
   }
 
@@ -698,6 +711,10 @@ export class GameRoom extends DurableObject {
     const anotherConnection = this.ctx.getWebSockets().some((socket) => socket !== ws && socket.deserializeAttachment()?.playerId === playerId);
     player.connected = connected || anotherConnection;
     await this.save();
+    if (room.phase === 'break' && room.players.filter((item) => item.connected && item.continueReady).length >= Math.max(1, Math.ceil(room.players.filter((item) => item.connected).length / 2))) {
+      await this.beginNextRound(room);
+      return;
+    }
     this.broadcast({ type: roomEventType(room) });
   }
 }
