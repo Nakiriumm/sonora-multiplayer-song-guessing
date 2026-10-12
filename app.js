@@ -123,13 +123,12 @@ roundSongs.push(...[
   ['Uptown Funk','Mark Ronson'],['Just the Way You Are','Bruno Mars'],['Locked Out of Heaven','Bruno Mars'],['24K Magic','Bruno Mars'],
   ['Starboy','The Weeknd'],['Save Your Tears','The Weeknd'],['Can’t Feel My Face','The Weeknd'],['Dance the Night','Dua Lipa'],
   ['Don’t Start Now','Dua Lipa'],['New Rules','Dua Lipa'],['Happier Than Ever','Billie Eilish'],['Birds of a Feather','Billie Eilish'],
-  ['Dynamite','BTS'],['Butter','BTS'],['Boy With Luv','BTS'],['How You Like That','BLACKPINK'],
-  ['Pink Venom','BLACKPINK'],['Kill This Love','BLACKPINK'],['Viva La Vida','Coldplay'],['Yellow','Coldplay'],
+  ['Dynamite','BTS'],['Butter','BTS'],['Viva La Vida','Coldplay'],['Yellow','Coldplay'],
   ['Fix You','Coldplay'],['The Scientist','Coldplay'],['In the End','Linkin Park'],['Numb','Linkin Park'],
   ['What I’ve Done','Linkin Park'],['Lose Yourself','Eminem'],['Without Me','Eminem'],['Not Afraid','Eminem'],
   ['California Gurls','Katy Perry'],['Firework','Katy Perry'],['Roar','Katy Perry'],['Bad Romance','Lady Gaga'],
   ['Poker Face','Lady Gaga'],['Shallow','Lady Gaga'],['Sorry','Justin Bieber'],['Love Yourself','Justin Bieber'],
-  ['Peaches','Justin Bieber'],['Hips Don’t Lie','Shakira'],['Whenever, Wherever','Shakira'],['Waka Waka','Shakira'],
+  ['Peaches','Justin Bieber'],
   ['Dancing Queen','ABBA'],['Mamma Mia','ABBA'],['Gimme! Gimme! Gimme!','ABBA'],['Take On Me','a-ha'],
   ['The Final Countdown','Europe'],['Eye of the Tiger','Survivor'],['Africa','Toto'],['Rosanna','Toto'],
   ['September','Earth, Wind & Fire'],['I Will Survive','Gloria Gaynor'],['Girls Just Want to Have Fun','Cyndi Lauper'],['Like a Prayer','Madonna'],
@@ -137,6 +136,19 @@ roundSongs.push(...[
 ].map(([title,artist])=>[title,artist,'']));
 const songAssetCache = new Map();
 function normalizeSongText(value){return String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
+let itunesRequestQueue=Promise.resolve();
+let itunesNextRequestAt=0;
+function fetchItunesSearch(url,{timeoutMs=12000,status=''}={}){
+  const request=itunesRequestQueue.then(async()=>{
+    const waitMs=Math.max(0,itunesNextRequestAt-Date.now());
+    if(waitMs)await new Promise(resolve=>setTimeout(resolve,waitMs));
+    itunesNextRequestAt=Date.now()+3100;
+    if(status&&!gameView.hidden&&gameView.dataset.catalogPreparing==='true'){const feedback=gameView.querySelector('.round-feedback');if(feedback)feedback.textContent=status;}
+    return fetch(url,{signal:AbortSignal.timeout(timeoutMs)});
+  });
+  itunesRequestQueue=request.then(()=>undefined,()=>undefined);
+  return request;
+}
 function loadSongAsset(song){
   const key=`${song[0]}|${song[1]}`;
   if(songAssetCache.has(key))return songAssetCache.get(key);
@@ -145,20 +157,21 @@ function loadSongAsset(song){
     songAssetCache.set(key,asset);
     return asset;
   }
-  const request=(async()=>{try{const term=encodeURIComponent(`${song[0]} ${song[1]}`);const response=await fetch(`https://itunes.apple.com/search?term=${term}&entity=song&country=US&limit=50`,{signal:AbortSignal.timeout(10000)});if(!response.ok)return null;const data=await response.json();const title=normalizeSongText(song[0]),artist=normalizeSongText(song[1]);const matchIndex=data.results.findIndex(result=>normalizeSongText(result.trackName)===title&&normalizeSongText(result.artistName)===artist);return matchIndex<0?null:{...data.results[matchIndex],searchRank:matchIndex+1};}catch{return null;}})();
+  const request=(async()=>{try{const term=encodeURIComponent(`${song[0]} ${song[1]}`);const response=await fetchItunesSearch(`https://itunes.apple.com/search?term=${term}&entity=song&country=US&limit=50`,{timeoutMs:10000,status:`Finding a playable preview for ${song[0]}…`});if(!response.ok)return null;const data=await response.json();const title=normalizeSongText(song[0]),artist=normalizeSongText(song[1]);const matchIndex=data.results.findIndex(result=>normalizeSongText(result.trackName)===title&&normalizeSongText(result.artistName)===artist);return matchIndex<0?null:{...data.results[matchIndex],searchRank:matchIndex+1};}catch{return null;}})();
   songAssetCache.set(key,request);
   return request;
 }
 const genreArtistSeeds={
-  'Everything':['Taylor Swift','The Weeknd','Dua Lipa','Bruno Mars','Beyonce','Rihanna','Drake','Kendrick Lamar','Ariana Grande','Lady Gaga','Coldplay','The Beatles','Queen','Michael Jackson','ABBA','Arctic Monkeys','Radiohead','Ed Sheeran','Adele','BTS','BLACKPINK','YOASOBI','Bodyslam','Jeff Satur'],
-  'Pop anthems':['Taylor Swift','Dua Lipa','The Weeknd','Ariana Grande','Bruno Mars','Lady Gaga','Katy Perry','Rihanna','Beyonce','Ed Sheeran','Justin Bieber','Miley Cyrus','Adele','Harry Styles','Olivia Rodrigo','Sabrina Carpenter','Chappell Roan','Billie Eilish','Maroon 5','Kesha','P!nk','Shawn Mendes','Lizzo','Kylie Minogue'],
-  'Indie & alternative':['Arctic Monkeys','Radiohead','The Strokes','The Killers','Coldplay','Imagine Dragons','Tame Impala','The 1975','Florence + The Machine','Lorde','Twenty One Pilots','Paramore','Nirvana','Oasis','The Cure','Muse','Foo Fighters','Green Day','Weezer','Vampire Weekend','Cage the Elephant','Lana Del Rey','The Cranberries','Blur'],
-  'Hip-hop & R&B':['Drake','Kendrick Lamar','Eminem','SZA','The Weeknd','Beyonce','Rihanna','TLC','Usher','Alicia Keys','Outkast','Jay-Z','Missy Elliott','Tupac','Notorious B.I.G.','Lauryn Hill','Chris Brown','Doja Cat','Post Malone','Travis Scott','Childish Gambino','Mary J. Blige','Bruno Mars','TLC'],
-  'Throwback classics':['The Beatles','Queen','Michael Jackson','ABBA','Whitney Houston','Elton John','Madonna','Prince','Stevie Wonder','Earth, Wind & Fire','Fleetwood Mac','David Bowie','The Rolling Stones','Bee Gees','Cyndi Lauper','Bon Jovi','a-ha','Toto','Journey','Gloria Gaynor','Eurythmics','Aretha Franklin','The Supremes','Elvis Presley'],
-  'Thai songs':['Bodyslam','Palmy','Bird Thongchai McIntyre','Slot Machine','Getsunova','Lula','Da Endorphine','Lipta','Three Man Down','Tilly Birds','Only Monday','Ink Waruntorn','Polycat','Scrubb','Potato','Big Ass','Labanoon','Cocktail','Pang Nakarin','Klear','Joey Phuwasit','Jeff Satur','Nont Tanont','Bowkylion'],
-  'J-Pop':['YOASOBI','Ado','Official HIGE DANdism','Mrs. GREEN APPLE','King Gnu','Kenshi Yonezu','LiSA','Aimyon','Hikaru Utada','AKB48','Perfume','Arashi','Snow Man','back number','Vaundy','Eve','Aimer','RADWIMPS','BUMP OF CHICKEN','Sakanaction','Yorushika','Sukima Switch','Nogizaka46','ONE OK ROCK'],
+  'Everything':['Taylor Swift','The Weeknd','Dua Lipa','Bruno Mars','Beyonce','Rihanna','Drake','Kendrick Lamar','Ariana Grande','Lady Gaga','Coldplay','The Beatles','Queen','Michael Jackson','ABBA','Arctic Monkeys','Radiohead','Ed Sheeran','Adele','YOASOBI','Bodyslam','Jeff Satur'],
+  'Pop anthems':['Taylor Swift','Dua Lipa','The Weeknd','Ariana Grande','Bruno Mars','Mark Ronson','Daft Punk','Lady Gaga','Katy Perry','Rihanna','Beyonce','Ed Sheeran','Justin Bieber','Miley Cyrus','Adele','Harry Styles','Olivia Rodrigo','Sabrina Carpenter','Chappell Roan','Billie Eilish','Maroon 5','Kesha','P!nk','Shawn Mendes','Lizzo','Kylie Minogue','Kelly Clarkson','Britney Spears','Christina Aguilera','Demi Lovato','Selena Gomez','Camila Cabello','Sam Smith','Ellie Goulding','One Direction','Niall Horan','Jonas Brothers','The Chainsmokers','Calvin Harris','David Guetta','Avicii','Sia','Jason Derulo','Ne-Yo','Rita Ora','Alicia Keys','Carly Rae Jepsen','The Pussycat Dolls','Destiny’s Child','Fifth Harmony','Tove Lo','Anne-Marie','Ava Max','Tate McRae','Reneé Rapp','Charlie Puth','Khalid','RAYE','Tori Kelly','Pharrell Williams'],
+  'Indie & alternative':['Arctic Monkeys','Radiohead','The Strokes','The Killers','Coldplay','Imagine Dragons','Tame Impala','The 1975','Florence + The Machine','Lorde','Twenty One Pilots','Paramore','Nirvana','Oasis','The Cure','Muse','Foo Fighters','Green Day','Weezer','Vampire Weekend','Cage the Elephant','Lana Del Rey','The Cranberries','Blur','Arcade Fire','The National','The Shins','Yeah Yeah Yeahs','The White Stripes','The Black Keys','Kings of Leon','The Lumineers','Of Monsters and Men','Mumford & Sons','Bastille','The xx','MGMT','Foster the People','The Neighbourhood','Hozier','Bon Iver','Sufjan Stevens','Modest Mouse','The Smiths','The War on Drugs','The Kooks','Franz Ferdinand','Placebo','Snow Patrol','Keane','The Script','Garbage','No Doubt','The Smashing Pumpkins','Pixies','Fall Out Boy','Panic! At The Disco','My Chemical Romance','Evanescence','Royal Blood','Nothing But Thieves','The Verve','The B-52s','Blondie'],
+  'Hip-hop & R&B':['Drake','Kendrick Lamar','Eminem','SZA','The Weeknd','Beyonce','Rihanna','TLC','Usher','Alicia Keys','Outkast','Jay-Z','Missy Elliott','Tupac','Notorious B.I.G.','Lauryn Hill','Chris Brown','Doja Cat','Post Malone','Travis Scott','Childish Gambino','Mary J. Blige','Bruno Mars','50 Cent','Nas','Lil Wayne','J. Cole','Future','T.I.','Nelly','LL Cool J','Run-DMC','Wu-Tang Clan','A Tribe Called Quest','De La Soul','Beastie Boys','The Roots','Nicki Minaj','Cardi B','Megan Thee Stallion','Ice Cube','Dr. Dre','Snoop Dogg','Wiz Khalifa','Tyler, The Creator','A$AP Rocky','Lil Uzi Vert','Lil Baby','21 Savage','Ludacris','Busta Rhymes','T-Pain','Flo Rida','Frank Ocean','Miguel','John Legend','Ne-Yo','Jhené Aiko','H.E.R.','Brandy','Monica','Erykah Badu','D’Angelo','Maxwell','Boyz II Men'],
+  'Throwback classics':['The Beatles','Queen','Michael Jackson','ABBA','Whitney Houston','Elton John','Madonna','Prince','Stevie Wonder','Earth, Wind & Fire','Fleetwood Mac','David Bowie','The Rolling Stones','Bee Gees','Cyndi Lauper','Bon Jovi','a-ha','Toto','Journey','Gloria Gaynor','Eurythmics','Aretha Franklin','The Supremes','Elvis Presley','The Beach Boys','The Kinks','The Who','The Doors','Creedence Clearwater Revival','Simon & Garfunkel','The Carpenters','The Police','The Clash','The Pretenders','The Monkees','The Jackson 5','The Temptations','The Four Tops','Diana Ross','Marvin Gaye','James Brown','Ray Charles','Chuck Berry','The B-52s','Blondie','Tears for Fears','Duran Duran','Culture Club','Def Leppard','Wham!','Hall & Oates','Foreigner','Chicago','Boston','Heart','The Eagles','The Doobie Brothers','The Mamas & the Papas','KISS','Aerosmith','The Velvet Underground','The Meters','The Pointer Sisters','The Bangles','The Go-Go’s'],
+  'Thai songs':['Bodyslam','Palmy','Bird Thongchai McIntyre','Slot Machine','Getsunova','Lula','Da Endorphine','Lipta','Three Man Down','Tilly Birds','Only Monday','Ink Waruntorn','Polycat','Scrubb','Potato','Big Ass','Labanoon','Cocktail','Pang Nakarin','Klear','Joey Phuwasit','Jeff Satur','Nont Tanont','Bowkylion','Asanee-Wasan','Carabao','Sek Loso','Pongsit Kamphee','Tata Young','Christina Aguilar','Mai Charoenpura','Thaitanium','F.HERO','Joey Boy','Clash','Retrospect','Sweet Mullet','Musketeers','25hours','Zeal','The Yers','Safeplanet','Desktop Error','Mild','Season Five','Room39','The Parkinson','Violette Wautier','Stamp Apiwat','Tor Saksit','Klear','Lomosonic','Silly Fools','Paradox','Modern Dog','Calories Blah Blah','Bie Sukrit','Kamikaze','Four-Mod','Tata Young','Da Endorphine','The Toys','Max Jenmana','WANYAi','MEAN','SERIOUS BACON','Zom Marie','Three Man Down'],
+  'J-Pop':['YOASOBI','Ado','Official HIGE DANdism','Mrs. GREEN APPLE','King Gnu','Kenshi Yonezu','LiSA','Aimyon','Hikaru Utada','AKB48','Perfume','Arashi','Snow Man','back number','Vaundy','Eve','Aimer','RADWIMPS','BUMP OF CHICKEN','Sakanaction','Yorushika','Sukima Switch','Nogizaka46','ONE OK ROCK','UVERworld','Ai Otsuka','Spitz','Mr.Children','B’z','Southern All Stars','YUI','Kana Nishino','milet','Gen Hoshino','Ringo Sheena','Tokyo Jihen','Kyary Pamyu Pamyu','GReeeeN','Koda Kumi','Eir Aoi','Kalafina','UNISON SQUARE GARDEN','ASIAN KUNG-FU GENERATION','The Oral Cigarettes','Miki Matsubara','TM NETWORK','globe','L’Arc-en-Ciel','GLAY','LUNA SEA','Miyavi','NiziU','King & Prince','KAT-TUN','Hey! Say! JUMP','Yuzu','Ikimono-gakari','Superfly','MONGOL800','Every Little Thing','SPEED','ZONE','Mika Nakashima','Mai Kuraki','Misia','Aqua Timez','Fujii Kaze','MONGOL800','Salyu','Chara','JUJU','Kana-Boon','Mrs. GREEN APPLE'],
   'Anime openings':[],
-  'Anime endings':[]
+  'Anime endings':[],
+  'Vocaloid':['DECO*27','PinocchioP','wowaka','ryo','supercell','kz livetune','livetune','Hachi','Mitchie M','Giga','Kikuo','Kanaria','Neru','Jin','kemu','40mP','buzzG','n-buna','Orangestar','Eve','Ayase','Mikito-P','Hachioji-P','samfree','OSTER project','cosMo@BousouP','sasakure.UK','doriko','rerulili','Last Note.','Junky','halyosy','koyori','Teniwoha','iyowa','MARETU','Utsu-P','Yunosuke','Police Piccadilly','R Sound Design','Chinozo','Surii','Shimon','Satsuki','Harumaki Gohan','Aqu3ra','DIVELA','YurryCanon','Natsushiro Takaaki','164','150P','Hitoshizuku','Yama△','Hitoshizuku×Yama△','YuchaP','SLAVE.V-V-R','MIMI','Hiiragi Magnetite','Yasuha.','Oonuma Paseri','Mafumafu','Tsumiki','niki','Clean Tears','EZFG','Aira','Kairiki Bear','Mao Sasagawa','Yuyoyuppe','Keeno','Tohma','Nakiso','Kinoshita','LamazeP','NayutalieN','Dixie Flatline','AVTechNO!','Iroha(sasaki)','baker','FuwariP','Crusher-P','CircusP','EmpathP','KIRA','GHOST','STEAKA','Mellowcle','Yukopi','R-906','Fushi','Kashii Moimi','Inabakumori','Hachiya Nanashi','kz','Pinocchio P']
 };
 const animeSeriesSearchTerms = {
   'Anime openings':[
@@ -178,21 +191,180 @@ const animeSeriesSearchTerms = {
     'Blue Exorcist','K-On','Initial D','Trigun','Samurai Champloo','Yu Yu Hakusho','Cardcaptor Sakura','Black Butler','Ouran High School Host Club','Pokémon'
   ]
 };
-const GENRE_CATALOG_SIZE=1000;
+const GENRE_CATALOG_SIZE=3000;
+const getGenreCatalogTarget=(genre)=>genre==='Vocaloid'?1000:GENRE_CATALOG_SIZE;
+const getGenreCatalogStorageKey=(genre)=>genre==='Vocaloid'?'sonora-song-catalog-vocaloid-v1':'sonora-song-catalog-v9-'+genre;
+const catalogVersionCue=/(?:\b(?:live(?:\s+(?:at|from|in|version|performance))?|demo(?:nstration)?|remaster(?:ed|ing)?|re[\s-]?master(?:ed)?|remix(?:es|ed)?|re[\s-]?record(?:ed|ing)?|alternate(?:\s+take)?|alternative(?:\s+take)?|acoustic|unplugged|radio\s+(?:edit|mix|version)|single\s+(?:edit|mix|version)|album\s+(?:edit|mix|version)|extended(?:\s+(?:version|mix))?|club\s+mix|12[ -]?inch(?:\s+mix)?|instrumental|off[\s-]?vocal|karaoke|cover(?:\s+version)?|tribute\s+(?:to|album|songs?)|made\s+famous\s+by|original\s+(?:artist|version|soundtrack|mix)|sped[\s-]?up|slowed(?:\s+down)?|nightcore|acapella|a[ -]?cappella|clean\s+version|explicit\s+version|full\s+version|music\s+box|piano\s+version|string\s+quartet|anniversary\s+edition|deluxe\s+edition|expanded\s+edition|special\s+edition|collector['\u2019]?s\s+edition|bonus\s+track|mono|stereo|taylor['\u2019]?s\s+version|(?:english|japanese|thai|korean|chinese)\s+version)\b|\u30e9\u30a4\u30d6|\u30ab\u30d0\u30fc|\u30ea\u30df\u30c3\u30af\u30b9|\u30a2\u30b3\u30fc\u30b9\u30c6\u30a3\u30c3\u30af|\u30ea\u30de\u30b9\u30bf\u30fc|\u30ab\u30e9\u30aa\u30b1|\u30a4\u30f3\u30b9\u30c8|\u4f34\u594f)/iu;
+const catalogVocaloidAlternateCue=/(?:\b(?:self[-\s]?cover|(?:vocaloid|vocal\s+synth)\s+(?:version|ver\.?|mix)|(?:short|long|alternate|alt)\s+version|alternate\s+mix)\b|\u30bb\u30eb\u30d5\u30ab\u30d0\u30fc|\u5225\u30d0\u30fc\u30b8\u30e7\u30f3)/iu;
+const catalogThaiVersionCue=/(?:\u0e04\u0e31\u0e1f\u0e40\u0e27\u0e2d\u0e23\u0e4c|\u0e23\u0e35\u0e21\u0e34\u0e01\u0e0b\u0e4c|\u0e04\u0e32\u0e23\u0e32\u0e42\u0e2d\u0e40\u0e01\u0e30|\u0e1a\u0e23\u0e23\u0e40\u0e25\u0e07|\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e0a\u0e31\u0e19|\u0e2d\u0e30\u0e04\u0e39\u0e2a\u0e15\u0e34\u0e01|\u0e23\u0e35\u0e21\u0e32\u0e2a\u0e40\u0e15\u0e2d\u0e23\u0e4c|\u30e9\u30a4\u30d6|\u30ab\u30d0\u30fc|\u30ea\u30df\u30c3\u30af\u30b9|\u30a2\u30b3\u30fc\u30b9\u30c6\u30a3\u30c3\u30af|\u30ea\u30de\u30b9\u30bf\u30fc|\u30ab\u30e9\u30aa\u30b1|\u30d0\u30fc\u30b8\u30e7\u30f3|\u30a4\u30f3\u30b9\u30c8|\u4f34\u594f)/iu;
+const catalogAlternateTitleSuffixCue=/(?:\s+(?:live|demo(?:nstration)?|remaster(?:ed|ing)?|re[\s-]?master(?:ed)?|remix(?:es|ed)?|re[\s-]?record(?:ed|ing)?|alternate(?:\s+take)?|alternative(?:\s+take)?|acoustic|unplugged|radio\s+(?:edit|mix|version)|single\s+(?:edit|mix|version)|album\s+(?:edit|mix|version)|instrumental|off[\s-]?vocal|karaoke|sped[\s-]?up|slowed(?:\s+down)?|nightcore|taylor['\u2019]?s\s+version)|\s[-\u2013\u2014:]\s*(?:live|demo(?:nstration)?|remaster(?:ed|ing)?|remix(?:es|ed)?|acoustic|unplugged|radio\s+(?:edit|mix|version)|instrumental|karaoke|sped[\s-]?up|slowed(?:\s+down)?|nightcore|taylor['\u2019]?s\s+version))$/iu;
+const catalogAlternateCollectionCue=/(?:\b(?:live|concert|demo(?:nstration)?|remaster(?:ed|ing)?|re[\s-]?master(?:ed)?|remix(?:es|ed)?|re[\s-]?record(?:ed|ing)?|alternate|alternative|acoustic|unplugged|karaoke|instrumental|off[\s-]?vocal|sped[\s-]?up|slowed|nightcore|taylor['\u2019]?s\s+version|piano\s+version|music\s+box|tribute|covers?)\b|\u30e9\u30a4\u30d6|\u30ab\u30d0\u30fc|\u30ea\u30df\u30c3\u30af\u30b9|\u30a2\u30b3\u30fc\u30b9\u30c6\u30a3\u30c3\u30af|\u30ea\u30de\u30b9\u30bf\u30fc|\u30ab\u30e9\u30aa\u30b1|\u30a4\u30f3\u30b9\u30c8|\u4f34\u594f)/iu;
+const catalogCoverMetadataCue=/(?:\b(?:karaoke|tribute\s+(?:to|album|songs?)|covers?\s+(?:version|versions|of|to|songs?|album|collection)|(?:piano|guitar|acoustic|anime|instrumental)\s+covers?|made\s+famous\s+by|originally\s+performed\s+by|in\s+the\s+style\s+of|instrumental\s+versions?|piano\s+versions?|music\s+box|lullaby\s+renditions|rockabye\s+baby|kidz?\s+bop|glee\s+cast|vitamin\s+string\s+quartet|the\s+hit\s+crew|countdown\s+singers|postmodern\s+jukebox|richard\s+cheese)\b)/iu;
+const catalogAiSlopCue=/(?:\b(?:suno|udio|elevenlabs|stable\s+audio|ai[ -]?(?:generated|music|song|cover|slop)|generated\s+by\s+ai|made\s+with\s+ai|synthetic\s+(?:artist|music)|voice[ -]?clon(?:e|ed|ing))\b)/iu;
+const catalogNonTargetScriptCue=/(?:\p{Script=Hangul}|\p{Script=Cyrillic}|\p{Script=Arabic}|\p{Script=Greek}|\p{Script=Hebrew}|\p{Script=Devanagari}|\p{Script=Bengali}|\p{Script=Gurmukhi}|\p{Script=Gujarati}|\p{Script=Tamil}|\p{Script=Telugu}|\p{Script=Kannada}|\p{Script=Malayalam}|\p{Script=Sinhala}|\p{Script=Lao}|\p{Script=Myanmar})/u;
+const catalogNonTargetTitleCue=/(?:\b(?:despacito|bailando|coraz[oó]n|mi\s+gente|la\s+tortura|chantaje|ojos\s+as[ií]|sale\s+el\s+sol|d[ií]a\s+de\s+enero)\b|[áéíóúñü¿¡ãõçàèìòùâêîôûäëïöß])/iu;
+function normalizeCatalogName(value){return String(value||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').trim();}
+for(const genre of Object.keys(genreArtistSeeds))genreArtistSeeds[genre]=[...new Map(genreArtistSeeds[genre].map((artist)=>[normalizeCatalogName(artist),artist])).values()];
+for(const genre of Object.keys(animeSeriesSearchTerms))animeSeriesSearchTerms[genre]=[...new Set(animeSeriesSearchTerms[genre])];
+function normalizeCatalogDedupPart(value){return String(value||'').normalize('NFKC').toLowerCase().normalize('NFD').replace(/(\p{Script=Latin})\p{M}+/gu,'$1').replace(/[^\p{L}\p{N}\p{M}]+/gu,' ').trim();}
+function getCatalogSongDedupeKeys(song,asset=null){
+  const metadata=(asset&&typeof asset==='object'?asset:song?.[9])||{};
+  const trackId=metadata.trackId||song?.[9]?.trackId;
+  const isrc=String(metadata.isrc||song?.[9]?.isrc||'').trim().toUpperCase();
+  const title=normalizeCatalogDedupPart(song?.[0]||metadata.trackName).replace(/\b(?:feat(?:uring)?|featuring)\b.*$/u,'').trim();
+  const artist=normalizeCatalogDedupPart(song?.[1]||metadata.artistName).replace(/\b(?:feat(?:uring)?|featuring)\b.*$/u,'').trim();
+  const keys=[];
+  if(trackId)keys.push(`id:${trackId}`);
+  if(isrc)keys.push(`isrc:${isrc}`);
+  if(title&&artist)keys.push(`title:${title}|artist:${artist}`);
+  return keys;
+}
+function dedupeCatalogSongs(songs){
+  const seen=new Set();
+  const unique=[];
+  for(const song of songs||[]){
+    const keys=getCatalogSongDedupeKeys(song);
+    if(!keys.length||keys.some((key)=>seen.has(key)))continue;
+    keys.forEach((key)=>seen.add(key));
+    unique.push(song);
+  }
+  return unique;
+}
+function hasVersionAnnotation(title){
+  const value=String(title||'').normalize('NFKC');
+  const annotations=[...value.matchAll(/\(([^)]*)\)|\[([^\]]*)\]/gu)].map(match=>match[1]||match[2]);
+  const suffix=value.match(/\s[-\u2013\u2014:]\s*([^()[\]]+)$/u)?.[1];
+  if(suffix)annotations.push(suffix);
+  return annotations.some(annotation=>catalogVersionCue.test(annotation)||catalogThaiVersionCue.test(annotation));
+}
+function isCoverOrAlternateTrack(song,asset=null){
+  const metadata=(asset&&typeof asset==='object'?asset:song?.[9])||{};
+  const title=String(song?.[0]||metadata.trackName||'').normalize('NFKC');
+  const artist=String(song?.[1]||metadata.artistName||'').normalize('NFKC');
+  const collection=String(metadata.collectionName||song?.[10]||'').normalize('NFKC');
+  if(hasVersionAnnotation(title)||catalogAlternateTitleSuffixCue.test(title)||catalogVocaloidAlternateCue.test(title)||catalogVocaloidAlternateCue.test(collection))return true;
+  if(catalogCoverMetadataCue.test(title)||catalogCoverMetadataCue.test(collection)||catalogThaiVersionCue.test(title))return true;
+  if(catalogAlternateCollectionCue.test(collection)||catalogThaiVersionCue.test(collection))return true;
+  return /\b(?:karaoke|tribute|cover\s+band|cover\s+artists?|cover\s+versions?|the\s+hit\s+crew|countdown\s+singers|glee\s+cast|vitamin\s+string\s+quartet|rockabye\s+baby|kidz?\s+bop|postmodern\s+jukebox|richard\s+cheese)\b/iu.test(artist);
+}
+function matchesCatalogSeedArtist(artist,seeds){
+  const actual=normalizeCatalogName(artist);
+  if(!actual)return false;
+  return (seeds||[]).some(seed=>{
+    const expected=normalizeCatalogName(seed);
+    return expected&&(actual===expected||actual.includes(` ${expected} `)||actual.startsWith(`${expected} `)||actual.endsWith(` ${expected}`));
+  });
+}
+function isExpectedCatalogArtist(song,genre){
+  const seeds=genreArtistSeeds[genre];
+  // Artist searches can return unrelated cover acts; keep tracks credited to a searched performer.
+  return !seeds||matchesCatalogSeedArtist(song?.[1],seeds);
+}
+function getCatalogLanguageHint(song,genre){
+  if(genre==='Thai songs'||matchesCatalogSeedArtist(song?.[1],genreArtistSeeds['Thai songs']))return 'th';
+  if(genre==='J-Pop'||genre==='Vocaloid'||genre.startsWith('Anime ')||song?.[6]||matchesCatalogSeedArtist(song?.[1],genreArtistSeeds['J-Pop']))return 'ja';
+  return 'en';
+}
+function isAllowedCatalogLanguage(song,genre,asset=null){
+  const metadata=(asset&&typeof asset==='object'?asset:song?.[9])||{};
+  const explicitLanguage=[metadata.language,metadata.languageCode,metadata.trackLanguage,metadata.primaryLanguage,metadata.attributes?.language,metadata.attributes?.languageCode]
+    .map(value=>String(value||'').trim().toLowerCase()).find(Boolean);
+  if(explicitLanguage){
+    const code=explicitLanguage.split(/[-_]/)[0];
+    const name=explicitLanguage.replace(/[^a-z]/g,'');
+    if(!(['en','th','ja'].includes(code)||['english','thai','japanese'].includes(name)))return false;
+  }
+  const title=String(song?.[0]||metadata.trackName||'').normalize('NFKC');
+  const artist=String(song?.[1]||metadata.artistName||'').normalize('NFKC');
+  if(!title)return false;
+  if(catalogNonTargetScriptCue.test(title))return false;
+  const hasThai=/\p{Script=Thai}/u.test(title);
+  const hasKana=/[\u3040-\u30ff]/u.test(title);
+  const hasHan=/\p{Script=Han}/u.test(title);
+  if(hasThai||hasKana)return true;
+  const sourceLanguage=getCatalogLanguageHint(song,genre);
+  if(hasHan)return sourceLanguage==='ja';
+  // Apple Search lacks a per-track lyric-language field; screen obvious foreign-title cases
+  // and use the curated artist list plus storefront for romanized Thai/Japanese releases.
+  if(sourceLanguage==='en'&&catalogNonTargetTitleCue.test(title))return false;
+  // Japanese and Thai catalogs are built from their native artist lists and storefronts;
+  // romanized song titles are common there, so retain those entries as well.
+  if(sourceLanguage==='th'||sourceLanguage==='ja')return true;
+  // BTS is represented only by its English-language releases in the starter catalog.
+  if(normalizeCatalogName(artist)==='bts')return ['dynamite','butter'].includes(normalizeCatalogName(title));
+  return true;
+}
 function isRemixOrInstrumental(song){
   const title=String(song?.[0]||'').normalize('NFKC');
-  return /(?:\bremix(?:es|ed)?\b|\binstrumental\b|\boff[\s-]?vocal\b|\bkaraoke\b|\bbacking\s+track\b|\bno\s+vocals\b|\bwithout\s+vocals\b|\u4f34\u594f|\u30a4\u30f3\u30b9\u30c8|\u30ab\u30e9\u30aa\u30b1)/iu.test(title);
+  return /(?:\bremix(?:es|ed)?\b|\binstrumental\b|\boff[\s-]?vocal\b|\bkaraoke\b|\bbacking\s+track\b|\bno\s+vocals\b|\bwithout\s+vocals\b|\u4f34\u594f|\u30a4\u30f3\u30b9\u30c8|\u30ab\u30e9\u30aa\u30b1|\u0e04\u0e32\u0e23\u0e32\u0e42\u0e2d\u0e40\u0e01\u0e30|\u0e1a\u0e23\u0e23\u0e40\u0e25\u0e07|\u0e23\u0e35\u0e21\u0e34\u0e01\u0e0b\u0e4c)/iu.test(title);
 }
 function isExcludedAnimeTrack(song){
   const title=String(song?.[0]||'').normalize('NFKC');
   return isRemixOrInstrumental(song)||/(?:\btheme(?:\s+song)?\b|\bsoundtrack\b|\boriginal\s+score\b|\bost\b|\bbgm\b|\u30b5\u30a6\u30f3\u30c9\u30c8\u30e9\u30c3\u30af|\u30c6\u30fc\u30de\u66f2)/iu.test(title);
 }
-function isExcludedCatalogTrack(song,isAnimeSource=false){return isAnimeSource?isExcludedAnimeTrack(song):isRemixOrInstrumental(song);}
+function isExcludedCatalogTrack(song,isAnimeSource=false,asset=null,genre=''){
+  const metadata=(asset&&typeof asset==='object'?asset:song?.[9])||{};
+  const artist=String(song?.[1]||metadata.artistName||'');
+  const collection=String(metadata.collectionName||song?.[10]||'');
+  return isCoverOrAlternateTrack(song,asset)||catalogAiSlopCue.test(`${song?.[0]||''} ${artist} ${collection}`)||!isAllowedCatalogLanguage(song,genre,asset)||(isAnimeSource?isExcludedAnimeTrack(song):isRemixOrInstrumental(song))||(!isAnimeSource&&!isExpectedCatalogArtist(song,genre));
+}
 const genreCatalogCache=new Map();
+const genreCatalogLoadTasks=new Map();
 const everythingGenreCatalogs=new Map();
 let activeCatalog=roundSongs;
 const genreAliases={'เพลงป๊อป':'Pop anthems','อินดี้และอัลเทอร์เนทีฟ':'Indie & alternative','ฮิปฮอปและอาร์แอนด์บี':'Hip-hop & R&B','เพลงคลาสสิกย้อนยุค':'Throwback classics','เพลงไทย':'Thai songs','เจป๊อป':'J-Pop'};
-async function loadSingleGenreCatalog(genre) {
+const catalogDatabasePromise=(()=>{
+  if(!('indexedDB' in window))return Promise.resolve(null);
+  return new Promise(resolve=>{
+    try{
+      const request=indexedDB.open('sonora-song-catalogs',1);
+      request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('catalogs'))request.result.createObjectStore('catalogs');};
+      request.onsuccess=()=>resolve(request.result);
+      request.onerror=()=>resolve(null);
+      request.onblocked=()=>resolve(null);
+    }catch{resolve(null);}
+  });
+})();
+async function readCatalogStorage(key){
+  try{
+    const database=await catalogDatabasePromise;
+    if(database){
+      const value=await new Promise(resolve=>{
+        try{const request=database.transaction('catalogs','readonly').objectStore('catalogs').get(key);request.onsuccess=()=>resolve(request.result??null);request.onerror=()=>resolve(null);}catch{resolve(null);}
+      });
+      if(value!==null)return value;
+    }
+  }catch{}
+  try{return JSON.parse(localStorage.getItem(key)||'null');}catch{return null;}
+}
+async function writeCatalogStorage(key,value){
+  try{
+    const database=await catalogDatabasePromise;
+    if(database){
+      const saved=await new Promise(resolve=>{
+        try{
+          const transaction=database.transaction('catalogs','readwrite');
+          transaction.objectStore('catalogs').put(value,key);
+          transaction.oncomplete=()=>resolve(true);
+          transaction.onerror=()=>resolve(false);
+          transaction.onabort=()=>resolve(false);
+        }catch{resolve(false);}
+      });
+      if(saved)return true;
+    }
+  }catch{}
+  try{localStorage.setItem(key,JSON.stringify(value));return true;}catch{return false;}
+}
+async function removeCatalogStorage(key){
+  try{
+    const database=await catalogDatabasePromise;
+    if(database)await new Promise(resolve=>{
+      try{const transaction=database.transaction('catalogs','readwrite');transaction.objectStore('catalogs').delete(key);transaction.oncomplete=()=>resolve();transaction.onerror=()=>resolve();transaction.onabort=()=>resolve();}catch{resolve();}
+    });
+  }catch{}
+  try{localStorage.removeItem(key);}catch{}
+}
+async function loadSingleGenreCatalogInner(genre) {
   genre = genreAliases[genre] || genre;
   const artists = genreArtistSeeds[genre];
   const searchTerms = animeSeriesSearchTerms[genre] || artists;
@@ -200,38 +372,40 @@ async function loadSingleGenreCatalog(genre) {
   if (genreCatalogCache.has(genre)) return genreCatalogCache.get(genre);
 
   const hasAnimeSource = Boolean(animeSeriesSearchTerms[genre]);
-  const storageKey = 'sonora-song-catalog-v6-' + genre;
+  const catalogTarget=getGenreCatalogTarget(genre);
+  const storageKey = getGenreCatalogStorageKey(genre);
   const previousStorageKeys = [
+    'sonora-song-catalog-v8-' + genre,
+    'sonora-song-catalog-v7-' + genre,
+    'sonora-song-catalog-v6-' + genre,
     'sonora-song-catalog-v5-' + genre,
     'sonora-song-catalog-' + (hasAnimeSource ? 'v4-' : 'v3-') + genre,
     'sonora-song-catalog-v2-' + genre,
     'sonora-song-catalog-v1-' + genre
   ];
-  try {
-    const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
-    if (Array.isArray(saved) && saved.length >= GENRE_CATALOG_SIZE) {
-      const cleanSaved=saved.filter(song=>!isExcludedCatalogTrack(song,hasAnimeSource));
-      if(cleanSaved.length!==saved.length){try{localStorage.setItem(storageKey,JSON.stringify(cleanSaved));}catch{}}
-      for (const song of cleanSaved) {
-        if (Array.isArray(song) && song.length >= 4) {
-          songAssetCache.set(song[0] + '|' + song[1], Promise.resolve({
-            trackName: song[0], artistName: song[1], artworkUrl100: song[2], previewUrl: song[3],
-            releaseDate: song[4] || '', catalogRank: song[5] || 0
-          }));
-        }
-      }
-      genreCatalogCache.set(genre, cleanSaved);
-      return cleanSaved;
+  const savedRecord=await readCatalogStorage(storageKey);
+  const savedSongs=Array.isArray(savedRecord)?savedRecord:(Array.isArray(savedRecord?.songs)?savedRecord.songs:[]);
+  const savedComplete=Array.isArray(savedRecord)?savedSongs.length>=catalogTarget:Boolean(savedRecord?.complete&&(genre!=='Vocaloid'||savedSongs.length>=catalogTarget));
+  const cleanSaved=dedupeCatalogSongs(savedSongs.filter(song=>!isExcludedCatalogTrack(song,hasAnimeSource,null,genre)));
+  if(savedComplete&&cleanSaved.length>=4){
+    for(const song of cleanSaved){
+      song[9]={...((song[9]&&typeof song[9]==='object')?song[9]:{}),catalogGenre:song[9]?.catalogGenre||genre};
+      if(Array.isArray(song)&&song.length>=4)songAssetCache.set(song[0]+'|'+song[1],Promise.resolve({trackName:song[0],artistName:song[1],artworkUrl100:song[2],previewUrl:song[3],...(song[9]||{}),releaseDate:song[4]||'',catalogRank:song[5]||0}));
     }
-  } catch {}
+    genreCatalogCache.set(genre,cleanSaved);
+    if(cleanSaved.length!==savedSongs.length)await writeCatalogStorage(storageKey,{complete:true,songs:cleanSaved});
+    for(const previousStorageKey of previousStorageKeys)await removeCatalogStorage(previousStorageKey);
+    return cleanSaved;
+  }
 
   const catalog = [];
   const seen = new Set();
   const addSong = (song, asset) => {
-    if (!song?.[0] || !song?.[1] || !song?.[3] || isExcludedCatalogTrack(song,hasAnimeSource)) return;
-    const key = normalizeSongText(song[0]) + '|' + normalizeSongText(song[1]);
-    if (seen.has(key)) return;
-    seen.add(key);
+    if (!song?.[0] || !song?.[1] || !song?.[3] || isExcludedCatalogTrack(song,hasAnimeSource,asset,genre)) return;
+    song[9]={...((song[9]&&typeof song[9]==='object')?song[9]:{}),catalogGenre:song[9]?.catalogGenre||genre};
+    const keys=getCatalogSongDedupeKeys(song,asset);
+    if(!keys.length||keys.some((key)=>seen.has(key)))return;
+    keys.forEach((key)=>seen.add(key));
     songAssetCache.set(song[0] + '|' + song[1], Promise.resolve(asset || {
       trackName: song[0], artistName: song[1], artworkUrl100: song[2] || '', previewUrl: song[3],
       releaseDate: song[4] || '', catalogRank: song[5] || 0
@@ -239,38 +413,39 @@ async function loadSingleGenreCatalog(genre) {
     catalog.push(song);
   };
 
+  for(const song of cleanSaved)addSong(song);
   for (const previousStorageKey of previousStorageKeys) {
-    try {
-      const previous = JSON.parse(localStorage.getItem(previousStorageKey) || 'null');
-      if (Array.isArray(previous)) {
-        for (const song of previous) {
-          addSong(song);
-        }
-      }
-    } catch {}
+    const previous=await readCatalogStorage(previousStorageKey);
+    if(Array.isArray(previous))for(const song of previous)addSong(song);
   }
-  for(const previousStorageKey of previousStorageKeys){try{localStorage.removeItem(previousStorageKey);}catch{}}
+  if(catalog.length>catalogTarget)catalog.length=catalogTarget;
 
-  for (let offset = 0; offset < searchTerms.length && catalog.length < GENRE_CATALOG_SIZE; offset += 8) {
+  let searchesComplete=true;
+  for (let offset = 0; offset < searchTerms.length && catalog.length < catalogTarget; offset += 8) {
     const batch = searchTerms.slice(offset, offset + 8);
-    const country = genre === 'Thai songs' ? 'TH' : genre === 'J-Pop' || genre.startsWith('Anime ') ? 'JP' : 'US';
+    const country = genre === 'Thai songs' ? 'TH' : genre === 'J-Pop' || genre === 'Vocaloid' || genre.startsWith('Anime ') ? 'JP' : 'US';
     const results = await Promise.all(batch.map(async (term) => {
       try {
-        const searchTerm = animeSeriesSearchTerms[genre] ? `${term} anime ${genre.endsWith('openings') ? 'opening' : 'ending'}` : term;
+        const searchTerm = animeSeriesSearchTerms[genre] ? `${term} anime ${genre.endsWith('openings') ? 'opening' : 'ending'}` : genre==='Vocaloid' ? `${term} Vocaloid` : term;
         const url = 'https://itunes.apple.com/search?term=' + encodeURIComponent(searchTerm)
-          + '&entity=song&country=' + country + '&limit=50';
-        const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-        if (!response.ok) return { tracks: [], anime: animeSeriesSearchTerms[genre] ? term : '' };
+          + '&entity=song&country=' + country + '&limit=200';
+        const response = await fetchItunesSearch(url,{timeoutMs:15000,status:`Searching ${genre} catalog…`});
+        if (!response.ok) return { tracks: [], anime: animeSeriesSearchTerms[genre] ? term : '', ok: false };
         const data = await response.json();
-        return { tracks: data.results || [], anime: animeSeriesSearchTerms[genre] ? term : '' };
+        return { tracks: data.results || [], anime: animeSeriesSearchTerms[genre] ? term : '', ok: true };
       } catch {
-        return { tracks: [], anime: animeSeriesSearchTerms[genre] ? term : '' };
+        return { tracks: [], anime: animeSeriesSearchTerms[genre] ? term : '', ok: false };
       }
     }));
-    for (const { tracks, anime } of results) {
-      for (const [trackIndex, track] of tracks.entries()) {
+    for(const {ok} of results)if(!ok)searchesComplete=false;
+    const maxTrackCount=Math.max(0,...results.map((result)=>result.tracks.length));
+    // Interleave each artist/series result list so one prolific search cannot crowd out the rest.
+    for(let trackIndex=0;trackIndex<maxTrackCount;trackIndex++){
+      for(const {tracks,anime} of results){
+        const track=tracks[trackIndex];
+        if(!track)continue;
         if (!track.previewUrl || !track.trackName || !track.artistName) continue;
-        addSong([
+        const entry=[
           track.trackName,
           track.artistName,
           track.artworkUrl100 || '',
@@ -278,71 +453,138 @@ async function loadSingleGenreCatalog(genre) {
           track.releaseDate || '',
           trackIndex + 1,
           anime
-        ], { ...track, catalogRank: trackIndex + 1 });
-        if (catalog.length >= GENRE_CATALOG_SIZE) break;
+        ];
+        entry[9]={collectionName:track.collectionName||'',trackId:track.trackId||0,isrc:track.isrc||''};
+        addSong(entry, { ...track, catalogRank: trackIndex + 1 });
+        if (catalog.length >= catalogTarget) break;
       }
-      if (catalog.length >= GENRE_CATALOG_SIZE) break;
+      if (catalog.length >= catalogTarget) break;
     }
+    const batchComplete=catalog.length>=catalogTarget||(genre!=='Vocaloid'&&offset+batch.length>=searchTerms.length&&searchesComplete);
+    if(catalog.length>0){
+      const stored=await writeCatalogStorage(storageKey,{complete:batchComplete,songs:catalog});
+      if(stored)for(const previousStorageKey of previousStorageKeys)await removeCatalogStorage(previousStorageKey);
+    }
+    catalogSnapshotByGenre.set(genre,catalog);
+    if(everythingGenreCatalogs.has(genre))everythingGenreCatalogs.set(genre,catalog);
+    if(!gameView.hidden&&gameView.dataset.catalogPreparing==='true'){const feedback=gameView.querySelector('.round-feedback');if(feedback)feedback.textContent=`${genre}: ${catalog.length.toLocaleString()} screened songs found.`;}
   }
 
   genreCatalogCache.set(genre, catalog);
-  if (catalog.length >= GENRE_CATALOG_SIZE) {
-    try { localStorage.setItem(storageKey, JSON.stringify(catalog)); } catch {}
+  if(catalog.length>0){
+    const complete=catalog.length>=catalogTarget||(genre!=='Vocaloid'&&searchesComplete);
+    const stored=await writeCatalogStorage(storageKey,{complete,songs:catalog});
+    if(stored)for(const previousStorageKey of previousStorageKeys)await removeCatalogStorage(previousStorageKey);
   }
   return catalog;
 }
-const sourceGenres=['Pop anthems','Indie & alternative','Hip-hop & R&B','Throwback classics','Thai songs','J-Pop','Anime openings','Anime endings'];
+async function loadSingleGenreCatalog(genre){
+  genre=genreAliases[genre]||genre;
+  if(genreCatalogCache.has(genre))return genreCatalogCache.get(genre);
+  if(genreCatalogLoadTasks.has(genre))return genreCatalogLoadTasks.get(genre);
+  const task=loadSingleGenreCatalogInner(genre);
+  genreCatalogLoadTasks.set(genre,task);
+  try{return await task;}finally{if(genreCatalogLoadTasks.get(genre)===task)genreCatalogLoadTasks.delete(genre);}
+}
+const sourceGenres=['Pop anthems','Indie & alternative','Hip-hop & R&B','Throwback classics','Thai songs','J-Pop','Anime openings','Anime endings','Vocaloid'];
 const combinedGenres=['Everything',...sourceGenres];
+let catalogSnapshotsReady=false;
+const catalogSnapshotByGenre=new Map();
+const catalogExpansionTasks=new Map();
+const deferredCatalogExpansionGenres=new Set();
+async function loadCachedGenreSnapshot(genre){
+  const hasAnimeSource=Boolean(animeSeriesSearchTerms[genre]);
+  const keys=[
+    getGenreCatalogStorageKey(genre),'sonora-song-catalog-v9-'+genre,'sonora-song-catalog-v8-'+genre,'sonora-song-catalog-v7-'+genre,
+    'sonora-song-catalog-v6-'+genre,'sonora-song-catalog-v5-'+genre,
+    'sonora-song-catalog-'+(hasAnimeSource?'v4-':'v3-')+genre,
+    'sonora-song-catalog-v2-'+genre,'sonora-song-catalog-v1-'+genre
+  ];
+  const records=await Promise.all(keys.map(readCatalogStorage));
+  const songs=[];
+  for(const record of records){
+    if(Array.isArray(record))songs.push(...record);
+    else if(Array.isArray(record?.songs))songs.push(...record.songs);
+  }
+  const clean=dedupeCatalogSongs(songs.filter(song=>!isExcludedCatalogTrack(song,hasAnimeSource,null,genre)));
+  for(const song of clean)song[9]={...((song[9]&&typeof song[9]==='object')?song[9]:{}),catalogGenre:genre};
+  return clean;
+}
+function mergeCatalogEntries(songs){
+  const merged=[];
+  const seen=new Set();
+  for(const song of songs){
+    if(!Array.isArray(song)||!song[0]||!song[1]||isExcludedCatalogTrack(song,Boolean(song[6]),null,song[9]?.catalogGenre||''))continue;
+    if(!song[6]&&!roundSongs.includes(song)&&!sourceGenres.some(name=>matchesCatalogSeedArtist(song[1],genreArtistSeeds[name])))continue;
+    const keys=getCatalogSongDedupeKeys(song);
+    if(!keys.length||keys.some(key=>seen.has(key)))continue;
+    keys.forEach(key=>seen.add(key));
+    merged.push(song);
+  }
+  return merged;
+}
+async function prepareCatalogSnapshots(){
+  if(!catalogSnapshotsReady){
+    const snapshots=await Promise.all(sourceGenres.map(async name=>[name,await loadCachedGenreSnapshot(name)]));
+    everythingGenreCatalogs.clear();
+    snapshots.forEach(([name,songs])=>{everythingGenreCatalogs.set(name,songs);catalogSnapshotByGenre.set(name,songs);});
+    catalogSnapshotsReady=true;
+  }
+  return mergeCatalogEntries([...roundSongs,...[...everythingGenreCatalogs.values()].flat()]);
+}
 async function loadGenreCatalog(genre) {
   genre=genreAliases[genre]||genre;
   if(genre==='Anime'){
     const catalogs=await Promise.all([loadSingleGenreCatalog('Anime openings'),loadSingleGenreCatalog('Anime endings')]);
-    return [...new Map(catalogs.flat().map((song)=>[normalizeSongText(song[0])+'|'+normalizeSongText(song[1]),song])).values()];
+    return dedupeCatalogSongs(catalogs.flat());
   }
   if(genre!=='Everything')return loadSingleGenreCatalog(genre);
   if(genreCatalogCache.has('Everything')&&everythingGenreCatalogs.size)return genreCatalogCache.get('Everything');
-  const cacheKey='sonora-song-catalog-v5-Everything';
+  const cacheKey='sonora-song-catalog-v9-Everything';
   let cachedSongs=[];
-  try {
-    const cached=JSON.parse(localStorage.getItem(cacheKey)||'null');
-    const complete=cached?.counts&&combinedGenres.every((name)=>cached.counts[name]>=GENRE_CATALOG_SIZE);
-    if(complete&&Array.isArray(cached.songs))cachedSongs=cached.songs;
-  } catch {}
+  for(const key of [cacheKey,'sonora-song-catalog-v8-Everything','sonora-song-catalog-v7-Everything','sonora-song-catalog-v6-Everything','sonora-song-catalog-v5-Everything']){
+    const cached=await readCatalogStorage(key);
+    const complete=cached?.counts&&combinedGenres.every((name)=>cached.counts[name]>=getGenreCatalogTarget(name));
+    if(complete&&Array.isArray(cached.songs)){cachedSongs=cached.songs;break;}
+  }
   const existing=[];
   for(const key of ['sonora-song-catalog-v4-Everything','sonora-song-catalog-v3-Everything','sonora-song-catalog-v2-Everything','sonora-song-catalog-v1-Everything']){
-    try {const saved=JSON.parse(localStorage.getItem(key)||'null');if(Array.isArray(saved))existing.push(...saved);} catch {}
-    try {localStorage.removeItem(key);} catch {}
+    const saved=await readCatalogStorage(key);
+    if(Array.isArray(saved))existing.push(...saved);
   }
   const catalogs=await Promise.all(sourceGenres.map(loadSingleGenreCatalog));
   everythingGenreCatalogs.clear();
   sourceGenres.forEach((name,index)=>everythingGenreCatalogs.set(name,catalogs[index]));
-  const merged=[];
-  const seen=new Set();
-  for(const song of [...roundSongs,...existing,...cachedSongs,...catalogs.flat()]){
-    if(!Array.isArray(song)||!song[0]||!song[1]||isExcludedCatalogTrack(song,Boolean(song[6])))continue;
-    const key=normalizeSongText(song[0])+'|'+normalizeSongText(song[1]);
-    if(seen.has(key))continue;
-    seen.add(key);
-    merged.push(song);
-  }
+  const merged=mergeCatalogEntries([...roundSongs,...existing,...cachedSongs,...catalogs.flat()]);
   genreCatalogCache.set('Everything',merged);
   const counts=Object.fromEntries(sourceGenres.map((name,index)=>[name,catalogs[index].length]));
   counts.Everything=merged.length;
-  if(combinedGenres.every((name)=>counts[name]>=GENRE_CATALOG_SIZE)){
-    try {localStorage.setItem(cacheKey,JSON.stringify({counts,songs:merged}));} catch {}
-  }
+  if(combinedGenres.every((name)=>counts[name]>=getGenreCatalogTarget(name))){
+    await writeCatalogStorage(cacheKey,{counts,songs:merged});
+  } else await removeCatalogStorage(cacheKey);
+  for(const key of ['sonora-song-catalog-v8-Everything','sonora-song-catalog-v7-Everything','sonora-song-catalog-v6-Everything','sonora-song-catalog-v5-Everything','sonora-song-catalog-v4-Everything','sonora-song-catalog-v3-Everything','sonora-song-catalog-v2-Everything','sonora-song-catalog-v1-Everything'])await removeCatalogStorage(key);
   return merged;
 }
 window.getRoundSongCatalogs=async(genre='Everything')=>{
   genre=genreAliases[genre]||genre;
   if(genre==='Anime'){
+    if(catalogExpansionTasks.has('Anime')||deferredCatalogExpansionGenres.has('Anime')){
+      const openings=catalogSnapshotByGenre.get('Anime openings')||[];
+      const endings=catalogSnapshotByGenre.get('Anime endings')||[];
+      return openings.length||endings.length?[{name:'Anime openings',songs:openings},{name:'Anime endings',songs:endings}]:[{name:'Anime',songs:roundSongs}];
+    }
     const [openings,endings]=await Promise.all([loadSingleGenreCatalog('Anime openings'),loadSingleGenreCatalog('Anime endings')]);
     return [{name:'Anime openings',songs:openings},{name:'Anime endings',songs:endings}];
   }
   if(genre==='Everything'){
+    if(catalogExpansionTasks.has('Everything')||catalogSnapshotsReady||deferredCatalogExpansionGenres.has('Everything')){
+      const snapshots=[...everythingGenreCatalogs].filter(([,songs])=>songs.length>=4).map(([name,songs])=>({name,songs}));
+      return snapshots.length?snapshots:[{name:'Everything',songs:roundSongs}];
+    }
     await loadGenreCatalog('Everything');
     return [...everythingGenreCatalogs].map(([name,songs])=>({name,songs}));
   }
+  if(catalogExpansionTasks.has(genre)||deferredCatalogExpansionGenres.has(genre))return [{name:genre,songs:catalogSnapshotByGenre.get(genre)||roundSongs}];
   return [{name:genre,songs:await loadSingleGenreCatalog(genre)}];
 };
 function getSongDifficulty(song,asset){
@@ -450,6 +692,64 @@ function getJPopSubtitle(song, genre = activeRoundGenre) {
   return romaji && !/[\u3400-\u9fff]/u.test(romaji) ? romaji : '';
 }
 window.getJPopSubtitle = getJPopSubtitle;
+const vocaloidSubtitleCacheKey='sonora-vocaloid-title-subtitles-v1';
+const vocaloidSubtitleCache=new Map();
+const vocaloidSubtitleRequests=new Map();
+try{const saved=JSON.parse(localStorage.getItem(vocaloidSubtitleCacheKey)||'{}');for(const [key,value] of Object.entries(saved))if(value&&typeof value.subtitle==='string'&&value.expires>Date.now())vocaloidSubtitleCache.set(key,value.subtitle);}catch{}
+function normalizeVocaloidTitle(value){return String(value||'').normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu,'').trim();}
+function getVocaloidTitleSubtitle(song){
+  const title=String(song?.[0]||'');
+  if(!title||!/[\u3040-\u30ff\u3400-\u9fff]/u.test(title))return '';
+  const metadata=song?.[9]&&typeof song[9]==='object'?song[9]:{};
+  const alias=metadata.vocaloidTitleAliases||{};
+  const known=jpopTitleAliases.get(title.normalize('NFC'))||{};
+  if(alias.english||known.english)return alias.english||known.english;
+  const romanji=alias.romanji||alias.romaji||known.romaji||romanizeKana(title);
+  return romanji&&!/[\u3400-\u9fff]/u.test(romanji)?romanji:'';
+}
+function saveVocaloidTitleSubtitle(key,subtitle){
+  vocaloidSubtitleCache.set(key,subtitle);
+  try{localStorage.setItem(vocaloidSubtitleCacheKey,JSON.stringify(Object.fromEntries([...vocaloidSubtitleCache].map(([cacheKey,value])=>[cacheKey,{subtitle:value,expires:Date.now()+30*24*60*60*1000}]))));}catch{}
+}
+async function resolveVocaloidTitleSubtitle(song){
+  const title=String(song?.[0]||'');
+  if(!title||!/[\u3040-\u30ff\u3400-\u9fff]/u.test(title))return '';
+  const fallback=getVocaloidTitleSubtitle(song);
+  const key=`${normalizeVocaloidTitle(title)}|${normalizeVocaloidTitle(song?.[1])}`;
+  if(vocaloidSubtitleCache.has(key))return vocaloidSubtitleCache.get(key)||fallback;
+  if(vocaloidSubtitleRequests.has(key))return vocaloidSubtitleRequests.get(key);
+  const request=(async()=>{
+    try{
+      const params=new URLSearchParams({query:title,nameMatchMode:'Exact',preferAccurateMatches:'true',maxResults:'10',fields:'Names,AdditionalNames,Artists',lang:'English'});
+      const response=await fetch(`https://vocadb.net/api/songs?${params}`,{signal:AbortSignal.timeout(4000)});
+      if(!response.ok)return fallback;
+      const data=await response.json();
+      const expectedTitle=normalizeVocaloidTitle(title);
+      const expectedArtist=normalizeVocaloidTitle(song?.[1]);
+      const entries=Array.isArray(data.items)?data.items:[];
+      const match=entries.find(entry=>{
+        const names=Array.isArray(entry.names)?entry.names.map(name=>name?.value):[];
+        const aliases=String(entry.additionalNames||'').split(',');
+        const exactTitle=[entry.defaultName,entry.name,...names,...aliases].some(name=>normalizeVocaloidTitle(name)===expectedTitle);
+        if(!exactTitle)return false;
+        const artists=Array.isArray(entry.artists)?entry.artists.flatMap(artist=>[artist?.name,artist?.additionalNames]):[entry.artistString];
+        const usableArtists=artists.map(normalizeVocaloidTitle).filter(Boolean);
+        return !expectedArtist||!usableArtists.length||usableArtists.some(artist=>artist===expectedArtist||(expectedArtist.length>=4&&(artist.includes(expectedArtist)||expectedArtist.includes(artist))));
+      });
+      const names=Array.isArray(match?.names)?match.names:[];
+      const languageName=language=>names.find(name=>String(name?.language||'').toLocaleLowerCase()===language)?.value||'';
+      const english=languageName('english')||((match?.name&&!/[\u3040-\u30ff\u3400-\u9fff]/u.test(match.name)&&normalizeVocaloidTitle(match.name)!==expectedTitle)?match.name:'');
+      const romanji=languageName('romaji')||'';
+      const subtitle=english||romanji||fallback;
+      saveVocaloidTitleSubtitle(key,subtitle);
+      return subtitle;
+    }catch{return fallback;}
+  })();
+  vocaloidSubtitleRequests.set(key,request);
+  try{return await request;}finally{if(vocaloidSubtitleRequests.get(key)===request)vocaloidSubtitleRequests.delete(key);}
+}
+window.getVocaloidTitleSubtitle=getVocaloidTitleSubtitle;
+window.resolveVocaloidTitleSubtitle=resolveVocaloidTitleSubtitle;
 function updateDifficultyMeter(difficulty='medium'){
   const levels=['easy','medium','hard','extreme'];
   const level=levels.includes(difficulty)?difficulty:'medium';
@@ -462,7 +762,8 @@ function updateDifficultyMeter(difficulty='medium'){
 window.getSongDifficulty=getSongDifficulty;
 window.updateDifficultyMeter=updateDifficultyMeter;
 function applySongArtwork(element,asset){if(!element||!asset?.artworkUrl100)return;const imageUrl=asset.artworkUrl100.replace(/^http:/,'https:');const image=new Image();image.onload=()=>{element.style.backgroundImage=`url("${imageUrl}")`;element.style.backgroundSize='cover';element.style.backgroundPosition='center';element.classList.add('cover-loaded');};image.src=imageUrl;}
-const choiceArtworkObserver=new MutationObserver(()=>{const currentRound=roundNo;gameView.querySelectorAll('.song-choice').forEach(choice=>{const title=choice.querySelector('.song-title strong')?.textContent;const artist=choice.dataset.artist;const song=[...activeCatalog,...roundSongs].find(item=>item[0]===title&&(!artist||item[1]===artist));if(song){const subtitle=getJPopSubtitle(song,activeRoundGenre);if(subtitle&&!choice.querySelector('.song-title-subtitle')){const node=document.createElement('small');node.className='song-title-subtitle';node.textContent=subtitle;const origin=choice.querySelector('.song-origin');choice.querySelector('.song-title').insertBefore(node,origin);}loadSongAsset(song).then(asset=>{if(currentRound===roundNo&&choice.isConnected)applySongArtwork(choice.querySelector('.cover-art'),asset);});}});});
+function setChoiceSubtitle(choice,subtitle){const titleNode=choice.querySelector('.song-title');if(!titleNode)return;let node=choice.querySelector('.song-title-subtitle');if(!subtitle){node?.remove();return;}if(!node){node=document.createElement('small');node.className='song-title-subtitle';const origin=choice.querySelector('.song-origin');titleNode.insertBefore(node,origin);}if(node.textContent!==subtitle)node.textContent=subtitle;}
+const choiceArtworkObserver=new MutationObserver(()=>{const currentRound=roundNo;gameView.querySelectorAll('.song-choice').forEach(choice=>{const title=choice.querySelector('.song-title strong')?.textContent;const artist=choice.dataset.artist;const song=[...activeCatalog,...roundSongs].find(item=>item[0]===title&&(!artist||item[1]===artist));if(song){const subtitle=activeRoundGenre==='Vocaloid'?getVocaloidTitleSubtitle(song):getJPopSubtitle(song,activeRoundGenre);setChoiceSubtitle(choice,subtitle);if(activeRoundGenre==='Vocaloid')resolveVocaloidTitleSubtitle(song).then(resolved=>{if(currentRound===roundNo&&choice.isConnected)setChoiceSubtitle(choice,resolved);});loadSongAsset(song).then(asset=>{if(currentRound===roundNo&&choice.isConnected)applySongArtwork(choice.querySelector('.cover-art'),asset);});}});});
 choiceArtworkObserver.observe(gameView.querySelector('.song-choices'),{childList:true});
 const resultArtworkObserver=new MutationObserver(()=>{if(roundResult.hidden)return;const title=roundResult.querySelector('#round-result-title').textContent;const song=activeRoundSong||roundSongs.find(item=>item[0]===title);if(song)loadSongAsset(song).then(asset=>{if(!roundResult.hidden&&roundResult.querySelector('#round-result-title').textContent===title)applySongArtwork(roundResult.querySelector('.result-vinyl span'),asset);});});
 resultArtworkObserver.observe(roundResult,{attributes:true,attributeFilter:['hidden']});
@@ -516,11 +817,57 @@ async function launchGame(){
   gameView.hidden=false;document.body.style.overflow='auto';
   const feedback=gameView.querySelector('.round-feedback');
   feedback.textContent='Preparing the song list…';
+  gameView.dataset.catalogPreparing='true';
+  let deferredExpansionGenre='';
   try{
-    activeCatalog=await loadGenreCatalog(r.genre||'Everything');
+    const selectedGenre=genreAliases[r.genre]||r.genre||'Everything';
+    if(selectedGenre==='Everything'){
+      activeCatalog=await prepareCatalogSnapshots();
+      if(activeCatalog.length<4)activeCatalog=roundSongs;
+      gameView.dataset.catalogPreparing='false';
+      deferredExpansionGenre='Everything';
+    }else{
+      let snapshot=[];
+      if(selectedGenre==='Anime'){
+        const [openings,endings]=await Promise.all([loadCachedGenreSnapshot('Anime openings'),loadCachedGenreSnapshot('Anime endings')]);
+        catalogSnapshotByGenre.set('Anime openings',openings);
+        catalogSnapshotByGenre.set('Anime endings',endings);
+        snapshot=dedupeCatalogSongs([...openings,...endings]);
+      }else{
+        snapshot=await loadCachedGenreSnapshot(selectedGenre);
+        catalogSnapshotByGenre.set(selectedGenre,snapshot);
+      }
+      activeCatalog=snapshot.length>=4?snapshot:roundSongs;
+      gameView.dataset.catalogPreparing='false';
+      deferredCatalogExpansionGenres.add(selectedGenre);
+      deferredExpansionGenre=selectedGenre;
+    }
     if(activeCatalog.length<4)activeCatalog=roundSongs;
     await nextRound();
+    if(deferredExpansionGenre==='Everything'&&!catalogExpansionTasks.has('Everything')){
+      const task=loadGenreCatalog('Everything').then(catalog=>{
+        activeCatalog=catalog;
+        for(const [name,songs] of everythingGenreCatalogs)catalogSnapshotByGenre.set(name,songs);
+        return catalog;
+      }).catch(()=>activeCatalog);
+      catalogExpansionTasks.set('Everything',task);
+    }else if(deferredExpansionGenre&&deferredExpansionGenre!=='Everything'){
+      deferredCatalogExpansionGenres.delete(deferredExpansionGenre);
+      if(!catalogExpansionTasks.has(deferredExpansionGenre)){
+        const selectedGenre=deferredExpansionGenre;
+        const task=loadGenreCatalog(selectedGenre).then(catalog=>{
+          activeCatalog=catalog;
+          if(selectedGenre==='Anime'){
+            catalogSnapshotByGenre.set('Anime openings',genreCatalogCache.get('Anime openings')||[]);
+            catalogSnapshotByGenre.set('Anime endings',genreCatalogCache.get('Anime endings')||[]);
+          }else catalogSnapshotByGenre.set(selectedGenre,catalog);
+          return catalog;
+        }).catch(()=>activeCatalog);
+        catalogExpansionTasks.set(selectedGenre,task);
+      }
+    }
   }catch(error){
+    gameView.dataset.catalogPreparing='false';
     feedback.textContent=`Couldn't prepare songs: ${error?.message||'check your connection and try again.'}`;
     gameView.querySelector('.game-play').disabled=true;
     gameView.querySelector('.game-skip').disabled=true;
@@ -1076,7 +1423,7 @@ async function loadRandomPreviews() {
   for (const term of shuffledTerms) {
     try {
       const endpoint = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&country=US&limit=50`;
-      const response = await fetch(endpoint);
+      const response = await fetchItunesSearch(endpoint,{status:'Loading song previews…'});
       if (!response.ok) continue;
       const data = await response.json();
       previews.push(...data.results.filter((track) => track.previewUrl).map((track) => track.previewUrl));

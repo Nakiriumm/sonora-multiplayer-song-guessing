@@ -757,7 +757,7 @@
     state.bombSearchTimer = setTimeout(async () => {
       send('bomb-search', { query: value, requestId: request });
       const genre = state.room?.genre || '';
-      const country = genre === 'Thai songs' ? 'TH' : genre === 'J-Pop' || genre === 'Anime' || genre.startsWith('Anime ') ? 'JP' : 'US';
+      const country = genre === 'Thai songs' ? 'TH' : genre === 'J-Pop' || genre === 'Vocaloid' || genre === 'Anime' || genre.startsWith('Anime ') ? 'JP' : 'US';
       try {
         const url = `https://itunes.apple.com/search?term=${encodeURIComponent(value)}&entity=song&country=${country}&limit=50`;
         const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
@@ -997,7 +997,7 @@
       }
       if (!selected) throw new Error(`Could not find ${choiceCount} playable ${desiredDifficulty} songs from one genre for round ${roundIndex + 1}. Try another difficulty or genre.`);
       const { genre, entries } = selected;
-      const choiceRecords = entries.map(({ song, asset }) => ({ title: song[0], artwork: asset.artworkUrl100 || song[2] || '', anime: song[6] || '', subtitle: window.getJPopSubtitle?.(song, genre) || '' }));
+      const choiceRecords = await Promise.all(entries.map(async ({ song, asset }) => ({ title: song[0], artwork: asset.artworkUrl100 || song[2] || '', anime: song[6] || '', subtitle: genre === 'Vocaloid' ? (await window.resolveVocaloidTitleSubtitle?.(song) || window.getVocaloidTitleSubtitle?.(song) || '') : (window.getJPopSubtitle?.(song, genre) || '') })));
       const answerIndex = Math.floor(Math.random() * entries.length);
       const { song, asset } = entries[answerIndex];
       const answer = { title: song[0], artist: song[1], artwork: asset.artworkUrl100 || song[2] || '', previewUrl: song[3] || asset.previewUrl };
