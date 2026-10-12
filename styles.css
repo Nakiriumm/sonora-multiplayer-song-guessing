@@ -154,3 +154,4 @@
   .bomb-actions{flex:none;min-height:20px;margin:6px auto 0}
 }
 .kick-player{display:grid;place-items:center;flex:none;width:28px;height:28px;margin-left:auto;border:1px solid #754b4b;border-radius:5px;background:#281b1d;color:#e79a91;font-size:20px;line-height:1}.kick-player:hover{border-color:#e07970;background:#472629;color:#fff}.score-row.is-disconnected{opacity:.4}.score-row.is-disconnected strong{color:#9da39d;text-decoration:line-through}
+.genre-option:not(.selected){opacity:.52}

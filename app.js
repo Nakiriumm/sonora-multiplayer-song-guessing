@@ -501,6 +501,10 @@ async function loadQuickGenreCatalog(genre,target){
 }
 const sourceGenres=['Pop anthems','Indie & alternative','Hip-hop & R&B','Throwback classics','Thai songs','J-Pop','Anime openings','Anime endings','Vocaloid'];
 const combinedGenres=['Everything',...sourceGenres];
+function splitGenreSelection(value){return String(value||'Everything').split('|').map(genre=>genreAliases[genre]||genre).filter(Boolean);}
+function expandGenrePools(genre){return genre==='Anime'?['Anime openings','Anime endings']:[genre];}
+function genreSelectionKeys(value){const selected=splitGenreSelection(value);return [...new Set([...selected,...selected.flatMap(expandGenrePools)])];}
+function mergeGenrePools(pools){return [...new Map(pools.map(pool=>[pool.name,pool])).values()];}
 let catalogSnapshotsReady=false;
 const catalogSnapshotByGenre=new Map();
 const catalogExpansionTasks=new Map();
@@ -584,11 +588,19 @@ async function loadGenreCatalog(genre) {
 }
 window.getRoundSongCatalogs=async(genre='Everything')=>{
   genre=genreAliases[genre]||genre;
+  if(genre.includes('|')){
+    const selected=splitGenreSelection(genre);
+    if(catalogExpansionTasks.has(genre)||deferredCatalogExpansionGenres.has(genre)){
+      return mergeGenrePools(selected.flatMap(expandGenrePools).map(name=>({name,songs:catalogSnapshotByGenre.get(name)||[]})));
+    }
+    const catalogs=await Promise.all(selected.map(name=>window.getRoundSongCatalogs(name)));
+    return mergeGenrePools(catalogs.flat());
+  }
   if(genre==='Anime'){
     if(catalogExpansionTasks.has('Anime')||deferredCatalogExpansionGenres.has('Anime')){
       const openings=catalogSnapshotByGenre.get('Anime openings')||[];
       const endings=catalogSnapshotByGenre.get('Anime endings')||[];
-      return openings.length||endings.length?[{name:'Anime openings',songs:openings},{name:'Anime endings',songs:endings}]:[{name:'Anime',songs:roundSongs}];
+      return [{name:'Anime openings',songs:openings},{name:'Anime endings',songs:endings}];
     }
     const [openings,endings]=await Promise.all([loadSingleGenreCatalog('Anime openings'),loadSingleGenreCatalog('Anime endings')]);
     return [{name:'Anime openings',songs:openings},{name:'Anime endings',songs:endings}];
@@ -596,27 +608,32 @@ window.getRoundSongCatalogs=async(genre='Everything')=>{
   if(genre==='Everything'){
     if(catalogExpansionTasks.has('Everything')||catalogSnapshotsReady||deferredCatalogExpansionGenres.has('Everything')){
       const snapshots=[...everythingGenreCatalogs].filter(([,songs])=>songs.length>=4).map(([name,songs])=>({name,songs}));
-      return snapshots.length?snapshots:[{name:'Everything',songs:roundSongs}];
+      return snapshots.length?snapshots:[{name:'Everything',songs:[]}];
     }
     await loadGenreCatalog('Everything');
     return [...everythingGenreCatalogs].map(([name,songs])=>({name,songs}));
   }
-  if(catalogExpansionTasks.has(genre)||deferredCatalogExpansionGenres.has(genre))return [{name:genre,songs:catalogSnapshotByGenre.get(genre)||roundSongs}];
+  if(catalogExpansionTasks.has(genre)||deferredCatalogExpansionGenres.has(genre))return [{name:genre,songs:catalogSnapshotByGenre.get(genre)||[]}];
   return [{name:genre,songs:await loadSingleGenreCatalog(genre)}];
 };
 window.getCachedRoundSongCatalogs=async(genre='Everything')=>{
   genre=genreAliases[genre]||genre;
+  if(genre.includes('|')){
+    const selected=splitGenreSelection(genre);
+    const catalogs=await Promise.all(selected.map(name=>window.getCachedRoundSongCatalogs(name)));
+    return mergeGenrePools(catalogs.flat());
+  }
   if(genre==='Everything'){
-    const songs=await prepareCatalogSnapshots();
+    await prepareCatalogSnapshots();
     const catalogs=[...everythingGenreCatalogs].filter(([,entries])=>entries.length>=4).map(([name,entries])=>({name,songs:entries}));
-    return catalogs.length?catalogs:[{name:'Everything',songs}];
+    return catalogs.length?catalogs:[{name:'Everything',songs:[]}];
   }
   if(genre==='Anime'){
     const [openings,endings]=await Promise.all([loadCachedGenreSnapshot('Anime openings'),loadCachedGenreSnapshot('Anime endings')]);
     catalogSnapshotByGenre.set('Anime openings',openings);
     catalogSnapshotByGenre.set('Anime endings',endings);
     const catalogs=[['Anime openings',openings],['Anime endings',endings]].filter(([,entries])=>entries.length>=4).map(([name,entries])=>({name,songs:entries}));
-    return catalogs.length?catalogs:[{name:'Anime',songs:dedupeCatalogSongs([...openings,...endings])}];
+    return catalogs.length?catalogs:[{name:'Anime openings',songs:openings},{name:'Anime endings',songs:endings}];
   }
   const songs=await loadCachedGenreSnapshot(genre);
   catalogSnapshotByGenre.set(genre,songs);
@@ -633,6 +650,19 @@ window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficul
   const hasPlayablePool=catalogs=>(catalogs||[]).some(pool=>(pool.songs||[]).filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty).length>=minimumPerPool);
   let catalogs=await window.getCachedRoundSongCatalogs(genre);
   if(playableCount(catalogs)>=required&&hasPlayablePool(catalogs))return catalogs;
+  if(genre.includes('|')){
+    const selected=splitGenreSelection(genre).flatMap(expandGenrePools);
+    const groups=new Map(catalogs.map(({name,songs})=>[name,songs||[]]));
+    for(const sourceGenre of selected.sort(()=>Math.random()-.5)){
+      const target=expansionTarget(Math.ceil(required/selected.length),sourceGenre);
+      groups.set(sourceGenre,await loadQuickGenreCatalog(sourceGenre,target));
+      catalogs=[...groups].map(([name,songs])=>({name,songs}));
+      if(playableCount(catalogs)>=required&&hasPlayablePool(catalogs))break;
+    }
+    catalogs=[...groups].map(([name,songs])=>({name,songs}));
+    if(playableCount(catalogs)<required||!hasPlayablePool(catalogs))throw new Error(`Only ${playableCount(catalogs)} playable ${difficulty} songs are cached for ${genre.replaceAll('|', ', ')}. Check your connection and try again.`);
+    return catalogs;
+  }
   if(genre==='Everything'){
     const groups=new Map(catalogs.filter(pool=>pool.name!=='Everything').map(pool=>[pool.name,pool.songs||[]]));
     const genres=[...sourceGenres].sort(()=>Math.random()-.5).slice(0,3);
@@ -897,19 +927,12 @@ async function launchGame(){
       gameView.dataset.catalogPreparing='false';
       deferredExpansionGenre='Everything';
     }else{
-      let snapshot=[];
-      if(selectedGenre==='Anime'){
-        const [openings,endings]=await Promise.all([loadCachedGenreSnapshot('Anime openings'),loadCachedGenreSnapshot('Anime endings')]);
-        catalogSnapshotByGenre.set('Anime openings',openings);
-        catalogSnapshotByGenre.set('Anime endings',endings);
-        snapshot=dedupeCatalogSongs([...openings,...endings]);
-      }else{
-        snapshot=await loadCachedGenreSnapshot(selectedGenre);
-        catalogSnapshotByGenre.set(selectedGenre,snapshot);
-      }
-      activeCatalog=snapshot.length>=4?snapshot:roundSongs;
+      const cachedCatalogs=await window.getCachedRoundSongCatalogs?.(selectedGenre)||[];
+      for(const {name,songs} of cachedCatalogs){catalogSnapshotByGenre.set(name,songs||[]);everythingGenreCatalogs.set(name,songs||[]);}
+      activeCatalog=cachedCatalogs.flatMap(pool=>pool.songs||[]);
       gameView.dataset.catalogPreparing='false';
-      deferredCatalogExpansionGenres.add(selectedGenre);
+      genreSelectionKeys(selectedGenre).forEach(name=>deferredCatalogExpansionGenres.add(name));
+      if(selectedGenre.includes('|'))deferredCatalogExpansionGenres.add(selectedGenre);
       deferredExpansionGenre=selectedGenre;
     }
     if(activeCatalog.length<4)activeCatalog=roundSongs;
@@ -919,9 +942,15 @@ async function launchGame(){
       feedback.textContent='Finding playable songs for the first round…';
       const startupCatalogs=await window.getRoomStartupCatalogs(selectedGenre,choiceCount,difficulty,choiceCount);
       activeCatalog=startupCatalogs.flatMap(pool=>pool.songs||[]);
+      for(const {name,songs} of startupCatalogs){
+        catalogSnapshotByGenre.set(name,songs||[]);
+        everythingGenreCatalogs.set(name,songs||[]);
+      }
     }
     await nextRound();
     if(deferredExpansionGenre){
+      if(deferredExpansionGenre==='Everything')sourceGenres.forEach(name=>deferredCatalogExpansionGenres.delete(name));
+      else genreSelectionKeys(deferredExpansionGenre).forEach(name=>deferredCatalogExpansionGenres.delete(name));
       deferredCatalogExpansionGenres.delete(deferredExpansionGenre);
       if(!catalogExpansionTasks.has(deferredExpansionGenre)){
         const selectedGenre=deferredExpansionGenre;
@@ -1104,13 +1133,19 @@ document.querySelectorAll('.room-setting').forEach((select) => {
       genre.textContent = option.text;
       genre.addEventListener('click', (event) => {
         event.preventDefault();
-        event.stopPropagation();
-        select.value = option.value;
-        genreGrid.querySelectorAll('.genre-option').forEach((item) => item.classList.remove('selected'));
-        genre.classList.add('selected');
-        const room = getRoomState();
-        room.genre = genre.dataset.genre;
-        saveRoomState(room);
+        const choices = [...genreGrid.querySelectorAll('.genre-option')];
+        const categories = choices.filter((item) => item.dataset.genre !== 'Everything');
+        if (genre.dataset.genre === 'Everything') {
+          window.selectSetupGenre?.('Everything');
+          return;
+        }
+        const selected = new Set(categories.filter((item) => item.classList.contains('selected')).map((item) => item.dataset.genre));
+        if (selected.size === categories.length) {
+          selected.clear();
+          selected.add(genre.dataset.genre);
+        } else if (selected.has(genre.dataset.genre)) selected.delete(genre.dataset.genre);
+        else selected.add(genre.dataset.genre);
+        window.selectSetupGenre?.(selected.size ? [...selected].join('|') : 'Everything');
       });
       genreGrid.appendChild(genre);
     });
@@ -1296,7 +1331,7 @@ function renderRoomRosters() {
   if (hostSettings.length >= 7) {
     hostSettings[0].textContent = modeDisplayNames[room.mode] || room.mode;
     hostSettings[1].textContent = `${room.maxPlayers} max`;
-    hostSettings[2].textContent = room.genre;
+    hostSettings[2].textContent = String(room.genre || 'Everything').replaceAll('|', ', ');
     hostSettings[3].textContent = room.time.replace(' seconds', ' sec');
     hostSettings[4].textContent = (room.difficulty || 'medium').replace(/^./, (letter) => letter.toUpperCase());
     hostSettings[5].textContent = `${room.choiceCount || 4} choices`;
@@ -1543,8 +1578,9 @@ function openModal(requireName = false) {
   updateModeSelection(true);
   const room = getRoomState();
   document.querySelectorAll('.genre-option').forEach((choice) => {
-    choice.classList.toggle('selected', choice.dataset.genre === room.genre);
+    choice.setAttribute('aria-pressed', String(choice.classList.contains('selected')));
   });
+  window.selectSetupGenre?.(room.genre || 'Everything');
   modal.hidden = false;
   modal.classList.toggle('solo-setup', selectedMode === 'Solo');
   document.querySelector('.setup-header .eyebrow').textContent = selectedMode === 'Solo' ? 'Solo game setup' : 'Room setup';
@@ -1562,12 +1598,23 @@ function openModal(requireName = false) {
 
 window.selectSetupGenre = (genreName = 'Everything') => {
   const choices = [...document.querySelectorAll('.genre-option')];
-  const selected = choices.find((choice) => choice.dataset.genre === genreName) || choices[0];
-  if (!selected) return;
-  choices.forEach((choice) => choice.classList.toggle('selected', choice === selected));
+  const genres = choices.filter((choice) => choice.dataset.genre !== 'Everything');
+  if (!genres.length) return;
+  const requested = String(genreName || 'Everything');
+  const selectedGenres = requested === 'Everything'
+    ? new Set(genres.map((choice) => choice.dataset.genre))
+    : new Set(requested.split('|').filter((genre) => genres.some((choice) => choice.dataset.genre === genre)));
+  if (!selectedGenres.size) genres.forEach((choice) => selectedGenres.add(choice.dataset.genre));
+  const allSelected = selectedGenres.size === genres.length;
+  choices.forEach((choice) => {
+    const selected = choice.dataset.genre === 'Everything' ? allSelected : selectedGenres.has(choice.dataset.genre);
+    choice.classList.toggle('selected', selected);
+    choice.setAttribute('aria-pressed', String(selected));
+  });
   const room = getRoomState();
-  room.genre = selected.dataset.genre;
+  room.genre = allSelected ? 'Everything' : [...selectedGenres].join('|');
   saveRoomState(room);
+  updateLaunchAvailability();
 };
 
 function closeModal() {

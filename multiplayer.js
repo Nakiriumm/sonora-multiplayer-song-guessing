@@ -28,7 +28,11 @@
     revealAudioKey: '',
     bombSearchRequest: 0,
     bombServerSuggestions: [],
+    bombExternalSuggestions: [],
+    bombServerSearchComplete: false,
+    bombExternalSearchComplete: false,
     bombSearchTimer: 0,
+    bombServerSearchTimeout: 0,
     bombSubmitting: false,
     bombMessageKey: '',
     lastBombTurnKey: '',
@@ -121,7 +125,11 @@
   function currentSettings(name) {
     const saved = getRoomState();
     const playersLabel = $('.player-stepper strong')?.textContent || `${DEFAULT_MAX_PLAYERS} players`;
-    const genre = $('.genre-option.selected')?.dataset.genre || saved.genre || 'Everything';
+    const genreOptions = $$('.genre-option').filter((option) => option.dataset.genre !== 'Everything');
+    const selectedGenres = genreOptions.filter((option) => option.classList.contains('selected')).map((option) => option.dataset.genre);
+    const genre = selectedGenres.length === genreOptions.length
+      ? 'Everything'
+      : selectedGenres.join('|') || saved.genre || 'Everything';
     return {
       name,
       mode: window.getSelectedGameMode?.() || null,
@@ -292,7 +300,7 @@
     if (hostSettings.length >= 7) {
       hostSettings[0].textContent = room.mode === 'SongBomb' ? 'Song Bomb' : 'Classic';
       hostSettings[1].textContent = `${room.maxPlayers} max`;
-      hostSettings[2].textContent = room.genre;
+      hostSettings[2].textContent = String(room.genre || 'Everything').replaceAll('|', ', ');
       hostSettings[3].textContent = `${room.durationSeconds || 30} sec`;
       hostSettings[4].textContent = (room.difficulty || 'medium').replace(/^./, (letter) => letter.toUpperCase());
       hostSettings[5].textContent = `${room.choiceCount || 4} choices`;
@@ -770,14 +778,23 @@
 
   function searchBombSuggestions(query) {
     clearTimeout(state.bombSearchTimer);
+    clearTimeout(state.bombServerSearchTimeout);
     const list = $('.bomb-suggestions');
     const value = query.trim();
     const request = ++state.bombSearchRequest;
     state.bombServerSuggestions = [];
+    state.bombExternalSuggestions = [];
+    state.bombServerSearchComplete = false;
+    state.bombExternalSearchComplete = false;
     if (value.length < (/[\u3040-\u30ff\u3400-\u9fff]/u.test(value) ? 1 : 2)) { list.replaceChildren(); return; }
     list.innerHTML = '<p class="bomb-suggestions-hint">Searching songs…</p>';
     state.bombSearchTimer = setTimeout(async () => {
-      send('bomb-search', { query: value, requestId: request });
+      if (!send('bomb-search', { query: value, requestId: request })) state.bombServerSearchComplete = true;
+      else state.bombServerSearchTimeout = setTimeout(() => {
+        if (request !== state.bombSearchRequest || state.bombServerSearchComplete) return;
+        state.bombServerSearchComplete = true;
+        renderBombSuggestionList(request);
+      }, 4500);
       const genre = state.room?.genre || '';
       const country = genre === 'Thai songs' ? 'TH' : genre === 'J-Pop' || genre === 'Vocaloid' || genre === 'Anime' || genre.startsWith('Anime ') ? 'JP' : 'US';
       try {
@@ -788,17 +805,23 @@
         const results = (data.results || []).filter((song) => song.trackName && song.artistName).slice(0, 12);
         const suggestions = await Promise.all(results.map(async (song) => ({ song, artist: await getEnglishBombArtist(song) })));
         if (request !== state.bombSearchRequest || value !== $('#bomb-song-input').value.trim()) return;
-        renderBombSuggestionList(suggestions, request);
+        state.bombExternalSuggestions = suggestions;
+        state.bombExternalSearchComplete = true;
+        renderBombSuggestionList(request);
       } catch {
-        if (request === state.bombSearchRequest) renderBombSuggestionList([], request);
+        if (request === state.bombSearchRequest) {
+          state.bombExternalSuggestions = [];
+          state.bombExternalSearchComplete = true;
+          renderBombSuggestionList(request);
+        }
       }
     }, 220);
   }
 
-  function renderBombSuggestionList(externalSuggestions, request) {
+  function renderBombSuggestionList(request) {
     if (request !== state.bombSearchRequest) return;
     const list = $('.bomb-suggestions');
-    const combined = [...state.bombServerSuggestions.map((song) => ({ song, artist: song.artist })), ...externalSuggestions];
+    const combined = [...state.bombServerSuggestions.map((song) => ({ song, artist: song.artist })), ...state.bombExternalSuggestions];
     const seen = new Set();
     const unique = combined.filter(({ song, artist }) => {
       const key = `${String(song.title || song.trackName).toLocaleLowerCase()}|${String(artist).toLocaleLowerCase()}`;
@@ -809,7 +832,9 @@
     list.innerHTML = unique.length ? unique.map(({ song, artist }) => {
       const title = song.title || song.trackName;
       return `<button class="bomb-suggestion" type="button" role="option" data-title="${escapeHtml(title)}" data-artist="${escapeHtml(artist)}"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(artist)}</small></button>`;
-    }).join('') : '<p class="bomb-suggestions-hint">No matching songs found.</p>';
+    }).join('') : state.bombServerSearchComplete && state.bombExternalSearchComplete
+      ? '<p class="bomb-suggestions-hint">No matching songs found.</p>'
+      : '<p class="bomb-suggestions-hint">Searching songs…</p>';
   }
 
   function submitBombGuess(guess, title = '', artist = '') {
@@ -863,7 +888,9 @@
       const query = $('#bomb-song-input')?.value.trim() || '';
       if (request === state.bombSearchRequest && query.length >= (/[\u3040-\u30ff\u3400-\u9fff]/u.test(query) ? 1 : 2)) {
         state.bombServerSuggestions = Array.isArray(message.suggestions) ? message.suggestions : [];
-        renderBombSuggestionList([], request);
+        state.bombServerSearchComplete = true;
+        clearTimeout(state.bombServerSearchTimeout);
+        renderBombSuggestionList(request);
       }
       return;
     }

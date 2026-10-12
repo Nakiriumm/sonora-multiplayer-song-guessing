@@ -227,7 +227,7 @@ export class GameRoom extends DurableObject {
         hostId,
         mode: body.mode === 'SongBomb' ? 'SongBomb' : 'Quickfire',
         maxPlayers: Math.max(2, Math.min(20, Number(body.maxPlayers) || 8)),
-        genre: String(body.genre || 'Everything').slice(0, 60),
+        genre: String(body.genre || 'Everything').slice(0, 180),
         difficulty: ['easy', 'medium', 'hard', 'extreme'].includes(body.difficulty) ? body.difficulty : 'medium',
         choiceCount: Math.max(4, Math.min(8, Number(body.choiceCount) || 4)),
         roundCount: Math.max(1, Math.min(50, Math.round(Number(body.roundCount) || ROUND_COUNT))),
@@ -378,7 +378,7 @@ export class GameRoom extends DurableObject {
       const maxPlayers = Number.isFinite(Number(action.maxPlayers))
         ? Math.max(room.players.length, Math.min(20, Math.max(2, Number(action.maxPlayers))))
         : room.maxPlayers;
-      const genre = typeof action.genre === 'string' ? action.genre.slice(0, 60) : room.genre;
+      const genre = typeof action.genre === 'string' ? action.genre.slice(0, 180) : room.genre;
       const mode = action.mode === 'SongBomb' || action.mode === 'Quickfire' ? action.mode : (room.mode || 'Quickfire');
       const difficulty = ['easy', 'medium', 'hard', 'extreme'].includes(action.difficulty) ? action.difficulty : (room.difficulty || 'medium');
       const choiceCount = Math.max(4, Math.min(8, Number(action.choiceCount) || Number(room.choiceCount) || 4));
