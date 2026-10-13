@@ -193,6 +193,7 @@ const animeSeriesSearchTerms = {
   ]
 };
 const GENRE_CATALOG_SIZE=3000;
+const disabledGenres=new Set(['Vocaloid']);
 const getGenreCatalogTarget=(genre)=>genre==='Vocaloid'?1000:GENRE_CATALOG_SIZE;
 const getGenreCatalogStorageKey=(genre)=>genre==='Vocaloid'?'sonora-song-catalog-vocaloid-v1':'sonora-song-catalog-v9-'+genre;
 const catalogVersionCue=/(?:\b(?:live(?:\s+(?:at|from|in|version|performance))?|demo(?:nstration)?|remaster(?:ed|ing)?|re[\s-]?master(?:ed)?|remix(?:es|ed)?|re[\s-]?record(?:ed|ing)?|alternate(?:\s+take)?|alternative(?:\s+take)?|acoustic|unplugged|radio\s+(?:edit|mix|version)|single\s+(?:edit|mix|version)|album\s+(?:edit|mix|version)|extended(?:\s+(?:version|mix))?|club\s+mix|12[ -]?inch(?:\s+mix)?|instrumental|off[\s-]?vocal|karaoke|cover(?:\s+version)?|tribute\s+(?:to|album|songs?)|made\s+famous\s+by|original\s+(?:artist|version|soundtrack|mix)|sped[\s-]?up|slowed(?:\s+down)?|nightcore|acapella|a[ -]?cappella|clean\s+version|explicit\s+version|full\s+version|music\s+box|piano\s+version|string\s+quartet|anniversary\s+edition|deluxe\s+edition|expanded\s+edition|special\s+edition|collector['\u2019]?s\s+edition|bonus\s+track|mono|stereo|taylor['\u2019]?s\s+version|(?:english|japanese|thai|korean|chinese)\s+version)\b|\u30e9\u30a4\u30d6|\u30ab\u30d0\u30fc|\u30ea\u30df\u30c3\u30af\u30b9|\u30a2\u30b3\u30fc\u30b9\u30c6\u30a3\u30c3\u30af|\u30ea\u30de\u30b9\u30bf\u30fc|\u30ab\u30e9\u30aa\u30b1|\u30a4\u30f3\u30b9\u30c8|\u4f34\u594f)/iu;
@@ -367,6 +368,7 @@ async function removeCatalogStorage(key){
 }
 async function loadSingleGenreCatalogInner(genre, requestedTarget=null) {
   genre = genreAliases[genre] || genre;
+  if(disabledGenres.has(genre))return [];
   const artists = genreArtistSeeds[genre];
   const searchTerms = animeSeriesSearchTerms[genre] || artists;
   if (!searchTerms) return roundSongs;
@@ -483,6 +485,7 @@ async function loadSingleGenreCatalogInner(genre, requestedTarget=null) {
 }
 async function loadSingleGenreCatalog(genre){
   genre=genreAliases[genre]||genre;
+  if(disabledGenres.has(genre))return [];
   if(genreCatalogCache.has(genre))return genreCatalogCache.get(genre);
   if(genreCatalogLoadTasks.has(genre))return genreCatalogLoadTasks.get(genre);
   const task=loadSingleGenreCatalogInner(genre);
@@ -491,6 +494,7 @@ async function loadSingleGenreCatalog(genre){
 }
 async function loadQuickGenreCatalog(genre,target){
   genre=genreAliases[genre]||genre;
+  if(disabledGenres.has(genre))return [];
   const cachedCatalog=genreCatalogCache.get(genre);
   if(cachedCatalog&&cachedCatalog.length>=target)return cachedCatalog;
   const key=`${genre}:${target}`;
@@ -499,7 +503,7 @@ async function loadQuickGenreCatalog(genre,target){
   quickCatalogLoadTasks.set(key,task);
   try{return await task;}finally{if(quickCatalogLoadTasks.get(key)===task)quickCatalogLoadTasks.delete(key);}
 }
-const sourceGenres=['Pop anthems','Indie & alternative','Hip-hop & R&B','Throwback classics','Thai songs','J-Pop','Anime openings','Anime endings','Vocaloid'];
+const sourceGenres=['Pop anthems','Indie & alternative','Hip-hop & R&B','Throwback classics','Thai songs','J-Pop','Anime openings','Anime endings'];
 const combinedGenres=['Everything',...sourceGenres];
 function splitGenreSelection(value){return String(value||'Everything').split('|').map(genre=>genreAliases[genre]||genre).filter(Boolean);}
 function expandGenrePools(genre){return genre==='Anime'?['Anime openings','Anime endings']:[genre];}
@@ -511,6 +515,7 @@ const catalogExpansionTasks=new Map();
 const quickCatalogLoadTasks=new Map();
 const deferredCatalogExpansionGenres=new Set();
 async function loadCachedGenreSnapshot(genre){
+  if(disabledGenres.has(genreAliases[genre]||genre))return [];
   const hasAnimeSource=Boolean(animeSeriesSearchTerms[genre]);
   const keys=[
     getGenreCatalogStorageKey(genre),'sonora-song-catalog-v9-'+genre,'sonora-song-catalog-v8-'+genre,'sonora-song-catalog-v7-'+genre,
@@ -535,6 +540,7 @@ function mergeCatalogEntries(songs){
   const merged=[];
   const seen=new Set();
   for(const song of songs){
+    if(disabledGenres.has(song?.[9]?.catalogGenre))continue;
     if(!Array.isArray(song)||!song[0]||!song[1]||isExcludedCatalogTrack(song,Boolean(song[6]),null,song[9]?.catalogGenre||''))continue;
     if(!song[6]&&!roundSongs.includes(song)&&!sourceGenres.some(name=>matchesCatalogSeedArtist(song[1],genreArtistSeeds[name])))continue;
     const keys=getCatalogSongDedupeKeys(song);
@@ -555,6 +561,7 @@ async function prepareCatalogSnapshots(){
 }
 async function loadGenreCatalog(genre) {
   genre=genreAliases[genre]||genre;
+  if(disabledGenres.has(genre))return [];
   if(genre==='Anime'){
     const catalogs=await Promise.all([loadSingleGenreCatalog('Anime openings'),loadSingleGenreCatalog('Anime endings')]);
     return dedupeCatalogSongs(catalogs.flat());
@@ -588,6 +595,7 @@ async function loadGenreCatalog(genre) {
 }
 window.getRoundSongCatalogs=async(genre='Everything')=>{
   genre=genreAliases[genre]||genre;
+  if(disabledGenres.has(genre))return [];
   if(genre.includes('|')){
     const selected=splitGenreSelection(genre);
     if(catalogExpansionTasks.has(genre)||deferredCatalogExpansionGenres.has(genre)){
@@ -618,6 +626,7 @@ window.getRoundSongCatalogs=async(genre='Everything')=>{
 };
 window.getCachedRoundSongCatalogs=async(genre='Everything')=>{
   genre=genreAliases[genre]||genre;
+  if(disabledGenres.has(genre))return [];
   if(genre.includes('|')){
     const selected=splitGenreSelection(genre);
     const catalogs=await Promise.all(selected.map(name=>window.getCachedRoundSongCatalogs(name)));
@@ -641,6 +650,7 @@ window.getCachedRoundSongCatalogs=async(genre='Everything')=>{
 };
 window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficulty='medium',minimumChoiceCount=4)=>{
   genre=genreAliases[genre]||genre;
+  if(disabledGenres.has(genre))genre='Everything';
   const required=Math.max(4,Math.min(500,Number(requiredCount)||40));
   const minimumPerPool=Math.max(4,Math.min(8,Number(minimumChoiceCount)||4));
   const difficultyMultiplier={easy:2,medium:4,hard:8,extreme:12}[difficulty]||4;
@@ -1131,10 +1141,16 @@ document.querySelectorAll('.room-setting').forEach((select) => {
       genre.className = 'genre-option';
       genre.dataset.genre = option.value || option.text;
       genre.textContent = option.text;
+      if(disabledGenres.has(genre.dataset.genre)){
+        genre.disabled = true;
+        genre.title = 'Temporarily unavailable';
+        genre.setAttribute('aria-label', `${option.text}, temporarily unavailable`);
+      }
       genre.addEventListener('click', (event) => {
         event.preventDefault();
+        if(genre.disabled)return;
         const choices = [...genreGrid.querySelectorAll('.genre-option')];
-        const categories = choices.filter((item) => item.dataset.genre !== 'Everything');
+        const categories = choices.filter((item) => item.dataset.genre !== 'Everything' && !disabledGenres.has(item.dataset.genre));
         if (genre.dataset.genre === 'Everything') {
           window.selectSetupGenre?.('Everything');
           return;
@@ -1197,6 +1213,10 @@ const defaultRoomState = { hostName: '', maxPlayers: 8, mode: 'Quickfire', genre
 function getRoomState() {
   try {
     const room = JSON.parse(localStorage.getItem(roomStateKey)) || structuredClone(defaultRoomState);
+    if(room.genre){
+      const availableGenres=splitGenreSelection(room.genre).filter(genre=>!disabledGenres.has(genre));
+      room.genre=availableGenres.length?availableGenres.join('|'):'Everything';
+    }
     if (!availableModes.has(room.mode)) room.mode = 'Quickfire';
     if (!['easy', 'medium', 'hard', 'extreme'].includes(room.difficulty)) room.difficulty = 'medium';
     if (![4, 5, 6, 7, 8].includes(Number(room.choiceCount))) room.choiceCount = 4;
@@ -1598,7 +1618,7 @@ function openModal(requireName = false) {
 
 window.selectSetupGenre = (genreName = 'Everything') => {
   const choices = [...document.querySelectorAll('.genre-option')];
-  const genres = choices.filter((choice) => choice.dataset.genre !== 'Everything');
+  const genres = choices.filter((choice) => choice.dataset.genre !== 'Everything' && !disabledGenres.has(choice.dataset.genre));
   if (!genres.length) return;
   const requested = String(genreName || 'Everything');
   const selectedGenres = requested === 'Everything'
@@ -1607,7 +1627,7 @@ window.selectSetupGenre = (genreName = 'Everything') => {
   if (!selectedGenres.size) genres.forEach((choice) => selectedGenres.add(choice.dataset.genre));
   const allSelected = selectedGenres.size === genres.length;
   choices.forEach((choice) => {
-    const selected = choice.dataset.genre === 'Everything' ? allSelected : selectedGenres.has(choice.dataset.genre);
+    const selected = !choice.disabled && (choice.dataset.genre === 'Everything' ? allSelected : selectedGenres.has(choice.dataset.genre));
     choice.classList.toggle('selected', selected);
     choice.setAttribute('aria-pressed', String(selected));
   });

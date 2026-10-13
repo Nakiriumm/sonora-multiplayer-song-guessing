@@ -155,4 +155,5 @@
 }
 .kick-player{display:grid;place-items:center;flex:none;width:28px;height:28px;margin-left:auto;border:1px solid #754b4b;border-radius:5px;background:#281b1d;color:#e79a91;font-size:20px;line-height:1}.kick-player:hover{border-color:#e07970;background:#472629;color:#fff}.score-row.is-disconnected{opacity:.4}.score-row.is-disconnected strong{color:#9da39d;text-decoration:line-through}
 .genre-option:not(.selected){opacity:.52}
+.genre-option:disabled,.genre-option:disabled:hover{opacity:.24!important;filter:grayscale(1);cursor:not-allowed;border-color:#35413d!important;background:#18211f!important;color:#66706b!important;transform:none!important}
 .bomb-log-artist{color:#c1c6c1;font-size:11px;font-weight:500}
