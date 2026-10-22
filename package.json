@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --ip 127.0.0.1 --port 8000",
+    "dev": "node scripts/dev.js",
     "deploy": "node scripts/deploy-with-retry.js"
   },
   "devDependencies": {
