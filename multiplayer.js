@@ -531,7 +531,7 @@
         $('.track-line i').style.width = '0%';
         $('.round-feedback').textContent = 'Choose quickly for the highest score.';
       }
-      if (renderChoices) container.innerHTML = choices.map((choice, index) => `<button class="song-choice" data-choice-index="${index}" type="button"><span class="cover-art cover-${(number + index) % 4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeHtml(choice.title)}</strong>${choice.subtitle && (room.currentRound?.genre || room.genre) !== 'Vocaloid' ? `<small class="song-title-subtitle">${escapeHtml(choice.subtitle)}</small>` : ''}${choice.anime ? `<small class="song-origin">From ${escapeHtml(choice.anime)}</small>` : ''}</span><i>${String.fromCharCode(65 + index)}</i></button>`).join('');
+      if (renderChoices) container.innerHTML = choices.map((choice, index) => `<button class="song-choice" data-choice-index="${index}" type="button"><span class="cover-art cover-${(number + index) % 4}" aria-hidden="true">♪</span><span class="song-title notranslate" translate="no"><strong>${escapeHtml(choice.title)}</strong>${choice.subtitle && (room.currentRound?.genre || room.genre) !== 'Vocaloid' ? `<small class="song-title-subtitle notranslate" translate="no">${escapeHtml(choice.subtitle)}</small>` : ''}${choice.anime ? `<small class="song-origin">From ${escapeHtml(choice.anime)}</small>` : ''}</span><i>${String.fromCharCode(65 + index)}</i></button>`).join('');
       if (renderChoices) choices.forEach((choice, index) => {
         const cover = container.querySelector(`[data-choice-index="${index}"] .cover-art`);
       if (cover && choice.artwork) {
@@ -668,18 +668,21 @@
         if (entry.answerTitle) {
           line.appendChild(document.createTextNode(' '));
           const answer = document.createElement('strong');
-          answer.className = 'bomb-log-answer';
+          answer.className = 'bomb-log-answer notranslate';
+          answer.setAttribute('translate', 'no');
           answer.textContent = entry.answerTitle;
           line.appendChild(answer);
           if (entry.answerArtist) {
             const artist = document.createElement('small');
-            artist.className = 'bomb-log-artist';
+            artist.className = 'bomb-log-artist notranslate';
+            artist.setAttribute('translate', 'no');
             artist.textContent = ` - (${entry.answerArtist})`;
             line.appendChild(artist);
           }
           if (entry.answerSubtitle) {
             const subtitle = document.createElement('small');
-            subtitle.className = 'song-title-subtitle';
+            subtitle.className = 'song-title-subtitle notranslate';
+            subtitle.setAttribute('translate', 'no');
             subtitle.textContent = entry.answerSubtitle;
             line.appendChild(subtitle);
           }

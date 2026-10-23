@@ -89,7 +89,7 @@ document.body.appendChild(songBombView);
 const roundResult = document.createElement('div');
 roundResult.className = 'round-result-backdrop';
 roundResult.hidden = true;
-roundResult.innerHTML = '<section class="round-result-card" role="dialog" aria-modal="true" aria-labelledby="round-result-title"><div class="result-vinyl"><span>SONORA</span></div><p class="eyebrow">Round complete</p><h2 id="round-result-title">Song revealed</h2><p id="round-result-subtitle" class="song-title-subtitle"></p><p class="result-artist"></p><p class="result-player-status" aria-live="polite"></p><p class="result-countdown">Next round in <b>10</b>s</p><button class="continue-round" type="button">Continue (0/1)</button></section>';
+roundResult.innerHTML = '<section class="round-result-card" role="dialog" aria-modal="true" aria-labelledby="round-result-title"><div class="result-vinyl"><span>SONORA</span></div><p class="eyebrow">Round complete</p><h2 id="round-result-title" class="notranslate" translate="no">Song revealed</h2><p id="round-result-subtitle" class="song-title-subtitle notranslate" translate="no"></p><p class="result-artist notranslate" translate="no"></p><p class="result-player-status" aria-live="polite"></p><p class="result-countdown">Next round in <b>10</b>s</p><button class="continue-round" type="button">Continue (0/1)</button></section>';
 document.body.appendChild(roundResult);
 const winnerResult=document.createElement('div');
 winnerResult.className='winner-backdrop';
@@ -1056,7 +1056,7 @@ async function nextRound(){
   const choiceList=gameView.querySelector('.song-choices');
   choiceList?.classList.remove('locked','wrong-locked');
   const guessStatus=gameView.querySelector('.guess-status');if(guessStatus)guessStatus.textContent=`${choices.length} choices`;
-  if(choiceList)choiceList.innerHTML=choices.map((choice,index)=>`<button class="song-choice" data-artist="${escapeRoomText(choice[1])}" data-correct="${choice===song}" type="button"><span class="cover-art cover-${(roundNo+index)%4}" aria-hidden="true">♪</span><span class="song-title"><strong>${escapeRoomText(choice[0])}</strong>${choiceSubtitles[index]?`<small class="song-title-subtitle">${escapeRoomText(choiceSubtitles[index])}</small>`:''}${choice[6]?`<small class="song-origin">From ${escapeRoomText(choice[6])}</small>`:''}</span><i>${String.fromCharCode(65+index)}</i></button>`).join('');
+  if(choiceList)choiceList.innerHTML=choices.map((choice,index)=>`<button class="song-choice" data-artist="${escapeRoomText(choice[1])}" data-correct="${choice===song}" type="button"><span class="cover-art cover-${(roundNo+index)%4}" aria-hidden="true">♪</span><span class="song-title notranslate" translate="no"><strong>${escapeRoomText(choice[0])}</strong>${choiceSubtitles[index]?`<small class="song-title-subtitle notranslate" translate="no">${escapeRoomText(choiceSubtitles[index])}</small>`:''}${choice[6]?`<small class="song-origin">From ${escapeRoomText(choice[6])}</small>`:''}</span><i>${String.fromCharCode(65+index)}</i></button>`).join('');
   if(activeRoundGenre==='Vocaloid'){
     const selectedRound=roundNo;
     resolveVocaloidTitleSubtitle(song).then(subtitle=>{
