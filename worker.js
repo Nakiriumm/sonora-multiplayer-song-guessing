@@ -4,6 +4,10 @@ const CODE_ALPHABET = '0123456789';
 const DEFAULT_ROUND_SECONDS = 30;
 const BREAK_SECONDS = 10;
 const ROUND_COUNT = 10;
+const normalizeGenre = (value) => {
+  const genres = String(value || 'Everything').split('|').map((genre) => genre.trim()).filter((genre) => genre && genre !== 'Vocaloid');
+  return genres.length ? genres.join('|') : 'Everything';
+};
 const STAGES = [0.1, 0.5, 2, 8, 15];
 const STAGE_STARTS = [0, ...STAGES.slice(0, -1)];
 const ROUND_POINTS = [100, 80, 60, 35, 20];
@@ -54,6 +58,7 @@ function connectedPlayersFinished(room) {
 
 function cleanRound(round) {
   if (!round || !Array.isArray(round.choices) || round.choices.length < 4 || round.choices.length > 8) return null;
+  if (String(round.genre || '').split('|').some((genre) => genre.trim() === 'Vocaloid')) return null;
   if (!Number.isInteger(round.answerIndex) || round.answerIndex < 0 || round.answerIndex >= round.choices.length) return null;
   const safeArtwork = (value) => {
     const candidate = String(value || '');
@@ -140,6 +145,7 @@ export class GameRoom extends DurableObject {
 
   async load() {
     if (!this.state) this.state = await this.ctx.storage.get('room');
+    if (this.state?.genre) this.state.genre = normalizeGenre(this.state.genre);
     return this.state;
   }
 
@@ -227,7 +233,7 @@ export class GameRoom extends DurableObject {
         hostId,
         mode: body.mode === 'SongBomb' ? 'SongBomb' : 'Quickfire',
         maxPlayers: Math.max(2, Math.min(20, Number(body.maxPlayers) || 8)),
-        genre: String(body.genre || 'Everything').slice(0, 180),
+        genre: normalizeGenre(body.genre).slice(0, 180),
         difficulty: ['easy', 'medium', 'hard', 'extreme'].includes(body.difficulty) ? body.difficulty : 'medium',
         choiceCount: Math.max(4, Math.min(8, Number(body.choiceCount) || 4)),
         roundCount: Math.max(1, Math.min(50, Math.round(Number(body.roundCount) || ROUND_COUNT))),
@@ -378,7 +384,7 @@ export class GameRoom extends DurableObject {
       const maxPlayers = Number.isFinite(Number(action.maxPlayers))
         ? Math.max(room.players.length, Math.min(20, Math.max(2, Number(action.maxPlayers))))
         : room.maxPlayers;
-      const genre = typeof action.genre === 'string' ? action.genre.slice(0, 180) : room.genre;
+      const genre = typeof action.genre === 'string' ? normalizeGenre(action.genre).slice(0, 180) : room.genre;
       const mode = action.mode === 'SongBomb' || action.mode === 'Quickfire' ? action.mode : (room.mode || 'Quickfire');
       const difficulty = ['easy', 'medium', 'hard', 'extreme'].includes(action.difficulty) ? action.difficulty : (room.difficulty || 'medium');
       const choiceCount = Math.max(4, Math.min(8, Number(action.choiceCount) || Number(room.choiceCount) || 4));
