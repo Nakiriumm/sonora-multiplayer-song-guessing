@@ -193,8 +193,10 @@ const animeSeriesSearchTerms = {
   ]
 };
 const GENRE_CATALOG_SIZE=3000;
+const ANIME_CATALOG_SIZE=300;
+const ANIME_SOURCE_CATALOG_SIZE=ANIME_CATALOG_SIZE/2;
 const disabledGenres=new Set(['Vocaloid']);
-const getGenreCatalogTarget=(genre)=>genre==='Vocaloid'?1000:GENRE_CATALOG_SIZE;
+const getGenreCatalogTarget=(genre)=>genre==='Vocaloid'?1000:animeSeriesSearchTerms[genre]?ANIME_SOURCE_CATALOG_SIZE:GENRE_CATALOG_SIZE;
 const getGenreCatalogStorageKey=(genre)=>genre==='Vocaloid'?'sonora-song-catalog-vocaloid-v1':'sonora-song-catalog-v9-'+genre;
 const catalogVersionCue=/(?:\b(?:live(?:\s+(?:at|from|in|version|performance))?|demo(?:nstration)?|remaster(?:ed|ing)?|re[\s-]?master(?:ed)?|remix(?:es|ed)?|re[\s-]?record(?:ed|ing)?|alternate(?:\s+take)?|alternative(?:\s+take)?|acoustic|unplugged|radio\s+(?:edit|mix|version)|single\s+(?:edit|mix|version)|album\s+(?:edit|mix|version)|extended(?:\s+(?:version|mix))?|club\s+mix|12[ -]?inch(?:\s+mix)?|instrumental|off[\s-]?vocal|karaoke|cover(?:\s+version)?|tribute\s+(?:to|album|songs?)|made\s+famous\s+by|original\s+(?:artist|version|soundtrack|mix)|sped[\s-]?up|slowed(?:\s+down)?|nightcore|acapella|a[ -]?cappella|clean\s+version|explicit\s+version|full\s+version|music\s+box|piano\s+version|string\s+quartet|anniversary\s+edition|deluxe\s+edition|expanded\s+edition|special\s+edition|collector['\u2019]?s\s+edition|bonus\s+track|mono|stereo|taylor['\u2019]?s\s+version|(?:english|japanese|thai|korean|chinese)\s+version)\b|\u30e9\u30a4\u30d6|\u30ab\u30d0\u30fc|\u30ea\u30df\u30c3\u30af\u30b9|\u30a2\u30b3\u30fc\u30b9\u30c6\u30a3\u30c3\u30af|\u30ea\u30de\u30b9\u30bf\u30fc|\u30ab\u30e9\u30aa\u30b1|\u30a4\u30f3\u30b9\u30c8|\u4f34\u594f)/iu;
 const catalogVocaloidAlternateCue=/(?:\b(?:self[-\s]?cover|(?:vocaloid|vocal\s+synth)\s+(?:version|ver\.?|mix)|(?:short|long|alternate|alt)\s+version|alternate\s+mix)\b|\u30bb\u30eb\u30d5\u30ab\u30d0\u30fc|\u5225\u30d0\u30fc\u30b8\u30e7\u30f3)/iu;
@@ -390,7 +392,7 @@ async function loadSingleGenreCatalogInner(genre, requestedTarget=null) {
   const savedRecord=await readCatalogStorage(storageKey);
   const savedSongs=Array.isArray(savedRecord)?savedRecord:(Array.isArray(savedRecord?.songs)?savedRecord.songs:[]);
   const savedComplete=Array.isArray(savedRecord)?savedSongs.length>=fullCatalogTarget:Boolean(savedRecord?.complete&&(genre!=='Vocaloid'||savedSongs.length>=fullCatalogTarget));
-  const cleanSaved=dedupeCatalogSongs(savedSongs.filter(song=>!isExcludedCatalogTrack(song,hasAnimeSource,null,genre)));
+  const cleanSaved=dedupeCatalogSongs(savedSongs.filter(song=>!isExcludedCatalogTrack(song,hasAnimeSource,null,genre))).slice(0,fullCatalogTarget);
   if(savedComplete&&cleanSaved.length>=4){
     for(const song of cleanSaved){
       song[9]={...((song[9]&&typeof song[9]==='object')?song[9]:{}),catalogGenre:song[9]?.catalogGenre||genre};
@@ -529,7 +531,7 @@ async function loadCachedGenreSnapshot(genre){
     if(Array.isArray(record))songs.push(...record);
     else if(Array.isArray(record?.songs))songs.push(...record.songs);
   }
-  const clean=dedupeCatalogSongs(songs.filter(song=>!isExcludedCatalogTrack(song,hasAnimeSource,null,genre)));
+  const clean=dedupeCatalogSongs(songs.filter(song=>!isExcludedCatalogTrack(song,hasAnimeSource,null,genre))).slice(0,getGenreCatalogTarget(genre));
   for(const song of clean){
     song[9]={...((song[9]&&typeof song[9]==='object')?song[9]:{}),catalogGenre:song[9]?.catalogGenre||genre};
     if(song[3])songAssetCache.set(`${song[0]}|${song[1]}`,Promise.resolve({trackName:song[0],artistName:song[1],artworkUrl100:song[2]||'',previewUrl:song[3],...(song[9]||{}),releaseDate:song[4]||'',catalogRank:song[5]||0}));
@@ -539,14 +541,22 @@ async function loadCachedGenreSnapshot(genre){
 function mergeCatalogEntries(songs){
   const merged=[];
   const seen=new Set();
+  let animeCount=0;
+  const animeCountBySource=new Map();
   for(const song of songs){
     if(disabledGenres.has(song?.[9]?.catalogGenre))continue;
     if(!Array.isArray(song)||!song[0]||!song[1]||isExcludedCatalogTrack(song,Boolean(song[6]),null,song[9]?.catalogGenre||''))continue;
     if(!song[6]&&!roundSongs.includes(song)&&!sourceGenres.some(name=>matchesCatalogSeedArtist(song[1],genreArtistSeeds[name])))continue;
+    const catalogGenre=song[9]?.catalogGenre||'';
+    const animeSource=catalogGenre==='Anime openings'||catalogGenre==='Anime endings'?catalogGenre:'';
+    if(animeSource&&(animeCount>=ANIME_CATALOG_SIZE||(animeCountBySource.get(animeSource)||0)>=ANIME_SOURCE_CATALOG_SIZE))continue;
+    if(!animeSource&&song[6]&&animeCount>=ANIME_CATALOG_SIZE)continue;
     const keys=getCatalogSongDedupeKeys(song);
     if(!keys.length||keys.some(key=>seen.has(key)))continue;
     keys.forEach(key=>seen.add(key));
     merged.push(song);
+    if(animeSource){animeCount+=1;animeCountBySource.set(animeSource,(animeCountBySource.get(animeSource)||0)+1);}
+    else if(song[6])animeCount+=1;
   }
   return merged;
 }
