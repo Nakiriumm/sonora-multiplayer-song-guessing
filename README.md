@@ -41,13 +41,19 @@ The deployment configuration is in [`wrangler.toml`](wrangler.toml). The Worker 
 | --- | --- |
 | `index.html` | Main page and app shell |
 | `room.html` | Room setup and join page |
-| `styles.css` | Site and game styles |
-| `app.js` | Interface, game logic, catalog loading, and language switching |
-| `multiplayer.js` | Room creation, joining, live game state, and multiplayer UI |
-| `worker.js` | Cloudflare Worker APIs, WebSockets, and Durable Object room logic |
-| `wrangler.toml` | Wrangler, asset, and Durable Object configuration |
-| `scripts/dev.js` | Local Wrangler development command |
-| `scripts/deploy-with-retry.js` | Wrangler deployment command with retry for transient API errors |
+| `styles.css` | Site, room, and game styles |
+| `app.js` | Interface, game logic, song catalog loading, and language switching |
+| `multiplayer.js` | Room creation and joining, multiplayer game state, and lobby UI |
+| `worker.js` | Cloudflare Worker API, WebSocket handling, and Durable Object room logic |
+| `favicon.svg` | Record icon shown in browser tabs |
+| `package.json` | Project scripts and Wrangler dependency declaration |
+| `package-lock.json` | Locked npm dependency versions |
+| `wrangler.toml` | Cloudflare Worker, static asset, and Durable Object configuration |
+| `scripts/dev.js` | Local Wrangler development server setup |
+| `scripts/deploy-with-retry.js` | Cloudflare deployment script with retries for transient API errors |
+| `.github/workflows/node.js.yml` | GitHub Actions static site file check |
+| `.assetsignore` | Files excluded from Cloudflare static asset uploads |
+| `.gitignore` | Local dependencies and Wrangler state excluded from Git |
 
 ## GitHub Actions
 
