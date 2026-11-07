@@ -4,6 +4,10 @@ const selectedModeLabel = document.querySelector('.selected-mode-label');
 const copyStatus = document.querySelector('.copy-status');
 const availableModes = new Set(['Quickfire', 'SongBomb', 'Solo']);
 const modeDisplayNames = { Quickfire: 'Classic', SongBomb: 'Song Bomb', Solo: 'Solo Play' };
+const getAppModeName = (mode) => currentLanguage === 'TH'
+  ? ({ Quickfire: 'คลาสสิก', SongBomb: 'เกมระเบิดเพลง', Solo: 'เล่นคนเดียว' }[mode] || mode)
+  : (modeDisplayNames[mode] || mode);
+window.getAppModeName = getAppModeName;
 let selectedMode = null;
 try {
   // A saved session must not select Solo on the home page. Only restore the
@@ -108,7 +112,7 @@ elapsedClock.className = 'attempt-clock';
 elapsedClock.hidden = true;
 gameView.appendChild(elapsedClock);
 const initialGameVolume = Number(localStorage.getItem('sonora-volume'));
-const gameVolumeInput = gameView.querySelector('[aria-label="Volume"]');
+const gameVolumeInput = gameView.querySelector('.player-controls input[type="range"]');
 if (localStorage.getItem('sonora-volume') !== null && Number.isFinite(initialGameVolume)) {
   gameVolumeInput.value = initialGameVolume;
   gameVolumeInput.style.setProperty('--volume-level', `${initialGameVolume}%`);
@@ -901,8 +905,11 @@ function updateDifficultyMeter(difficulty='medium'){
   const meter=gameView.querySelector('.difficulty-meter');
   if(!meter)return;
   meter.className=`difficulty-meter difficulty-${level}`;
-  meter.setAttribute('aria-label',`Song difficulty: ${level}`);
-  meter.querySelector('.difficulty-label').textContent=level[0].toUpperCase()+level.slice(1);
+  const thai = currentLanguage === 'TH';
+  const difficultyNames = thai ? ['ง่าย', 'ปานกลาง', 'ยาก', 'ยากมาก'] : ['Easy', 'Medium', 'Hard', 'Extreme'];
+  const difficultyIndex = levels.indexOf(level);
+  meter.setAttribute('aria-label', thai ? `ระดับความยากของเพลง: ${difficultyNames[difficultyIndex]}` : `Song difficulty: ${level}`);
+  meter.querySelector('.difficulty-label').textContent=difficultyNames[difficultyIndex];
 }
 window.getSongDifficulty=getSongDifficulty;
 window.updateDifficultyMeter=updateDifficultyMeter;
@@ -1067,7 +1074,7 @@ async function nextRound(){
   }
   roundNo++;
   const topbar=gameView.querySelector('.game-topbar>span');
-  if(topbar)topbar.innerHTML=`ROUND <strong class="game-round">${roundNo}</strong> / ${totalRounds}`;
+  if(topbar)topbar.innerHTML=`${currentLanguage==='TH'?'รอบ':'ROUND'} <strong class="game-round">${roundNo}</strong> / ${totalRounds}`;
   const loadingRound=roundNo;
   localStorage.removeItem(continueKey());
   stageNo=0;
@@ -1132,7 +1139,7 @@ async function nextRound(){
     const clockElement=gameView.querySelector('.attempt-clock');if(clockElement)clockElement.textContent=`00:${String(elapsed).padStart(2,'0')}`;
   },1000);
 }
-function endRound(message){clearInterval(roundTick);clearInterval(attemptTick);playRequest++;pauseCurrentPlayback();if(gameAudio){gameAudio.pause();gameAudio=null;}const feedback=gameView.querySelector('.round-feedback');let seconds=10;const song=activeRoundSong;roundResult.querySelector('.result-vinyl').style.setProperty('--result-cover',`var(--cover-${(roundNo-1)%4})`);roundResult.querySelector('.result-vinyl').className=`result-vinyl cover-${(roundNo-1)%4}`;roundResult.querySelector('#round-result-title').textContent=song[0];roundResult.querySelector('#round-result-subtitle').textContent=activeRoundSongSubtitle;roundResult.querySelector('.result-artist').textContent=song[1];const playerResult=roundResult.querySelector('.result-player-status'),guessedCorrectly=Boolean(gameView.querySelector('.song-choice.correct'));playerResult.textContent=guessedCorrectly?'You guessed correctly':'You\u2019re incorrect';playerResult.className=`result-player-status ${guessedCorrectly?'is-correct':'is-incorrect'}`;const needed=Math.ceil(roundPlayers.length/2);roundResult.querySelector('.continue-round').textContent=`Continue (0/${needed})`;roundResult.querySelector('.result-countdown b').textContent=seconds;roundResult.hidden=false;feedback.textContent=message;gameView.querySelectorAll('.song-choice').forEach(b=>b.disabled=true);if(song?.[3]){gameAudio=new Audio();gameAudio.preload='auto';gameAudio.src=song[3];gameAudio.volume=Number(gameView.querySelector('[aria-label="Volume"]').value)/100;void gameAudio.play().catch(()=>{});}const continueButton=roundResult.querySelector('.continue-round');continueButton.onclick=()=>{const room=getRoomState();const playerName=localStorage.getItem(profileNameKey)||room.players[0]?.name||roundPlayers[0].name;const ready=continueNames();if(!ready.includes(playerName)){ready.push(playerName);localStorage.setItem(continueKey(),JSON.stringify(ready));}updateContinueStatus(continueButton);};breakTick=setInterval(()=>{seconds--;const count=roundResult.querySelector('.result-countdown b');if(count)count.textContent=seconds;if(seconds<=0){clearInterval(breakTick);nextRound();}},1000);}
+function endRound(message){clearInterval(roundTick);clearInterval(attemptTick);playRequest++;pauseCurrentPlayback();if(gameAudio){gameAudio.pause();gameAudio=null;}const feedback=gameView.querySelector('.round-feedback');let seconds=10;const song=activeRoundSong;roundResult.querySelector('.result-vinyl').style.setProperty('--result-cover',`var(--cover-${(roundNo-1)%4})`);roundResult.querySelector('.result-vinyl').className=`result-vinyl cover-${(roundNo-1)%4}`;roundResult.querySelector('#round-result-title').textContent=song[0];roundResult.querySelector('#round-result-subtitle').textContent=activeRoundSongSubtitle;roundResult.querySelector('.result-artist').textContent=song[1];const playerResult=roundResult.querySelector('.result-player-status'),guessedCorrectly=Boolean(gameView.querySelector('.song-choice.correct'));playerResult.textContent=guessedCorrectly?'You guessed correctly':'You\u2019re incorrect';playerResult.className=`result-player-status ${guessedCorrectly?'is-correct':'is-incorrect'}`;const needed=Math.ceil(roundPlayers.length/2);roundResult.querySelector('.continue-round').textContent=`Continue (0/${needed})`;roundResult.querySelector('.result-countdown b').textContent=seconds;roundResult.hidden=false;feedback.textContent=message;gameView.querySelectorAll('.song-choice').forEach(b=>b.disabled=true);if(song?.[3]){gameAudio=new Audio();gameAudio.preload='auto';gameAudio.src=song[3];gameAudio.volume=Number(gameVolumeInput.value)/100;void gameAudio.play().catch(()=>{});}const continueButton=roundResult.querySelector('.continue-round');continueButton.onclick=()=>{const room=getRoomState();const playerName=localStorage.getItem(profileNameKey)||room.players[0]?.name||roundPlayers[0].name;const ready=continueNames();if(!ready.includes(playerName)){ready.push(playerName);localStorage.setItem(continueKey(),JSON.stringify(ready));}updateContinueStatus(continueButton);};breakTick=setInterval(()=>{seconds--;const count=roundResult.querySelector('.result-countdown b');if(count)count.textContent=seconds;if(seconds<=0){clearInterval(breakTick);nextRound();}},1000);}
 function setPlayButton(playing){const button=gameView.querySelector('.game-play');button.classList.toggle('is-playing',playing);button.setAttribute('aria-label',playing?'Pause current section':'Play current section');}
 function pauseCurrentPlayback(){if(gameAudio)gameAudio.pause();cancelAnimationFrame(progressFrame);setPlayButton(false);}
 async function playCurrentSection(restartFromBeginning=false,startAt=null){
@@ -1158,7 +1165,7 @@ async function playCurrentSection(restartFromBeginning=false,startAt=null){
   }
   const activeAudio=gameAudio;
   if(request!==playRequest||requestedRound!==roundNo||requestedStage!==stageNo)return;
-  activeAudio.volume=Number(gameView.querySelector('[aria-label="Volume"]').value)/100;
+  activeAudio.volume=Number(gameVolumeInput.value)/100;
   if(startAt!==null)activeAudio.currentTime=startAt;
   else if(restartFromBeginning||activeAudio.currentTime>=end)activeAudio.currentTime=0;
   const updateProgress=()=>{
@@ -1192,7 +1199,7 @@ async function playCurrentSection(restartFromBeginning=false,startAt=null){
   }
 }
 gameView.querySelector('.game-play').addEventListener('click',()=>{if(gameAudio&&!gameAudio.paused){playRequest++;pauseCurrentPlayback();return;}void playCurrentSection();});
-gameView.querySelector('[aria-label="Volume"]').addEventListener('input',event=>{event.currentTarget.style.setProperty('--volume-level',`${event.currentTarget.value}%`);if(gameAudio)gameAudio.volume=Number(event.currentTarget.value)/100;});
+gameVolumeInput.addEventListener('input',event=>{event.currentTarget.style.setProperty('--volume-level',`${event.currentTarget.value}%`);if(gameAudio)gameAudio.volume=Number(event.currentTarget.value)/100;});
 gameVolumeInput.addEventListener('input', event => {
   const value = event.currentTarget.value;
   localStorage.setItem('sonora-volume', value);
@@ -1459,7 +1466,7 @@ function renderRoomRosters() {
   renderRoster(document.querySelector('.joined-room-list'), room, 'Waiting for players');
   const hostSettings = document.querySelectorAll('.host-settings strong');
   if (hostSettings.length >= 7) {
-    hostSettings[0].textContent = modeDisplayNames[room.mode] || room.mode;
+    hostSettings[0].textContent = getAppModeName(room.mode);
     hostSettings[1].textContent = `${room.maxPlayers} max`;
     hostSettings[2].textContent = String(room.genre || 'Everything').replaceAll('|', ', ');
     hostSettings[3].textContent = room.time.replace(' seconds', ' sec');
@@ -1520,7 +1527,7 @@ modeChoices.className = 'mode-choices';
   choice.type = 'button';
   choice.className = 'mode-choice';
   choice.dataset.mode = mode;
-  choice.textContent = modeDisplayNames[mode] || mode;
+  choice.textContent = getAppModeName(mode);
   choice.addEventListener('click', () => {
     selectedMode = mode;
     updateModeSelection(true);
@@ -1548,7 +1555,7 @@ function updateModeSummary() {
 }
 
 function updateModeSelection(showSetupSelection = false) {
-  selectedModeLabel.textContent = modeDisplayNames[selectedMode] || 'Select a mode';
+  selectedModeLabel.textContent = selectedMode ? getAppModeName(selectedMode) : (currentLanguage === 'TH' ? 'เลือกโหมดเกม' : 'Select a mode');
   modal.classList.toggle('solo-setup', selectedMode === 'Solo');
   modal.classList.toggle('songbomb-setup', selectedMode === 'SongBomb');
   const timeLabel = document.querySelector('.time-setting-field>span');
@@ -2040,7 +2047,7 @@ const languageCopy = {
     navModes: 'Game modes', navHow: 'How it works', warmup: 'The room is warming up',
     heroTitle: 'Hear it.<br /><em>Know it.</em><br />Name it.', heroDescription: 'A fast, friendly music guessing game for the people who can identify a song from the first three seconds.',
     create: '＋ Create a room', join: 'Join with a code', pick: 'Pick your poison', choose: 'Choose a mode',
-    modes: [['Classic', '10 songs - 30 seconds'], ['Solo Play', 'Play on your own']], genres: ['Pop anthems', 'Indie & alternative', 'Hip-hop & R&B', 'Throwback classics', 'Thai songs', 'J-Pop', 'Anime'],
+    modes: [['Classic', '10 songs - 30 seconds'], ['Solo Play', 'Play on your own']], genres: ['Pop anthems', 'Indie & alternative', 'Hip-hop & R&B', 'Throwback classics', 'Thai songs', 'J-Pop'],
     zero: 'ZERO FRICTION', howTitle: 'Built for the<br /><em>perfect chorus.</em>', howText: 'Make a room, send the code, and let the music do the talking. No accounts. No setup. Just your people and a playlist.',
     profile: 'Your profile', display: 'Display name', save: 'Save name', saved: 'Name saved', setup: 'Room setup', make: 'Make it <em>yours.</em>',
     gameMode: 'Game mode', modeHint: 'Set by the mode you picked', max: 'Max players', maxHint: 'Everyone gets a turn to guess', genre: 'Song genre', genreHint: 'Keep the playlist unpredictable', time: 'Time per song', timeHint: 'How long players have to lock in', invite: 'Invite your people', sendCode: 'Send them<br /><em>the code.</em>', inviteHint: 'Players can join from any device using the room code.', copy: 'Copy room code', private: 'Cloudflare room', start: 'Start the room', room: 'The room', who: 'Who is <em>in?</em>', roomHint: 'Share the code above and watch your crew appear here.', host: 'Room host', joined: 'Joined just now', waiting: 'Waiting for players', waitingHint: 'Send the invite code to your crew',
@@ -2050,7 +2057,7 @@ const languageCopy = {
     navModes: 'โหมดเกม', navHow: 'วิธีเล่น', warmup: 'ห้องกำลังเตรียมพร้อม',
     heroTitle: 'ฟังให้ดี<br /><em>รู้ให้ทัน</em><br />ทายชื่อเพลง', heroDescription: 'เกมทายเพลงแบบรวดเร็วและเป็นกันเอง สำหรับคนที่จำเพลงได้ตั้งแต่สามวินาทีแรก',
     create: '＋ สร้างห้อง', join: 'เข้าร่วมด้วยรหัส', guessed: 'ผู้เล่นทายเพลงแล้ววันนี้', pick: 'เลือกโหมดของคุณ', choose: 'เลือกโหมด',
-    modes: [['Classic', '10 songs - 30 seconds'], ['\u0e40\u0e25\u0e48\u0e19\u0e04\u0e19\u0e40\u0e14\u0e35\u0e22\u0e27', '\u0e40\u0e25\u0e48\u0e19\u0e40\u0e01\u0e21\u0e14\u0e49\u0e27\u0e22\u0e15\u0e31\u0e27\u0e40\u0e2d\u0e07']], genres: ['เพลงป๊อป', 'อินดี้และอัลเทอร์เนทีฟ', 'ฮิปฮอปและอาร์แอนด์บี', 'เพลงคลาสสิกย้อนยุค', 'เพลงไทย', 'เจป๊อป', 'Anime'],
+    modes: [['คลาสสิก', '10 เพลง - 30 วินาที'], ['เล่นคนเดียว', 'เล่นเกมด้วยตัวเอง']], genres: ['เพลงป๊อป', 'อินดี้และอัลเทอร์เนทีฟ', 'ฮิปฮอปและอาร์แอนด์บี', 'เพลงคลาสสิกย้อนยุค', 'เพลงไทย', 'เจป๊อป'],
     zero: 'เล่นได้ทันที', howTitle: 'สร้างมาเพื่อ<br /><em>ท่อนฮุกที่ใช่</em>', howText: 'สร้างห้อง ส่งรหัส แล้วให้เสียงเพลงเป็นคนพูด ไม่ต้องสมัคร ไม่ต้องตั้งค่า มีแค่เพื่อนและเพลย์ลิสต์ของคุณ',
     profile: 'โปรไฟล์ของคุณ', display: 'ชื่อที่แสดง', save: 'บันทึกชื่อ', saved: 'บันทึกชื่อแล้ว', setup: 'ตั้งค่าห้อง', make: 'จัดห้องในแบบ<br /><em>ของคุณ</em>',
     gameMode: 'โหมดเกม', modeHint: 'เลือกจากโหมดที่คุณต้องการ', max: 'ผู้เล่นสูงสุด', maxHint: 'ทุกคนจะได้มีโอกาสทาย', genre: 'แนวเพลง', genreHint: 'ทำให้เพลย์ลิสต์คาดเดาไม่ได้', time: 'เวลาต่อเพลง', timeHint: 'เวลาที่ใช้ล็อกคำตอบ', invite: 'ชวนเพื่อนของคุณ', sendCode: 'ส่งรหัส<br /><em>ให้เพื่อน</em>', inviteHint: 'เข้าร่วมได้จากทุกอุปกรณ์ ไม่ต้องสมัครบัญชี', copy: 'คัดลอกรหัสห้อง', private: 'ห้องส่วนตัว', start: 'เริ่มห้อง', room: 'ในห้องนี้', who: 'ใคร<em>เข้าร่วมแล้ว?</em>', roomHint: 'แชร์รหัสด้านบน แล้วดูเพื่อนของคุณเข้าร่วมที่นี่', host: 'เจ้าของห้อง', joined: 'เข้าร่วมเมื่อครู่', waiting: 'รอผู้เล่น', waitingHint: 'ส่งรหัสเชิญให้เพื่อนของคุณ',
@@ -2058,22 +2065,240 @@ const languageCopy = {
   },
 };
 
+const localizedSiteCopy = {
+  EN: {
+    pageTitle: 'SONORA | Multiplayer music guessing', pageDescription: 'A multiplayer song guessing room for people who know every chorus.',
+    profileAria: 'Open profile', languageAria: 'Change language', artAria: 'Abstract illustration of a record player',
+    playSomething: 'PLAY SOMETHING', iconic: 'ICONIC', stereo: 'STEREO', copyright: 'Copyright © 2026 thankkyadture.work. All rights reserved.',
+    footerHome: 'Home', footerTerms: 'Terms', footerAbout: 'About Us', backHome: '← Back to home', copyRoomLink: 'Copy room link',
+    termsTitle: 'Terms Of <em>Service</em>', termsDate: 'Last updated 11/10/2026',
+    termsHeadings: ['Acceptance of Terms', 'Changes to Terms', 'User Responsibilities', 'Copyright', 'Refund Policy', 'Contact Us'],
+    termsParagraphs: [
+      'These Terms of Service apply when you use the SONORA PROJECT website, content, features, products, or services.',
+      'Please read these terms carefully before using the service. By using the service, you agree to be bound by and comply with these terms.',
+      'We may update these terms from time to time, so you should check regularly to stay informed of any changes.',
+      'Continued use of the service after revised terms are published constitutes your acceptance of those changes.',
+      'If you discover bugs or vulnerabilities while using SONORA PROJECT, please report them through the project repository or by contacting the project owner.',
+      'Publicly disclosing vulnerabilities or using them for commercial exploitation may result in access being suspended.',
+      'All illustrations, designs, and other images used in SONORA PROJECT services are provided for this project and may be protected by their respective licenses.',
+      'You may use project materials only in accordance with applicable license terms. Commercial use is not permitted unless you have written permission.',
+      'SONORA PROJECT does not currently sell paid products or services. If that changes, any applicable refund policy will be published here.',
+      'If you have questions about these terms, please contact the project owner through the links on the About Us page.'
+    ],
+    aboutTitle: 'About <em>Us</em>', aboutParagraphs: [
+      'SONORA is a multiplayer song guessing game for friends who know a chorus before it starts.',
+      'Follow the project, find the source, or join the community:'
+    ],
+    joinBack: '← Back to home', joinNote: 'Make some noise.', namePlaceholder: 'Enter your name', profilePlaceholder: 'Enter your name',
+    hostNameHint: 'This is how your crew will see you', nameGateEyebrow: 'Before we start', nameGateTitle: 'What should<br /><em>we call you?</em>',
+    nameGateDescription: 'Your name will appear in the room for everyone to see.', roomCode: 'Room code', continue: 'Continue',
+    joinedRoom: 'Cloudflare room', joinedCrew: 'Your crew is <em>here.</em>',
+    settings: ['Mode', 'Players', 'Genre', 'Per song', 'Difficulty', 'Choices', 'Rounds'],
+    settingsDifficulty: ['Easy', 'Medium', 'Hard', 'Extreme'],
+    setupPlayer: 'Max players', setupPlayerHint: 'Everyone gets a turn to guess',
+    setupTimeHint: 'How long players have to lock in', setupChoicesHint: 'Choose from 4 to 8 songs per round',
+    setupRoundsHint: 'Choose how many rounds to play', setupDifficultyHint: 'Choose how popular or obscure the songs can be',
+    launchSolo: 'Start solo play', launchBomb: 'Start Song Bomb', launchClassic: 'Start Classic',
+    modeClassic: 'Classic', modeSolo: 'Solo Play', modeBomb: 'Song Bomb', soloBadge: 'Single player', roomBadge: 'Cloudflare room',
+    volume: 'Volume', play: 'Play current section', skip: 'Skip', seconds: 'SECONDS LEFT', roundLabel: 'ROUND',
+    ready: 'THE NEXT SONG IS READY', answerChoices: 'choices', score: 'Live scores', leaderboard: 'Leaderboard',
+    scoring: 'How scoring works', scoringText: 'Correct at 0.1s earns the most. Wrong guesses, later clues, and slower answers reduce your points.',
+    resultCorrect: 'You guessed correctly', resultWrong: 'You’re incorrect', roundComplete: 'Round complete', revealed: 'Song revealed',
+    nextRound: 'Next round in', continueRound: 'Continue', winnerEyebrow: 'GAME COMPLETE', winnerTitle: 'The winner', winnerBack: 'Back to room',
+    bombHint: 'Name the song or artist before the bomb goes off.', bombPlaceholder: 'Type a song name or artist…',
+    bombSkip: 'Skip turn', bombSubmit: 'Submit guess', bombEvents: 'Song Bomb events', bombSeconds: 'SECONDS', bombPreview: 'Song preview',
+    firstCatalogLoad: 'First-time catalog loading may take a while.'
+  },
+  TH: {
+    pageTitle: 'SONORA | เกมทายเพลงหลายคน', pageDescription: 'ห้องทายเพลงสำหรับกลุ่มเพื่อนที่จำเพลงโปรดได้ตั้งแต่ท่อนแรก',
+    profileAria: 'เปิดโปรไฟล์', languageAria: 'เปลี่ยนภาษา', artAria: 'ภาพประกอบเครื่องเล่นแผ่นเสียง',
+    playSomething: 'เปิดเพลงที่', iconic: 'ทุกคนจำได้', stereo: 'สเตอริโอ', copyright: 'ลิขสิทธิ์ © 2026 thankkyadture.work สงวนลิขสิทธิ์',
+    footerHome: 'หน้าแรก', footerTerms: 'ข้อกำหนดการใช้งาน', footerAbout: 'เกี่ยวกับเรา', backHome: '← กลับหน้าแรก', copyRoomLink: 'คัดลอกลิงก์ห้อง',
+    termsTitle: 'ข้อกำหนด<br /><em>การให้บริการ</em>', termsDate: 'อัปเดตล่าสุด 11/10/2026',
+    termsHeadings: ['การยอมรับข้อกำหนด', 'การเปลี่ยนแปลงข้อกำหนด', 'ความรับผิดชอบของผู้ใช้', 'ลิขสิทธิ์', 'นโยบายการคืนเงิน', 'ติดต่อเรา'],
+    termsParagraphs: [
+      'ข้อกำหนดการให้บริการนี้มีผลเมื่อคุณใช้เว็บไซต์ เนื้อหา ฟีเจอร์ ผลิตภัณฑ์ หรือบริการของ SONORA PROJECT',
+      'โปรดอ่านข้อกำหนดเหล่านี้ก่อนใช้บริการ การใช้บริการถือว่าคุณยอมรับและตกลงปฏิบัติตามข้อกำหนดนี้',
+      'เราอาจปรับปรุงข้อกำหนดเป็นครั้งคราว โปรดกลับมาตรวจสอบเพื่อรับทราบการเปลี่ยนแปลง',
+      'หากคุณใช้บริการต่อหลังจากมีการเผยแพร่ข้อกำหนดฉบับแก้ไข จะถือว่าคุณยอมรับการเปลี่ยนแปลงนั้น',
+      'หากพบข้อผิดพลาดหรือช่องโหว่ระหว่างใช้ SONORA PROJECT โปรดแจ้งผ่านคลังโค้ดของโครงการหรือติดต่อเจ้าของโครงการ',
+      'การเปิดเผยช่องโหว่ต่อสาธารณะหรือการนำไปใช้เพื่อแสวงหาประโยชน์ทางการค้า อาจทำให้ถูกระงับการเข้าถึง',
+      'ภาพประกอบ งานออกแบบ และรูปภาพที่ใช้ในบริการ SONORA PROJECT จัดทำขึ้นสำหรับโครงการนี้ และอาจได้รับความคุ้มครองตามใบอนุญาตของแต่ละรายการ',
+      'คุณใช้สื่อของโครงการได้ตามเงื่อนไขใบอนุญาตที่เกี่ยวข้อง ห้ามใช้เพื่อการค้า เว้นแต่ได้รับอนุญาตเป็นลายลักษณ์อักษร',
+      'ขณะนี้ SONORA PROJECT ยังไม่มีการจำหน่ายสินค้าหรือบริการแบบชำระเงิน หากมีการเปลี่ยนแปลง เราจะประกาศนโยบายการคืนเงินที่เกี่ยวข้องไว้ที่นี่',
+      'หากมีคำถามเกี่ยวกับข้อกำหนด โปรดติดต่อเจ้าของโครงการผ่านลิงก์ในหน้าเกี่ยวกับเรา'
+    ],
+    aboutTitle: 'เกี่ยวกับ<br /><em>เรา</em>', aboutParagraphs: [
+      'SONORA คือเกมทายเพลงแบบหลายคนสำหรับกลุ่มเพื่อนที่จำท่อนฮุกได้ก่อนเพลงจะเริ่ม',
+      'ติดตามโครงการ ดูซอร์สโค้ด หรือเข้าร่วมชุมชนของเราได้ที่:'
+    ],
+    joinBack: '← กลับหน้าแรก', joinNote: 'มาเปิดเพลงกัน', namePlaceholder: 'พิมพ์ชื่อของคุณ', profilePlaceholder: 'พิมพ์ชื่อของคุณ',
+    hostNameHint: 'ชื่อที่เพื่อน ๆ จะเห็นในห้อง', nameGateEyebrow: 'ก่อนเริ่มเกม', nameGateTitle: 'อยากให้เรา<br /><em>เรียกคุณว่าอะไร?</em>',
+    nameGateDescription: 'ชื่อของคุณจะแสดงให้ทุกคนในห้องเห็น', roomCode: 'รหัสห้อง', continue: 'ดำเนินการต่อ',
+    joinedRoom: 'ห้องบน Cloudflare', joinedCrew: 'กลุ่มของคุณ<br /><em>อยู่ที่นี่แล้ว</em>',
+    settings: ['โหมด', 'ผู้เล่น', 'แนวเพลง', 'ต่อเพลง', 'ความยาก', 'ตัวเลือก', 'รอบ'],
+    settingsDifficulty: ['ง่าย', 'ปานกลาง', 'ยาก', 'ยากมาก'],
+    setupPlayer: 'จำนวนผู้เล่นสูงสุด', setupPlayerHint: 'ทุกคนจะได้ผลัดกันทายเพลง',
+    setupTimeHint: 'เวลาที่ผู้เล่นมีเพื่อตอบ', setupChoicesHint: 'เลือกเพลงได้รอบละ 4 ถึง 8 เพลง',
+    setupRoundsHint: 'กำหนดจำนวนรอบที่ต้องการเล่น', setupDifficultyHint: 'เลือกระดับความนิยมของเพลง',
+    launchSolo: 'เริ่มเล่นคนเดียว', launchBomb: 'เริ่มเกมระเบิดเพลง', launchClassic: 'เริ่มเกมคลาสสิก',
+    modeClassic: 'คลาสสิก', modeSolo: 'เล่นคนเดียว', modeBomb: 'เกมระเบิดเพลง', soloBadge: 'ผู้เล่นคนเดียว', roomBadge: 'ห้องบน Cloudflare',
+    volume: 'ระดับเสียง', play: 'เล่นช่วงเพลงปัจจุบัน', skip: 'ข้าม', seconds: 'วินาทีที่เหลือ', roundLabel: 'รอบ',
+    ready: 'เพลงถัดไปพร้อมแล้ว', answerChoices: 'ตัวเลือก', score: 'คะแนนสด', leaderboard: 'ตารางคะแนน',
+    scoring: 'วิธีคิดคะแนน', scoringText: 'ตอบถูกตั้งแต่ช่วง 0.1 วินาทีจะได้คะแนนสูงสุด การตอบผิด การขอคำใบ้เพิ่ม หรือการตอบช้าจะทำให้คะแนนลดลง',
+    resultCorrect: 'คุณตอบถูกต้อง', resultWrong: 'คำตอบของคุณไม่ถูกต้อง', roundComplete: 'จบรอบแล้ว', revealed: 'เฉลยเพลง',
+    nextRound: 'เริ่มรอบถัดไปใน', continueRound: 'เล่นต่อ', winnerEyebrow: 'จบเกม', winnerTitle: 'ผู้ชนะ', winnerBack: 'กลับไปที่ห้อง',
+    bombHint: 'พิมพ์ชื่อเพลงหรือศิลปินก่อนระเบิดทำงาน', bombPlaceholder: 'พิมพ์ชื่อเพลงหรือศิลปิน…',
+    bombSkip: 'ข้ามตานี้', bombSubmit: 'ส่งคำตอบ', bombEvents: 'เหตุการณ์ในเกมระเบิดเพลง', bombSeconds: 'วินาที', bombPreview: 'ตัวอย่างเพลง',
+    firstCatalogLoad: 'การโหลดคลังเพลงครั้งแรกอาจใช้เวลาสักครู่'
+  }
+};
+
+const thaiGenreNames = {
+  'Everything': 'ทุกแนวเพลง', 'Pop anthems': 'เพลงป๊อป', 'Indie & alternative': 'อินดี้และอัลเทอร์เนทีฟ',
+  'Hip-hop & R&B': 'ฮิปฮอปและอาร์แอนด์บี', 'Throwback classics': 'เพลงคลาสสิกย้อนยุค',
+  'Thai songs': 'เพลงไทย', 'J-Pop': 'เจป๊อป'
+};
+const thaiStatusCopy = {
+  'Choose quickly for the highest score.': 'รีบเลือกคำตอบเพื่อรับคะแนนสูงสุด',
+  'Finding songs with playable previews…': 'กำลังค้นหาเพลงที่มีตัวอย่างให้เล่น…',
+  'Song preview': 'ตัวอย่างเพลง', 'Song preview playing': 'กำลังเล่นตัวอย่างเพลง',
+  'Song preview could not start': 'เล่นตัวอย่างเพลงไม่ได้', 'Starting song preview…': 'กำลังเริ่มเล่นตัวอย่างเพลง…',
+  'Song preview could not start. Check your connection and try again.': 'เล่นตัวอย่างเพลงไม่ได้ โปรดตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง',
+  'Buffering song preview…': 'กำลังโหลดตัวอย่างเพลง…',
+  'The preview could not load. Check your connection and try again.': 'โหลดตัวอย่างเพลงไม่สำเร็จ โปรดตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง',
+  'The preview could not start. Check your connection and try again.': 'เล่นตัวอย่างเพลงไม่ได้ โปรดตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง',
+  'Starting the game…': 'กำลังเริ่มเกม…', 'Preparing playable songs…': 'กำลังเตรียมเพลงที่เล่นได้…',
+  'Preparing the song list…': 'กำลังเตรียมรายชื่อเพลง…', 'Finding playable songs for the first round…': 'กำลังหาเพลงสำหรับรอบแรก…',
+  'The host closed this room.': 'เจ้าของห้องปิดห้องนี้แล้ว',
+  'Choose a mode on the home page before starting.': 'โปรดเลือกโหมดเกมจากหน้าแรกก่อนเริ่ม',
+  'Room created. Copy the code to invite players.': 'สร้างห้องแล้ว คัดลอกรหัสเพื่อชวนผู้เล่น',
+  'Creating your room and invite code…': 'กำลังสร้างห้องและรหัสเชิญ…', 'Creating room…': 'กำลังสร้างห้อง…',
+  'Connected to Cloudflare room.': 'เชื่อมต่อกับห้องบน Cloudflare แล้ว',
+  'Connection lost. Reconnecting…': 'ขาดการเชื่อมต่อ กำลังเชื่อมต่อใหม่…',
+  'Unable to connect to the room. Check that the Cloudflare Worker is deployed.': 'เชื่อมต่อห้องไม่ได้ โปรดตรวจสอบว่าได้เผยแพร่ Cloudflare Worker แล้ว',
+  'Joined. You can edit your name while waiting.': 'เข้าร่วมห้องแล้ว คุณเปลี่ยนชื่อได้ระหว่างรอ',
+  'You guessed correctly': 'คุณตอบถูกต้อง', 'You’re incorrect': 'คำตอบของคุณไม่ถูกต้อง',
+  'Wrong guess · waiting for other players': 'ตอบผิด · กำลังรอผู้เล่นคนอื่น',
+  'Correct · waiting for the others': 'ตอบถูก · กำลังรอผู้เล่นคนอื่น',
+  'Wrong guess · 5 points deducted. Waiting for the other players…': 'ตอบผิด หัก 5 คะแนน กำลังรอผู้เล่นคนอื่น…',
+  'Wrong guess — 5 points deducted. Choices are dimmed and locked until the next round.': 'ตอบผิด หัก 5 คะแนน ตัวเลือกจะถูกล็อกจนถึงรอบถัดไป',
+  'Name saved.': 'บันทึกชื่อแล้ว', 'Enter a name to continue.': 'โปรดกรอกชื่อเพื่อดำเนินการต่อ',
+  'Enter your name first.': 'โปรดกรอกชื่อก่อน', 'Add your name to join the room.': 'โปรดกรอกชื่อเพื่อเข้าร่วมห้อง',
+  'Enter the room code from your host.': 'กรอกรหัสห้องที่ได้รับจากเจ้าของห้อง',
+  'Room code copied.': 'คัดลอกรหัสห้องแล้ว', 'Create a room first.': 'โปรดสร้างห้องก่อน',
+  'You were removed from the room. Enter a room code to join another room.': 'คุณถูกนำออกจากห้องแล้ว กรอกรหัสห้องเพื่อเข้าร่วมห้องอื่น',
+  'Reconnecting to the room. Select Back to room again when connected.': 'กำลังเชื่อมต่อห้องใหม่ เมื่อเชื่อมต่อแล้วให้เลือกกลับไปที่ห้องอีกครั้ง',
+  'Your room session ended. Enter a room code to join again.': 'เซสชันห้องของคุณสิ้นสุดแล้ว กรอกรหัสห้องเพื่อเข้าร่วมอีกครั้ง',
+  'Names can only be changed while waiting in the lobby.': 'เปลี่ยนชื่อได้เฉพาะตอนรออยู่ในห้องล็อบบี้',
+  'This room link is invalid. Ask the host for a new link.': 'ลิงก์ห้องนี้ใช้ไม่ได้ โปรดขอลิงก์ใหม่จากเจ้าของห้อง',
+  'The room did not confirm the match start. Check your connection and try again.': 'ห้องไม่ได้ยืนยันการเริ่มเกม โปรดตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง',
+  'Only the host can start the room.': 'เฉพาะเจ้าของห้องเท่านั้นที่เริ่มเกมได้',
+  'The preview could not start': 'เล่นตัวอย่างเพลงไม่ได้'
+};
+function translateAppText(value) {
+  const original = String(value ?? '');
+  if (currentLanguage !== 'TH') return original;
+  if (thaiStatusCopy[original]) return thaiStatusCopy[original];
+  let match = original.match(/^Continue \((\d+\/\d+)\)$/);
+  if (match) return `เล่นต่อ (${match[1]})`;
+  match = original.match(/^Continue \((\d+)\/(\d+)\)$/);
+  if (match) return `เล่นต่อ (${match[1]}/${match[2]})`;
+  match = original.match(/^Searching (.+) catalog…$/);
+  if (match) return `กำลังค้นหาคลังเพลง${thaiGenreNames[match[1]] || match[1]}…`;
+  match = original.match(/^(.+): ([\d,]+) screened songs found\.$/);
+  if (match) return `พบเพลงที่ผ่านการคัดกรอง ${match[2]} เพลงในแนว${thaiGenreNames[match[1]] || match[1]}`;
+  match = original.match(/^Loading more (.+) songs…$/);
+  if (match) return `กำลังโหลดเพลงแนว${thaiGenreNames[match[1]] || match[1]} เพิ่ม…`;
+  match = original.match(/^Finding songs with playable previews… (\d+)\/(\d+)$/);
+  if (match) return `กำลังค้นหาเพลงที่มีตัวอย่างให้เล่น… ${match[1]}/${match[2]}`;
+  match = original.match(/^Preparing round (\d+) of (\d+)(?: · (.+))?…$/);
+  if (match) return `กำลังเตรียมรอบ ${match[1]} จาก ${match[2]}${match[3] ? ` · ${thaiGenreNames[match[3]] || match[3]}` : ''}…`;
+  match = original.match(/^Correct! \+(\d+) points\..*$/);
+  if (match) return `ตอบถูก! +${match[1]} คะแนน กำลังรอผู้เล่นคนอื่น…`;
+  match = original.match(/^You guessed correctly\./);
+  if (match) return 'ตอบถูกต้อง!';
+  match = original.match(/^No correct guesses\. It was (.+)\.$/);
+  if (match) return `ไม่มีใครตอบถูก เพลงคือ ${match[1]}`;
+  match = original.match(/^Couldn't prepare songs: (.+)$/);
+  if (match) return `เตรียมเพลงไม่สำเร็จ: ${match[1]}`;
+  match = original.match(/^Preparing Song Bomb songs… (\d+)\/(\d+)$/);
+  if (match) return `กำลังเตรียมเพลงสำหรับเกมระเบิดเพลง… ${match[1]}/${match[2]}`;
+  match = original.match(/^Preparing round (\d+) of (\d+)…$/);
+  if (match) return `กำลังเตรียมรอบ ${match[1]} จาก ${match[2]}…`;
+  match = original.match(/^Correct! \+(\d+) points\./);
+  if (match) return `ตอบถูก! +${match[1]} คะแนน`;
+  match = original.match(/^Continue \((\d+)\/(\d+)\)$/);
+  if (match) return `เล่นต่อ (${match[1]}/${match[2]})`;
+  match = original.match(/^ROUND GENRE · (.+)$/);
+  if (match) return `แนวเพลงประจำรอบ · ${thaiGenreNames[match[1]] || match[1]}`;
+  match = original.match(/^Your lives: ([♥♡]+)$/);
+  if (match) return `ชีวิตที่เหลือ: ${match[1]}`;
+  match = original.match(/^(.+) has the bomb$/);
+  if (match) return `${match[1]} ถือระเบิดอยู่`;
+  match = original.match(/^Final score · (\d+) points$/);
+  if (match) return `คะแนนสุดท้าย · ${match[1]} คะแนน`;
+  match = original.match(/^Last player standing · (\d+) lives left$/);
+  if (match) return `ผู้เล่นคนสุดท้ายที่เหลือ · เหลือ ${match[1]} ชีวิต`;
+  match = original.match(/^(.+) wins!$/);
+  if (match) return `${match[1]} ชนะ!`;
+  match = original.match(/^You are out$/);
+  if (match) return 'คุณออกจากเกมแล้ว';
+  return original;
+}
+window.translateAppText = translateAppText;
+const dynamicUiSelector = '.round-feedback,.copy-status,.join-status,.name-gate-status,.profile-status,.guess-status,.bomb-turn-status,.bomb-audio-status,.result-player-status,.winner-score,.winner-card .eyebrow,#winner-title,.continue-round,.vinyl-stage>p,.bomb-lives';
+function localizeDynamicUiElement(element) {
+  if (!element) return;
+  const original = element.textContent;
+  if (currentLanguage === 'TH') {
+    if (original === element.dataset.appLanguageTranslated) return;
+    const translated = translateAppText(original);
+    if (translated !== original) {
+      element.dataset.appLanguageOriginal = original;
+      element.dataset.appLanguageTranslated = translated;
+      element.textContent = translated;
+    } else if (element.dataset.appLanguageTranslated) {
+      delete element.dataset.appLanguageOriginal;
+      delete element.dataset.appLanguageTranslated;
+    }
+  } else if (element.dataset.appLanguageTranslated) {
+    if (original === element.dataset.appLanguageTranslated) element.textContent = element.dataset.appLanguageOriginal || original;
+    delete element.dataset.appLanguageOriginal;
+    delete element.dataset.appLanguageTranslated;
+  }
+}
+function refreshDynamicUiLanguage() {
+  document.querySelectorAll(dynamicUiSelector).forEach(localizeDynamicUiElement);
+}
+const dynamicUiLanguageObserver = new MutationObserver((records) => {
+  const changed = new Set();
+  for (const record of records) {
+    const candidate = record.target.nodeType === Node.ELEMENT_NODE ? record.target : record.target.parentElement;
+    const element = candidate?.matches?.(dynamicUiSelector) ? candidate : candidate?.closest?.(dynamicUiSelector);
+    if (element) changed.add(element);
+  }
+  changed.forEach(localizeDynamicUiElement);
+});
+dynamicUiLanguageObserver.observe(document.body, { childList: true, characterData: true, subtree: true });
+
 function applyLanguage(language) {
   currentLanguage = language === 'TH' ? 'TH' : 'EN';
   try { localStorage.setItem(languageStorageKey, currentLanguage); } catch {}
   languageButton.querySelector('span').textContent = currentLanguage;
-  const copy = languageCopy[language] || languageCopy.EN;
+  const copy = languageCopy[currentLanguage] || languageCopy.EN;
+  const ui = localizedSiteCopy[currentLanguage];
   const setText = (selector, value) => { const element = document.querySelector(selector); if (element) element.textContent = value; };
   const setHtml = (selector, value) => { const element = document.querySelector(selector); if (element) element.innerHTML = value; };
   setText('.topbar-links a:first-child', copy.navModes); setText('.topbar-links a:last-child', copy.navHow); setText('.eyebrow', copy.warmup);
   setHtml('.hero h1', copy.heroTitle); setText('.hero-description', copy.heroDescription); setText('.js-create-room', copy.create); setText('.js-join-room', copy.join + ' →');
   setText('.section-heading .eyebrow', copy.pick); setText('.section-heading h2', copy.choose); setText('.how-label', `01 ${copy.zero}`); setHtml('.how-copy h2', copy.howTitle); setText('.how-copy p', copy.howText);
   document.querySelectorAll('.mode-card').forEach((card) => { const modeCopy = card.dataset.mode === 'Quickfire' ? copy.modes[0] : card.dataset.mode === 'Solo' ? copy.modes[1] : ['Song Bomb', `3 lives \u00b7 Last player standing`]; setTextFor(card, '.mode-name', modeCopy[0]); setTextFor(card, '.mode-detail', modeCopy[1]); });
-  modeChoices.querySelectorAll('.mode-choice').forEach((choice) => { choice.textContent = modeDisplayNames[choice.dataset.mode] || choice.dataset.mode; });
+  modeChoices.querySelectorAll('.mode-choice').forEach((choice) => { choice.textContent = getAppModeName(choice.dataset.mode); });
   document.querySelectorAll('.genre-option').forEach((choice, index) => {
     choice.textContent = index === 0 ? (language === 'TH' ? 'ทุกแนว' : 'Everything') : language === 'TH' && choice.dataset.genre === 'J-Pop' ? 'J-Pop' : (copy.genres[index - 1] || choice.textContent);
   });
-  setText('.selected-mode-label', modeDisplayNames[selectedMode] || 'Select a mode');
+  setText('.selected-mode-label', selectedMode ? getAppModeName(selectedMode) : (currentLanguage === 'TH' ? 'เลือกโหมดเกม' : 'Select a mode'));
   setText('.profile-panel .eyebrow', copy.profile); setText('.profile-panel label', copy.display); setText('.profile-save', copy.save);
   setText('.setup-header .eyebrow', selectedMode === 'Solo' ? (language === 'TH' ? '\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\u0e40\u0e25\u0e48\u0e19\u0e04\u0e19\u0e40\u0e14\u0e35\u0e22\u0e27' : 'Solo game setup') : copy.setup); setHtml('.setup-header h2', copy.make); setText('.setup-fields .setup-field:nth-child(1)>span', copy.yourName); setText('.setup-fields .setup-field:nth-child(2)>span', copy.gameMode); setText('.setup-fields .setup-field:nth-child(2) small', copy.modeHint); setText('.setup-fields .player-setting-field>span', copy.max); setText('.setup-fields .player-setting-field small', copy.maxHint); setText('.setup-fields .genre-setting-field>span', copy.genre); setText('.setup-fields .genre-setting-field small', copy.genreHint);
   setText('.setup-fields .setup-field:nth-child(2) small', selectedMode ? getModeSummary() : copy.modeHint);
@@ -2108,13 +2333,104 @@ function applyLanguage(language) {
     leave: '\u0e2d\u0e2d\u0e01\u0e08\u0e32\u0e01\u0e2b\u0e49\u0e2d\u0e07', listen: '\u0e1f\u0e31\u0e07\u0e43\u0e2b\u0e49\u0e14\u0e35', nameTrack: '\u0e17\u0e32\u0e22\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e1e\u0e25\u0e07', seconds: '\u0e27\u0e34\u0e19\u0e32\u0e17\u0e35\u0e17\u0e35\u0e48\u0e40\u0e2b\u0e25\u0e37\u0e2d', ready: '\u0e40\u0e1e\u0e25\u0e07\u0e16\u0e31\u0e14\u0e44\u0e1b\u0e1e\u0e23\u0e49\u0e2d\u0e21\u0e41\u0e25\u0e49\u0e27', pick: '\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e1e\u0e25\u0e07', choices: '\u0e15\u0e31\u0e27\u0e40\u0e25\u0e37\u0e2d\u0e01', score: '\u0e04\u0e30\u0e41\u0e19\u0e19\u0e2a\u0e14', leaderboard: '\u0e15\u0e32\u0e23\u0e32\u0e07\u0e04\u0e30\u0e41\u0e19\u0e19', scoring: '\u0e27\u0e34\u0e18\u0e35\u0e04\u0e34\u0e14\u0e04\u0e30\u0e41\u0e19\u0e19', roundComplete: '\u0e08\u0e1a\u0e23\u0e2d\u0e1a\u0e41\u0e25\u0e49\u0e27', revealed: '\u0e40\u0e1e\u0e25\u0e07\u0e40\u0e09\u0e25\u0e22', next: '\u0e23\u0e2d\u0e1a\u0e16\u0e31\u0e14\u0e44\u0e1b\u0e43\u0e19', continue: '\u0e40\u0e25\u0e48\u0e19\u0e15\u0e48\u0e2d', bomb: '\u0e40\u0e1e\u0e25\u0e07\u0e1a\u0e2d\u0e21\u0e1a\u0e4c', bombHint: '\u0e1e\u0e34\u0e21\u0e1e\u0e4c\u0e0a\u0e37\u0e48\u0e2d\u0e40\u0e1e\u0e25\u0e07\u0e2b\u0e23\u0e37\u0e2d\u0e28\u0e34\u0e25\u0e1b\u0e34\u0e19\u0e43\u0e2b\u0e49\u0e17\u0e31\u0e19\u0e01\u0e48\u0e2d\u0e19\u0e23\u0e30\u0e40\u0e1a\u0e34\u0e14'
   } : { leave: '← Leave room', listen: 'Listen close', nameTrack: 'Name that track.', seconds: 'SECONDS LEFT', ready: 'THE NEXT SONG IS READY', pick: 'Pick the song', choices: 'choices', score: 'Live scores', leaderboard: 'Leaderboard', scoring: 'How scoring works', roundComplete: 'Round complete', revealed: 'Song revealed', next: 'Next round in', continue: 'Continue', bomb: 'SONG BOMB', bombHint: 'Name the song or artist before the bomb goes off.' };
   document.querySelectorAll('.game-exit').forEach((button) => { button.textContent = game.leave; }); setText('.round-heading .eyebrow', game.listen); setHtml('.round-heading h1', game.nameTrack); setText('.round-clock small', game.seconds); setText('.answer-heading>strong', game.pick); setText('.game-leaderboard>.eyebrow', game.score); setText('.game-leaderboard h2', game.leaderboard); setText('.scoring-note>b', game.scoring); setText('.round-result-card>.eyebrow', game.roundComplete); setText('.bomb-topbar>span', game.bomb); setText('.bomb-mode-label', game.bomb); setText('.bomb-instruction', game.bombHint);
+  document.title = ui.pageTitle;
+  document.querySelector('meta[name="description"]')?.setAttribute('content', ui.pageDescription);
+  document.querySelector('.language-button')?.setAttribute('aria-label', ui.languageAria);
+  document.querySelector('.avatar-button')?.setAttribute('aria-label', ui.profileAria);
+  document.querySelector('.hero-art')?.setAttribute('aria-label', ui.artAria);
+  setHtml('.art-caption>span:last-child', `${ui.playSomething}<br /><strong>${ui.iconic}</strong>`);
+  setText('.record-label small', ui.stereo);
+  document.querySelector('main.app-shell>nav')?.setAttribute('aria-label', currentLanguage === 'TH' ? 'เมนูหลัก' : 'Main navigation');
+  document.querySelector('.footer-links')?.setAttribute('aria-label', currentLanguage === 'TH' ? 'เมนูท้ายหน้า' : 'Footer navigation');
+  document.querySelector('.social-links')?.setAttribute('aria-label', currentLanguage === 'TH' ? 'ช่องทางโซเชียลของ SONORA' : 'SONORA social links');
+  setText('.site-footer>p', ui.copyright);
+  setText('.footer-home', ui.footerHome); setText('.footer-terms', ui.footerTerms); setText('.footer-about', ui.footerAbout);
+  document.querySelectorAll('.info-back').forEach((button) => { button.textContent = ui.backHome; });
+  setHtml('#terms-page h1', ui.termsTitle); setText('#terms-page .info-date', ui.termsDate);
+  document.querySelectorAll('#terms-page .info-content h2').forEach((heading, index) => { if (ui.termsHeadings[index]) heading.textContent = ui.termsHeadings[index]; });
+  const termsParagraphs = [...document.querySelectorAll('#terms-page .info-content>p')].filter((paragraph) => !paragraph.classList.contains('eyebrow') && !paragraph.classList.contains('info-date'));
+  termsParagraphs.forEach((paragraph, index) => { if (ui.termsParagraphs[index]) paragraph.textContent = ui.termsParagraphs[index]; });
+  setHtml('#about-page h1', ui.aboutTitle);
+  const aboutParagraphs = [...document.querySelectorAll('.about-content>p')].filter((paragraph) => !paragraph.classList.contains('eyebrow'));
+  aboutParagraphs.forEach((paragraph, index) => { if (ui.aboutParagraphs[index]) paragraph.textContent = ui.aboutParagraphs[index]; });
+  document.querySelector('.join-back')?.replaceChildren(document.createTextNode(ui.joinBack));
+  setText('.join-note span:last-child', ui.joinNote);
+  document.querySelector('#player-name')?.setAttribute('placeholder', ui.namePlaceholder);
+  document.querySelector('.host-name-input')?.setAttribute('placeholder', ui.namePlaceholder);
+  document.querySelector('.name-gate-input')?.setAttribute('placeholder', ui.namePlaceholder);
+  document.querySelector('#profile-name')?.setAttribute('placeholder', ui.profilePlaceholder);
+  setText('.host-name-field small', ui.hostNameHint);
+  setText('.name-gate-card .eyebrow', ui.nameGateEyebrow); setHtml('.name-gate-card h2', ui.nameGateTitle);
+  setText('.name-gate-card>p:not(.eyebrow)', ui.nameGateDescription); setText('.name-gate-card span', ui.roomCode);
+  setText('.name-gate-save', ui.continue);
+  setText('.profile-panel .eyebrow', copy.profile); setText('.profile-panel label', copy.display);
+  document.querySelector('.profile-save')?.setAttribute('aria-label', copy.save);
+  document.querySelectorAll('.joined-room-panel .host-settings span small').forEach((label, index) => { if (ui.settings[index]) label.textContent = ui.settings[index]; });
+  setText('.joined-room-heading .eyebrow', ui.joinedRoom); setHtml('.joined-room-heading h3', ui.joinedCrew);
+  setText('.player-setting-field>span', ui.setupPlayer); setText('.player-setting-field small', ui.setupPlayerHint);
+  setText('.time-setting-field small', selectedMode === 'SongBomb' ? (currentLanguage === 'TH' ? 'แต่ละคนมีเวลาตอบเท่าไร' : 'How long each player has to answer') : (currentLanguage === 'TH' ? 'กำหนดเวลาให้แต่ละรอบ' : 'Fixed for the selected game mode'));
+  setText('.choice-count-field small', ui.setupChoicesHint); setText('.rounds-setting-field small', ui.setupRoundsHint);
+  setText('.difficulty-setting-field small', ui.setupDifficultyHint);
+  setText('.game-skip', ui.skip);
+  gameView.querySelector('.player-controls input[type="range"]')?.setAttribute('aria-label', ui.volume);
+  document.querySelector('.game-play')?.setAttribute('aria-label', ui.play);
+  document.querySelector('.bomb-log')?.setAttribute('aria-label', ui.bombEvents);
+  document.querySelector('.bomb-submit')?.setAttribute('aria-label', ui.bombSubmit);
+  const bombInput = document.querySelector('#bomb-song-input');
+  if (bombInput) { bombInput.placeholder = ui.bombPlaceholder; bombInput.setAttribute('aria-label', ui.bombPlaceholder); }
+  setText('.bomb-skip', ui.bombSkip); setText('.bomb-submit', ui.bombSubmit);
+  setText('.bomb-core small', ui.bombSeconds);
+  setText('.scoring-note p', ui.scoringText);
+  const continueButton = document.querySelector('.continue-round');
+  if (continueButton) {
+    const count = continueButton.textContent.match(/\((\d+\/\d+)\)/)?.[1];
+    continueButton.textContent = count ? `${ui.continueRound} (${count})` : ui.continueRound;
+  }
+  setText('.winner-card .eyebrow', ui.winnerEyebrow);
+  setText('#winner-title', ui.winnerTitle); setText('.winner-exit', ui.winnerBack);
+  const roundLabel = gameView.querySelector('.game-topbar>span');
+  if (roundLabel) {
+    const number = roundLabel.querySelector('.game-round')?.textContent || '1';
+    const total = Number(getRoomState().roundCount) || 10;
+    roundLabel.innerHTML = `${ui.roundLabel} <strong class="game-round">${number}</strong> / ${total}`;
+  }
+  const resultTitle = document.querySelector('#round-result-title');
+  if (resultTitle && ['Song revealed', ui.revealed].includes(resultTitle.textContent)) resultTitle.textContent = ui.revealed;
+  const countdownLabel = document.querySelector('.result-countdown')?.firstChild;
+  if (countdownLabel?.nodeType === Node.TEXT_NODE) countdownLabel.textContent = `${ui.nextRound} `;
+  document.querySelector('.copy-code-button')?.setAttribute('aria-label', currentLanguage === 'TH' ? 'คัดลอกรหัสห้อง' : 'Copy room code');
+  document.querySelector('.copy-code-button')?.setAttribute('title', currentLanguage === 'TH' ? 'คัดลอกรหัสห้อง' : 'Copy room code');
+  document.querySelector('.copy-button')?.setAttribute('aria-label', ui.copyRoomLink);
+  document.querySelector('.bomb-suggestions')?.setAttribute('aria-label', currentLanguage === 'TH' ? 'คำแนะนำเพลง' : 'Song suggestions');
+  document.querySelector('.name-gate-code')?.setAttribute('aria-label', ui.roomCode);
+  document.querySelectorAll('.catalog-loading-indicator small').forEach((label) => { label.textContent = ui.firstCatalogLoad; });
+  const modeNames = { Quickfire: ui.modeClassic, SongBomb: ui.modeBomb, Solo: ui.modeSolo };
+  modeChoices.querySelectorAll('.mode-choice').forEach((choice) => { choice.textContent = modeNames[choice.dataset.mode] || getAppModeName(choice.dataset.mode); });
+  document.querySelectorAll('.mode-card').forEach((card) => {
+    const mode = card.dataset.mode;
+    const name = modeNames[mode] || card.querySelector('.mode-name')?.textContent;
+    const detail = mode === 'Quickfire' ? (currentLanguage === 'TH' ? '10 เพลง · 30 วินาที' : '10 songs · 30 seconds')
+      : mode === 'Solo' ? (currentLanguage === 'TH' ? 'เล่นเกมด้วยตัวเอง' : 'Play on your own')
+        : (currentLanguage === 'TH' ? 'มี 3 ชีวิต · อยู่รอดเป็นคนสุดท้าย' : '3 lives · Last player standing');
+    setTextFor(card, '.mode-name', name); setTextFor(card, '.mode-detail', detail);
+  });
+  setText('.selected-mode-label', selectedMode ? getAppModeName(selectedMode) : (currentLanguage === 'TH' ? 'เลือกโหมดเกม' : 'Select a mode'));
+  setHtml('.launch-button', `${selectedMode === 'Solo' ? ui.launchSolo : selectedMode === 'SongBomb' ? ui.launchBomb : ui.launchClassic} <span aria-hidden="true">→</span>`);
+  setHtml('.setup-footer>span', `<i class="status-dot"></i>${selectedMode === 'Solo' ? ui.soloBadge : ui.roomBadge}`);
+  setHtml('.copy-button', `${ui.copyRoomLink} <span aria-hidden="true">↗</span>`);
+  document.querySelectorAll('.game-skip').forEach((button) => { button.innerHTML = `${ui.skip} <span>→</span>`; });
+  document.querySelectorAll('.difficulty-label').forEach((label) => {
+    const level = label.closest('.difficulty-meter')?.className.match(/difficulty-(easy|medium|hard|extreme)/)?.[1] || 'medium';
+    label.textContent = currentLanguage === 'TH' ? (ui.settingsDifficulty[['easy', 'medium', 'hard', 'extreme'].indexOf(level)]) : level[0].toUpperCase() + level.slice(1);
+  });
   const footerStatus = document.querySelector('.setup-footer>span');
   if (footerStatus && !footerStatus.querySelector('.status-dot')) {
     const statusDot = document.createElement('i');
     statusDot.className = 'status-dot';
     footerStatus.prepend(statusDot);
   }
-  document.documentElement.lang = language === 'TH' ? 'th' : 'en';
+  document.documentElement.lang = currentLanguage === 'TH' ? 'th' : 'en';
+  refreshDynamicUiLanguage();
 }
 
 function setTextFor(parent, selector, value) { const element = parent.querySelector(selector); if (element) element.textContent = value; }

@@ -84,7 +84,7 @@
   function showNotice(message, isError = false) {
     const target = $('.copy-status');
     if (!target) return;
-    target.textContent = message;
+    target.textContent = window.translateAppText?.(message) || message;
     target.classList.toggle('error', isError);
   }
   window.reportRoomCatalogProgress = (message) => {
@@ -93,6 +93,7 @@
   const roomCatalogLoadingIndicator = document.createElement('div');
   roomCatalogLoadingIndicator.className = 'catalog-loading-indicator room-catalog-loading';
   roomCatalogLoadingIndicator.innerHTML = '<div class="catalog-loading-track" role="progressbar" aria-label="Loading song catalog"><i></i></div><small>First-time catalog loading may take a while.</small>';
+  if (window.getAppLanguage?.() === 'TH') roomCatalogLoadingIndicator.querySelector('small').textContent = 'การโหลดคลังเพลงครั้งแรกอาจใช้เวลาสักครู่';
   $('.copy-status')?.after(roomCatalogLoadingIndicator);
   function setRoomCatalogLoading(isLoading) {
     roomCatalogLoadingIndicator.classList.toggle('is-visible', Boolean(isLoading));
@@ -302,26 +303,29 @@
     setRoomCode(room.code);
     const players = room.players || [];
     const roomLabel = $('.joined-room-heading .eyebrow');
-    if (roomLabel) roomLabel.textContent = 'Cloudflare room';
+    const thai = window.getAppLanguage?.() === 'TH';
+    if (roomLabel) roomLabel.textContent = thai ? 'ห้องบน Cloudflare' : 'Cloudflare room';
     const hostSettings = $$('.host-settings strong');
     if (hostSettings.length >= 7) {
-      hostSettings[0].textContent = room.mode === 'SongBomb' ? 'Song Bomb' : 'Classic';
-      hostSettings[1].textContent = `${room.maxPlayers} max`;
-      hostSettings[2].textContent = String(room.genre || 'Everything').replaceAll('|', ', ');
-      hostSettings[3].textContent = `${room.durationSeconds || 30} sec`;
-      hostSettings[4].textContent = (room.difficulty || 'medium').replace(/^./, (letter) => letter.toUpperCase());
-      hostSettings[5].textContent = `${room.choiceCount || 4} choices`;
+      const difficultyNames = thai ? { easy: 'ง่าย', medium: 'ปานกลาง', hard: 'ยาก', extreme: 'ยากมาก' } : { easy: 'Easy', medium: 'Medium', hard: 'Hard', extreme: 'Extreme' };
+      const genreName = (genre) => thai ? ({ 'Everything': 'ทุกแนวเพลง', 'Pop anthems': 'เพลงป๊อป', 'Indie & alternative': 'อินดี้และอัลเทอร์เนทีฟ', 'Hip-hop & R&B': 'ฮิปฮอปและอาร์แอนด์บี', 'Throwback classics': 'เพลงคลาสสิกย้อนยุค', 'Thai songs': 'เพลงไทย', 'J-Pop': 'เจป๊อป' }[genre] || genre) : genre;
+      hostSettings[0].textContent = window.getAppModeName?.(room.mode === 'SongBomb' ? 'SongBomb' : 'Quickfire') || (room.mode === 'SongBomb' ? 'Song Bomb' : 'Classic');
+      hostSettings[1].textContent = thai ? `${room.maxPlayers} คน` : `${room.maxPlayers} max`;
+      hostSettings[2].textContent = String(room.genre || 'Everything').split('|').map(genreName).join(thai ? '، ' : ', ');
+      hostSettings[3].textContent = thai ? `${room.durationSeconds || 30} วินาที` : `${room.durationSeconds || 30} sec`;
+      hostSettings[4].textContent = difficultyNames[room.difficulty || 'medium'] || (room.difficulty || 'medium');
+      hostSettings[5].textContent = thai ? `${room.choiceCount || 4} ตัวเลือก` : `${room.choiceCount || 4} choices`;
       hostSettings[6].textContent = `${room.roundCount || 10}`;
     }
     if (state.session?.host) {
       const playerStepper = $('.player-stepper strong');
-      if (playerStepper) playerStepper.textContent = `${room.maxPlayers} players`;
+      if (playerStepper) playerStepper.textContent = `${room.maxPlayers} ${thai ? 'ผู้เล่น' : 'players'}`;
       const durationStepper = $('.duration-stepper strong');
-      if (durationStepper) durationStepper.textContent = `${room.durationSeconds || 30} seconds`;
+      if (durationStepper) durationStepper.textContent = `${room.durationSeconds || 30} ${thai ? 'วินาที' : 'seconds'}`;
       const choiceStepper = $('.choice-stepper strong');
-      if (choiceStepper) choiceStepper.textContent = `${room.choiceCount || 4} choices`;
+      if (choiceStepper) choiceStepper.textContent = `${room.choiceCount || 4} ${thai ? 'ตัวเลือก' : 'choices'}`;
       const roundsStepper = $('.rounds-stepper strong');
-      if (roundsStepper) roundsStepper.textContent = `${room.roundCount || 10} rounds`;
+      if (roundsStepper) roundsStepper.textContent = `${room.roundCount || 10} ${thai ? 'รอบ' : 'rounds'}`;
     }
     const listMarkup = players.map((player, index) => `<div class="joined-player"><span class="joined-avatar ${index === 0 ? 'avatar-yellow' : 'avatar-blue'}">${escapeHtml(player.name.slice(0, 2).toUpperCase())}</span><span><strong>${escapeHtml(player.name)}</strong><small>${index === 0 ? 'Host' : 'Joined'}${player.connected ? '' : ' · reconnecting'}</small></span>${state.session?.playerId === room.hostId && player.id !== room.hostId ? `<button class="kick-player" type="button" data-player-id="${escapeHtml(player.id)}" aria-label="Kick ${escapeHtml(player.name)} from lobby" title="Kick from lobby">×</button>` : `<i>${index === 0 ? '★' : '✓'}</i>`}</div>`).join('');
     const free = Math.max(0, room.maxPlayers - players.length);
@@ -446,7 +450,7 @@
     const stageNumber = state.localStage;
     const start = state.localStage === 0 ? 0 : STAGE_ENDS[state.localStage - 1];
     const end = STAGE_ENDS[state.localStage];
-    audio.volume = Number($('.game-view [aria-label="Volume"]')?.value || 65) / 100;
+    audio.volume = Number($('.game-view .player-controls input[type="range"]')?.value || 65) / 100;
     if (startAt !== null) audio.currentTime = startAt;
     else if (restart || audio.currentTime >= end) audio.currentTime = 0;
     if (!audio.paused) {
@@ -509,7 +513,7 @@
     const roundNumber = Math.max(1, Number(room.roundNumber) || 1);
     const roundCount = Math.max(1, Number(room.roundCount) || 10);
     const topbar = $('.game-topbar>span');
-    if (topbar) topbar.innerHTML = `ROUND <strong class="game-round">${roundNumber}</strong> / ${roundCount}`;
+    if (topbar) topbar.innerHTML = `${window.getAppLanguage?.() === 'TH' ? 'รอบ' : 'ROUND'} <strong class="game-round">${roundNumber}</strong> / ${roundCount}`;
     $('.round-result-backdrop').hidden = true;
     $('.winner-backdrop').hidden = true;
     updateScoreboard(room);
@@ -641,7 +645,7 @@
       state.bombAudioKey = audioKey;
       state.activeAudio = new Audio(audioUrl);
       state.activeAudio.preload = 'auto';
-      state.activeAudio.volume = Number($('.song-bomb-panel [aria-label="Volume"]')?.value || 65) / 100;
+      state.activeAudio.volume = Number($('.song-bomb-panel input[type="range"]')?.value || 65) / 100;
       $('.bomb-audio-status').textContent = 'Starting song preview…';
       state.activeAudio.play().then(() => {
         if (state.bombAudioKey === audioKey) $('.bomb-audio-status').textContent = 'Song preview playing';
@@ -753,7 +757,7 @@
       state.activeAudio = new Audio();
       state.activeAudio.preload = 'auto';
       state.activeAudio.src = answer.previewUrl;
-      state.activeAudio.volume = Number($('.game-view [aria-label="Volume"]')?.value || 65) / 100;
+      state.activeAudio.volume = Number($('.game-view .player-controls input[type="range"]')?.value || 65) / 100;
       void state.activeAudio.play().catch(() => {});
     }
     const mine = room.players.find((player) => player.id === state.session?.playerId);
@@ -1569,7 +1573,7 @@
 
   document.addEventListener('input', (event) => {
     if (event.target.matches('.host-name-input')) configureFromForm();
-    if ((event.target.matches('.game-view [aria-label="Volume"]') || event.target.matches('.sound-button [aria-label="Volume"]')) && state.activeAudio) state.activeAudio.volume = Number(event.target.value) / 100;
+    if ((event.target.matches('.game-view .player-controls input[type="range"]') || event.target.matches('.sound-button input[type="range"]')) && state.activeAudio) state.activeAudio.volume = Number(event.target.value) / 100;
     if (event.target.matches('#bomb-song-input')) searchBombSuggestions(event.target.value);
   });
 
