@@ -732,7 +732,6 @@
     clearRoomTimer();
     const answer = room.revealedSong;
     if (answer) {
-      $('.round-result-backdrop').dataset.previewUrl = answer.previewUrl || '';
       $('#round-result-title').textContent = answer.title;
       $('#round-result-subtitle').textContent = answer.subtitle || '';
       $('.result-artist').textContent = answer.artist;
@@ -748,10 +747,7 @@
       state.activeAudio.preload = 'auto';
       state.activeAudio.src = answer.previewUrl;
       state.activeAudio.volume = Number($('.game-view [aria-label="Volume"]')?.value || 65) / 100;
-      void state.activeAudio.play().catch(() => {
-        const replayButton = $('.result-playback');
-        if (replayButton) replayButton.textContent = 'Tap to play answer preview';
-      });
+      void state.activeAudio.play().catch(() => {});
     }
     const mine = room.players.find((player) => player.id === state.session?.playerId);
     const guessedCorrectly = mine?.status === 'correct';
