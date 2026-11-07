@@ -90,6 +90,13 @@
   window.reportRoomCatalogProgress = (message) => {
     if (state.session?.host && $('.launch-button')?.disabled) showNotice(message);
   };
+  const roomCatalogLoadingIndicator = document.createElement('div');
+  roomCatalogLoadingIndicator.className = 'catalog-loading-indicator room-catalog-loading';
+  roomCatalogLoadingIndicator.innerHTML = '<div class="catalog-loading-track" role="progressbar" aria-label="Loading song catalog"><i></i></div><small>First-time catalog loading may take a while.</small>';
+  $('.copy-status')?.after(roomCatalogLoadingIndicator);
+  function setRoomCatalogLoading(isLoading) {
+    roomCatalogLoadingIndicator.classList.toggle('is-visible', Boolean(isLoading));
+  }
 
   function setRoomCode(code) {
     const roomCode = String(code || '').trim();
@@ -1045,6 +1052,7 @@
     const choiceCount = Math.max(4, Math.min(8, Number(room.choiceCount) || 4));
     const roundCount = Math.max(1, Math.min(50, Number(room.roundCount) || ROUND_COUNT));
     const selectedGenre = room.genre || 'Everything';
+    setRoomCatalogLoading(true);
     showNotice('Preparing playable songs…');
     const catalogs = await window.getRoomStartupCatalogs?.(selectedGenre, roundCount * choiceCount, desiredDifficulty, choiceCount)
       || await window.getRoundSongCatalogs?.(selectedGenre)
@@ -1056,7 +1064,6 @@
         .map((song) => [`${song[0]}|${song[1]}`, song])).values()].sort(() => Math.random() - 0.5),
     }));
     const usedKeys = new Set();
-    const genreRoundUsage = new Map();
     const rounds = [];
     const vocaloidAnswerEntries = [];
     for (let roundIndex = 0; roundIndex < roundCount; roundIndex += 1) {
@@ -1068,9 +1075,15 @@
         const eligible = pools.filter((pool) => !blocked.has(pool.name) && pool.songs.filter((song) => !usedKeys.has(`${song[0]}|${song[1]}`)).length >= choiceCount);
         if (!eligible.length) break;
         const getGenreBalanceKey = window.getGenreBalanceKey || ((name) => name);
-        const leastUsed = Math.min(...eligible.map((pool) => genreRoundUsage.get(getGenreBalanceKey(pool.name)) || 0));
-        const leastUsedPools = eligible.filter((pool) => (genreRoundUsage.get(getGenreBalanceKey(pool.name)) || 0) === leastUsed);
-        const pool = leastUsedPools[Math.floor(Math.random() * leastUsedPools.length)];
+        const poolsByGenre = new Map();
+        for (const candidatePool of eligible) {
+          const balanceKey = getGenreBalanceKey(candidatePool.name);
+          if (!poolsByGenre.has(balanceKey)) poolsByGenre.set(balanceKey, []);
+          poolsByGenre.get(balanceKey).push(candidatePool);
+        }
+        const genreGroups = [...poolsByGenre.values()];
+        const genreGroup = genreGroups[Math.floor(Math.random() * genreGroups.length)];
+        const pool = genreGroup[Math.floor(Math.random() * genreGroup.length)];
         const collected = [];
         const candidates = pool.songs.filter((song) => !usedKeys.has(`${song[0]}|${song[1]}`));
         for (let offset = 0; offset < candidates.length && collected.length < choiceCount; offset += 8) {
@@ -1088,8 +1101,6 @@
         if (collected.length < choiceCount) { blocked.add(pool.name); continue; }
         const entries = collected.slice(0, choiceCount);
         entries.forEach(({ song }) => usedKeys.add(`${song[0]}|${song[1]}`));
-        const balanceKey = getGenreBalanceKey(pool.name);
-        genreRoundUsage.set(balanceKey, (genreRoundUsage.get(balanceKey) || 0) + 1);
         selected = { genre: pool.name, entries };
       }
       if (!selected) throw new Error(`Could not find ${choiceCount} playable ${desiredDifficulty} songs from one genre for round ${roundIndex + 1}. Try another difficulty or genre.`);
@@ -1110,6 +1121,7 @@
         answer.subtitle = await window.resolveVocaloidTitleSubtitle?.(song) || window.getVocaloidTitleSubtitle?.(song) || '';
       }));
     }
+    setRoomCatalogLoading(false);
     return rounds;
   }
 
@@ -1119,6 +1131,7 @@
     const settings = getRoomState();
     const difficulty = settings.difficulty || 'medium';
     const genre = settings.genre || 'Everything';
+    setRoomCatalogLoading(true);
     const catalogs = window.getRoomStartupCatalogs
       ? await window.getRoomStartupCatalogs(genre, 4, difficulty)
       : await window.getCachedRoundSongCatalogs?.(genre) || await window.getRoundSongCatalogs?.(genre) || [{ name: genre, songs: activeCatalog }];
@@ -1148,6 +1161,7 @@
     } else {
       songs.forEach((item) => { delete item.sourceSong; });
     }
+    setRoomCatalogLoading(false);
     return songs;
   }
 
@@ -1200,6 +1214,7 @@
         showNotice('The room did not confirm the match start. Check your connection and try again.', true);
       }, 12000);
     } catch (error) {
+      setRoomCatalogLoading(false);
       clearTimeout(state.startTimer);
       state.startTimer = 0;
       if (showingGameStart) {
@@ -1211,6 +1226,7 @@
       }
       showNotice(error.message, true);
     } finally {
+      setRoomCatalogLoading(false);
       button.disabled = false;
       button.innerHTML = window.getSelectedGameMode?.() === 'SongBomb' ? 'Start Song Bomb <span>&rarr;</span>' : 'Start Classic <span>&rarr;</span>';
       if (state.room) renderLobby(state.room);

@@ -158,4 +158,13 @@
 .genre-option:disabled,.genre-option:disabled:hover{opacity:.24!important;filter:grayscale(1);cursor:not-allowed;border-color:#35413d!important;background:#18211f!important;color:#66706b!important;transform:none!important}
 .bomb-log-artist{color:#c1c6c1;font-size:11px;font-weight:500}
 @keyframes note-confetti{0%{opacity:0;transform:translate3d(0,0,0) rotate(0)}12%{opacity:1}100%{opacity:0;transform:translate3d(var(--note-x),-125vh,0) rotate(var(--note-r))}}
+.catalog-loading-indicator{display:none;gap:8px;margin:-4px 0 14px}
+.game-view[data-catalog-preparing="true"] .catalog-loading-indicator{display:grid}
+.catalog-loading-indicator.is-visible{display:grid}
+.room-catalog-loading{margin:8px 0 0}
+.catalog-loading-track{height:4px;overflow:hidden;border-radius:999px;background:#35413d}
+.catalog-loading-track i{display:block;width:34%;height:100%;border-radius:inherit;background:#d97661;animation:catalog-loading-sweep 1.35s ease-in-out infinite}
+.catalog-loading-indicator small{color:#9da39d;font-size:10px;line-height:1.4}
+@keyframes catalog-loading-sweep{0%{transform:translateX(-110%)}50%{transform:translateX(100%)}100%{transform:translateX(310%)}}
+@media(prefers-reduced-motion:reduce){.catalog-loading-track i{width:100%;animation:none;opacity:.65}}
 .note-confetti-burst span{animation-duration:2.4s}.note-confetti-burst.winner-confetti span{animation-duration:4s}

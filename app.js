@@ -81,6 +81,10 @@ const gameView = document.createElement('section');
 gameView.className = 'game-view'; gameView.hidden = true;
 gameView.innerHTML = `<header class="game-topbar"><button class="game-exit" type="button">← Leave room</button><b>SONORA</b><span>ROUND <strong class="game-round">1</strong> / 10</span></header><div class="game-layout"><section class="round-play"><div class="round-heading"><div><p class="eyebrow">Listen close</p><h1>Name that <em>track.</em></h1></div><div class="round-clock"><strong>30</strong><small>SECONDS LEFT</small></div></div><div class="vinyl-stage"><div class="game-vinyl"><span>?</span></div><p>THE NEXT SONG IS READY</p></div><div class="track-progress"><div class="track-line"><i></i></div><div class="track-marks"><span class="active">0.1s</span><span>0.5s</span><span>2s</span><span>8s</span><span>15s</span></div></div><div class="player-controls"><label><span class="speaker-icon">◖))</span><input aria-label="Volume" type="range" min="0" max="100" value="65"></label><button class="game-play" type="button" aria-label="Play current section"><span class="play-icon" aria-hidden="true"></span></button><button class="game-skip" type="button">Skip <span>→</span></button></div><div class="answer-heading"><strong>Pick the song</strong><span class="difficulty-meter difficulty-medium" role="status" aria-label="Song difficulty: medium"><span class="difficulty-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span><b class="difficulty-label">Medium</b></span><span class="guess-status">4 choices</span></div><div class="song-choices"></div><p class="round-feedback" aria-live="polite">Choose quickly for the highest score.</p></section><aside class="game-leaderboard"><p class="eyebrow">Live scores</p><h2>Leaderboard</h2><div class="score-list"></div><div class="scoring-note"><b>How scoring works</b><p>Correct at 0.1s earns the most. Wrong guesses, later clues, and slower answers reduce your points.</p></div></aside></div>`;
 document.body.appendChild(gameView);
+const catalogLoadingIndicator=document.createElement('div');
+catalogLoadingIndicator.className='catalog-loading-indicator';
+catalogLoadingIndicator.innerHTML='<div class="catalog-loading-track" role="progressbar" aria-label="Loading song catalog"><i></i></div><small>First-time catalog loading may take a while.</small>';
+gameView.querySelector('.round-feedback').after(catalogLoadingIndicator);
 const songBombView = document.createElement('section');
 songBombView.className = 'song-bomb-panel';
 songBombView.hidden = true;
@@ -910,16 +914,30 @@ resultArtworkObserver.observe(roundResult,{attributes:true,attributeFilter:['hid
 let roundNo=0,stageNo=0,roundLeft=30,elapsed=0,roundTick,attemptTick,breakTick,roundPlayers=[],gameAudio=null,audioUrlIndex=-1,progressFrame=0,activeRoundSong=null,activeRoundSongSubtitle='',activeRoundGenre='',playRequest=0;
 const usedRoundSongs=new Set();
 const unavailableSongs=new Set();
-const genreRoundUsage=new Map();
 async function pickPlayableChoices(allowVocaloidExpansionWait=true){
   const room=getRoomState();
   const difficulty=room.difficulty||'medium';
   const choiceCount=room.choiceCount||4;
   const catalogs=await window.getRoundSongCatalogs?.(room.genre||'Everything')||[{name:room.genre||'Everything',songs:activeCatalog}];
-  const pools=catalogs.map(({name,songs})=>({
+  const eligiblePools=catalogs.map(({name,songs})=>({
     name,
     songs:songs.filter(song=>getSongDifficulty(song)===difficulty&&!usedRoundSongs.has(song)&&!unavailableSongs.has(`${song[0]}|${song[1]}`)).sort(()=>Math.random()-.5)
-  })).filter(pool=>pool.songs.length>=choiceCount).sort((a,b)=>(genreRoundUsage.get(getGenreBalanceKey(a.name))||0)-(genreRoundUsage.get(getGenreBalanceKey(b.name))||0));
+  })).filter(pool=>pool.songs.length>=choiceCount);
+  const poolsByGenre=new Map();
+  for(const pool of eligiblePools){
+    const balanceKey=getGenreBalanceKey(pool.name);
+    if(!poolsByGenre.has(balanceKey))poolsByGenre.set(balanceKey,[]);
+    poolsByGenre.get(balanceKey).push(pool);
+  }
+  const shuffleRandom=items=>{
+    const shuffled=[...items];
+    for(let index=shuffled.length-1;index>0;index--){
+      const swapIndex=Math.floor(Math.random()*(index+1));
+      [shuffled[index],shuffled[swapIndex]]=[shuffled[swapIndex],shuffled[index]];
+    }
+    return shuffled;
+  };
+  const pools=shuffleRandom([...poolsByGenre.values()]).flatMap(group=>shuffleRandom(group));
   const feedback=gameView.querySelector('.round-feedback');
   for(const pool of pools){
     const choices=[];
@@ -939,8 +957,6 @@ async function pickPlayableChoices(allowVocaloidExpansionWait=true){
     }
     if(choices.length===choiceCount){
       choices.forEach(song=>usedRoundSongs.add(song));
-      const balanceKey=getGenreBalanceKey(pool.name);
-      genreRoundUsage.set(balanceKey,(genreRoundUsage.get(balanceKey)||0)+1);
       activeRoundGenre=pool.name;
       return choices;
     }
@@ -957,7 +973,6 @@ async function pickPlayableChoices(allowVocaloidExpansionWait=true){
 async function launchGame(){
   usedRoundSongs.clear();
   unavailableSongs.clear();
-  genreRoundUsage.clear();
   const r=getRoomState();
   roundPlayers=r.players.filter(p=>p.name).map(p=>({name:p.name,score:0}));
   if(!roundPlayers.length)roundPlayers=[{name:'You',score:0}];
@@ -974,13 +989,11 @@ async function launchGame(){
     if(selectedGenre==='Everything'){
       activeCatalog=await prepareCatalogSnapshots();
       if(activeCatalog.length<4)activeCatalog=roundSongs;
-      gameView.dataset.catalogPreparing='false';
       deferredExpansionGenre='Everything';
     }else{
       const cachedCatalogs=await window.getCachedRoundSongCatalogs?.(selectedGenre)||[];
       for(const {name,songs} of cachedCatalogs){catalogSnapshotByGenre.set(name,songs||[]);everythingGenreCatalogs.set(name,songs||[]);}
       activeCatalog=cachedCatalogs.flatMap(pool=>pool.songs||[]);
-      gameView.dataset.catalogPreparing='false';
       genreSelectionKeys(selectedGenre).forEach(name=>deferredCatalogExpansionGenres.add(name));
       if(selectedGenre.includes('|'))deferredCatalogExpansionGenres.add(selectedGenre);
       deferredExpansionGenre=selectedGenre;
@@ -997,6 +1010,7 @@ async function launchGame(){
         everythingGenreCatalogs.set(name,songs||[]);
       }
     }
+    gameView.dataset.catalogPreparing='false';
     await nextRound();
     if(deferredExpansionGenre){
       if(deferredExpansionGenre==='Everything')sourceGenres.forEach(name=>deferredCatalogExpansionGenres.delete(name));
