@@ -199,7 +199,7 @@ const animeSeriesSearchTerms = {
 const GENRE_CATALOG_SIZE=3000;
 const ANIME_CATALOG_SIZE=300;
 const ANIME_SOURCE_CATALOG_SIZE=ANIME_CATALOG_SIZE/2;
-const disabledGenres=new Set(['Vocaloid']);
+const disabledGenres=new Set(['Vocaloid','Anime','Anime openings','Anime endings']);
 const getGenreCatalogTarget=(genre)=>genre==='Vocaloid'?1000:animeSeriesSearchTerms[genre]?ANIME_SOURCE_CATALOG_SIZE:GENRE_CATALOG_SIZE;
 const getGenreCatalogStorageKey=(genre)=>genre==='Vocaloid'?'sonora-song-catalog-vocaloid-v1':'sonora-song-catalog-v9-'+genre;
 const catalogVersionCue=/(?:\b(?:live(?:\s+(?:at|from|in|version|performance))?|demo(?:nstration)?|remaster(?:ed|ing)?|re[\s-]?master(?:ed)?|remix(?:es|ed)?|re[\s-]?record(?:ed|ing)?|alternate(?:\s+take)?|alternative(?:\s+take)?|acoustic|unplugged|radio\s+(?:edit|mix|version)|single\s+(?:edit|mix|version)|album\s+(?:edit|mix|version)|extended(?:\s+(?:version|mix))?|club\s+mix|12[ -]?inch(?:\s+mix)?|instrumental|off[\s-]?vocal|karaoke|cover(?:\s+version)?|tribute\s+(?:to|album|songs?)|made\s+famous\s+by|original\s+(?:artist|version|soundtrack|mix)|sped[\s-]?up|slowed(?:\s+down)?|nightcore|acapella|a[ -]?cappella|clean\s+version|explicit\s+version|full\s+version|music\s+box|piano\s+version|string\s+quartet|anniversary\s+edition|deluxe\s+edition|expanded\s+edition|special\s+edition|collector['\u2019]?s\s+edition|bonus\s+track|mono|stereo|taylor['\u2019]?s\s+version|(?:english|japanese|thai|korean|chinese)\s+version)\b|\u30e9\u30a4\u30d6|\u30ab\u30d0\u30fc|\u30ea\u30df\u30c3\u30af\u30b9|\u30a2\u30b3\u30fc\u30b9\u30c6\u30a3\u30c3\u30af|\u30ea\u30de\u30b9\u30bf\u30fc|\u30ab\u30e9\u30aa\u30b1|\u30a4\u30f3\u30b9\u30c8|\u4f34\u594f)/iu;
@@ -510,7 +510,7 @@ async function loadQuickGenreCatalog(genre,target){
   quickCatalogLoadTasks.set(key,task);
   try{return await task;}finally{if(quickCatalogLoadTasks.get(key)===task)quickCatalogLoadTasks.delete(key);}
 }
-const sourceGenres=['Pop anthems','Indie & alternative','Hip-hop & R&B','Throwback classics','Thai songs','J-Pop','Anime openings','Anime endings'];
+const sourceGenres=['Pop anthems','Indie & alternative','Hip-hop & R&B','Throwback classics','Thai songs','J-Pop'];
 const getGenreBalanceKey=genre=>String(genre||'Everything').startsWith('Anime ')?'Anime':String(genre||'Everything');
 window.getGenreBalanceKey=getGenreBalanceKey;
 const combinedGenres=['Everything',...sourceGenres];
@@ -552,6 +552,7 @@ function mergeCatalogEntries(songs){
   const animeCountBySource=new Map();
   for(const song of songs){
     if(disabledGenres.has(song?.[9]?.catalogGenre))continue;
+    if(disabledGenres.has('Anime')&&song?.[6])continue;
     if(!Array.isArray(song)||!song[0]||!song[1]||isExcludedCatalogTrack(song,Boolean(song[6]),null,song[9]?.catalogGenre||''))continue;
     if(!song[6]&&!roundSongs.includes(song)&&!sourceGenres.some(name=>matchesCatalogSeedArtist(song[1],genreArtistSeeds[name])))continue;
     const catalogGenre=song[9]?.catalogGenre||'';

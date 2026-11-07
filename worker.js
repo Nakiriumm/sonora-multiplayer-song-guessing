@@ -4,8 +4,12 @@ const CODE_ALPHABET = '0123456789';
 const DEFAULT_ROUND_SECONDS = 30;
 const BREAK_SECONDS = 10;
 const ROUND_COUNT = 10;
+const isDisabledGenre = (value) => {
+  const genre = String(value || '').trim().toLocaleLowerCase();
+  return genre === 'vocaloid' || genre === 'anime' || genre.startsWith('anime ');
+};
 const normalizeGenre = (value) => {
-  const genres = String(value || 'Everything').split('|').map((genre) => genre.trim()).filter((genre) => genre && genre !== 'Vocaloid');
+  const genres = String(value || 'Everything').split('|').map((genre) => genre.trim()).filter((genre) => genre && !isDisabledGenre(genre));
   return genres.length ? genres.join('|') : 'Everything';
 };
 const STAGES = [0.1, 0.5, 2, 8, 15];
@@ -58,7 +62,7 @@ function connectedPlayersFinished(room) {
 
 function cleanRound(round) {
   if (!round || !Array.isArray(round.choices) || round.choices.length < 4 || round.choices.length > 8) return null;
-  if (String(round.genre || '').split('|').some((genre) => genre.trim() === 'Vocaloid')) return null;
+  if (String(round.genre || '').split('|').some(isDisabledGenre) || round.choices.some((choice) => String(choice?.anime || '').trim())) return null;
   if (!Number.isInteger(round.answerIndex) || round.answerIndex < 0 || round.answerIndex >= round.choices.length) return null;
   const safeArtwork = (value) => {
     const candidate = String(value || '');
