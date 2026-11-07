@@ -1056,6 +1056,7 @@
         .map((song) => [`${song[0]}|${song[1]}`, song])).values()].sort(() => Math.random() - 0.5),
     }));
     const usedKeys = new Set();
+    const genreRoundUsage = new Map();
     const rounds = [];
     const vocaloidAnswerEntries = [];
     for (let roundIndex = 0; roundIndex < roundCount; roundIndex += 1) {
@@ -1064,9 +1065,12 @@
       const blocked = new Set();
       let selected = null;
       while (!selected) {
-        const eligible = pools.filter((pool) => !blocked.has(pool.name) && pool.songs.filter((song) => !usedKeys.has(`${song[0]}|${song[1]}`)).length >= choiceCount).sort(() => Math.random() - 0.5);
+        const eligible = pools.filter((pool) => !blocked.has(pool.name) && pool.songs.filter((song) => !usedKeys.has(`${song[0]}|${song[1]}`)).length >= choiceCount);
         if (!eligible.length) break;
-        const pool = eligible[0];
+        const getGenreBalanceKey = window.getGenreBalanceKey || ((name) => name);
+        const leastUsed = Math.min(...eligible.map((pool) => genreRoundUsage.get(getGenreBalanceKey(pool.name)) || 0));
+        const leastUsedPools = eligible.filter((pool) => (genreRoundUsage.get(getGenreBalanceKey(pool.name)) || 0) === leastUsed);
+        const pool = leastUsedPools[Math.floor(Math.random() * leastUsedPools.length)];
         const collected = [];
         const candidates = pool.songs.filter((song) => !usedKeys.has(`${song[0]}|${song[1]}`));
         for (let offset = 0; offset < candidates.length && collected.length < choiceCount; offset += 8) {
@@ -1084,6 +1088,8 @@
         if (collected.length < choiceCount) { blocked.add(pool.name); continue; }
         const entries = collected.slice(0, choiceCount);
         entries.forEach(({ song }) => usedKeys.add(`${song[0]}|${song[1]}`));
+        const balanceKey = getGenreBalanceKey(pool.name);
+        genreRoundUsage.set(balanceKey, (genreRoundUsage.get(balanceKey) || 0) + 1);
         selected = { genre: pool.name, entries };
       }
       if (!selected) throw new Error(`Could not find ${choiceCount} playable ${desiredDifficulty} songs from one genre for round ${roundIndex + 1}. Try another difficulty or genre.`);

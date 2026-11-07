@@ -507,6 +507,8 @@ async function loadQuickGenreCatalog(genre,target){
   try{return await task;}finally{if(quickCatalogLoadTasks.get(key)===task)quickCatalogLoadTasks.delete(key);}
 }
 const sourceGenres=['Pop anthems','Indie & alternative','Hip-hop & R&B','Throwback classics','Thai songs','J-Pop','Anime openings','Anime endings'];
+const getGenreBalanceKey=genre=>String(genre||'Everything').startsWith('Anime ')?'Anime':String(genre||'Everything');
+window.getGenreBalanceKey=getGenreBalanceKey;
 const combinedGenres=['Everything',...sourceGenres];
 function splitGenreSelection(value){return String(value||'Everything').split('|').map(genre=>genreAliases[genre]||genre).filter(genre=>genre&&!disabledGenres.has(genre));}
 function expandGenrePools(genre){return genre==='Anime'?['Anime openings','Anime endings']:[genre];}
@@ -678,7 +680,6 @@ window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficul
       const target=expansionTarget(Math.ceil(required/selected.length),sourceGenre);
       groups.set(sourceGenre,await loadQuickGenreCatalog(sourceGenre,target));
       catalogs=[...groups].map(([name,songs])=>({name,songs}));
-      if(playableCount(catalogs)>=required&&hasPlayablePool(catalogs))break;
     }
     catalogs=[...groups].map(([name,songs])=>({name,songs}));
     if(playableCount(catalogs)<required||!hasPlayablePool(catalogs))throw new Error(`Only ${playableCount(catalogs)} playable ${difficulty} songs are cached for ${genre.replaceAll('|', ', ')}. Check your connection and try again.`);
@@ -692,8 +693,6 @@ window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficul
       const target=expansionTarget(perGenreRequired,sourceGenre);
       const songs=await loadQuickGenreCatalog(sourceGenre,target);
       groups.set(sourceGenre,songs);
-      const groupedCatalogs=[...groups].map(([name,entries])=>({name,songs:entries}));
-      if(playableCount(groupedCatalogs)>=required&&hasPlayablePool(groupedCatalogs))break;
     }
     catalogs=[...groups].map(([name,songs])=>({name,songs}));
   }else if(genre==='Anime'){
@@ -885,6 +884,7 @@ resultArtworkObserver.observe(roundResult,{attributes:true,attributeFilter:['hid
 let roundNo=0,stageNo=0,roundLeft=30,elapsed=0,roundTick,attemptTick,breakTick,roundPlayers=[],gameAudio=null,audioUrlIndex=-1,progressFrame=0,activeRoundSong=null,activeRoundSongSubtitle='',activeRoundGenre='',playRequest=0;
 const usedRoundSongs=new Set();
 const unavailableSongs=new Set();
+const genreRoundUsage=new Map();
 async function pickPlayableChoices(allowVocaloidExpansionWait=true){
   const room=getRoomState();
   const difficulty=room.difficulty||'medium';
@@ -893,7 +893,7 @@ async function pickPlayableChoices(allowVocaloidExpansionWait=true){
   const pools=catalogs.map(({name,songs})=>({
     name,
     songs:songs.filter(song=>getSongDifficulty(song)===difficulty&&!usedRoundSongs.has(song)&&!unavailableSongs.has(`${song[0]}|${song[1]}`)).sort(()=>Math.random()-.5)
-  })).filter(pool=>pool.songs.length>=choiceCount).sort(()=>Math.random()-.5);
+  })).filter(pool=>pool.songs.length>=choiceCount).sort((a,b)=>(genreRoundUsage.get(getGenreBalanceKey(a.name))||0)-(genreRoundUsage.get(getGenreBalanceKey(b.name))||0));
   const feedback=gameView.querySelector('.round-feedback');
   for(const pool of pools){
     const choices=[];
@@ -913,6 +913,8 @@ async function pickPlayableChoices(allowVocaloidExpansionWait=true){
     }
     if(choices.length===choiceCount){
       choices.forEach(song=>usedRoundSongs.add(song));
+      const balanceKey=getGenreBalanceKey(pool.name);
+      genreRoundUsage.set(balanceKey,(genreRoundUsage.get(balanceKey)||0)+1);
       activeRoundGenre=pool.name;
       return choices;
     }
@@ -929,6 +931,7 @@ async function pickPlayableChoices(allowVocaloidExpansionWait=true){
 async function launchGame(){
   usedRoundSongs.clear();
   unavailableSongs.clear();
+  genreRoundUsage.clear();
   const r=getRoomState();
   roundPlayers=r.players.filter(p=>p.name).map(p=>({name:p.name,score:0}));
   if(!roundPlayers.length)roundPlayers=[{name:'You',score:0}];
