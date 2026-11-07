@@ -14,14 +14,7 @@ SONORA is a browser based music guessing game. Create a room, share its code wit
 
 ## Run locally
 
-You’ll need Node.js and npm. From the project directory, install dependencies and start the local Cloudflare development server:
-
-```sh
-npm install
-npm run dev
-```
-
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Stop the server with **Ctrl+C**.
+You’ll need Node.js and npm. From the project directory, install dependencies and start the local Cloudflare development server
 
 The `dev` script starts Wrangler with the project’s Worker and local Durable Object support. It also stores Wrangler’s local state in a temporary directory.
 
@@ -55,10 +48,6 @@ The deployment configuration is in [`wrangler.toml`](wrangler.toml). The Worker 
 | `wrangler.toml` | Wrangler, asset, and Durable Object configuration |
 | `scripts/dev.js` | Local Wrangler development command |
 | `scripts/deploy-with-retry.js` | Wrangler deployment command with retry for transient API errors |
-
-## GitHub Actions
-
-The repository includes a GitHub Actions workflow that checks for the main static site files on pushes and pull requests to `master`.
 
 ## License
 
