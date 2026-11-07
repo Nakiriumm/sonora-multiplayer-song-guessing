@@ -671,8 +671,25 @@ window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficul
   const expansionTarget=(count,sourceGenre)=>Math.min(getGenreCatalogTarget(sourceGenre),Math.max(count+4,count*difficultyMultiplier+4,rankCoverageTarget));
   const playableCount=catalogs=>(catalogs||[]).reduce((sum,pool)=>sum+(pool.songs||[]).filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty).length,0);
   const hasPlayablePool=catalogs=>(catalogs||[]).some(pool=>(pool.songs||[]).filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty).length>=minimumPerPool);
+  const everythingBalanceGenres=[...new Set(sourceGenres.map(getGenreBalanceKey))];
+  const requiredRounds=Math.ceil(required/minimumPerPool);
+  const requiredPerEverythingGenre=Math.max(minimumPerPool,Math.ceil(requiredRounds/everythingBalanceGenres.length)*minimumPerPool);
+  const playableCountsByGenre=catalogs=>{
+    const counts=new Map();
+    for(const pool of catalogs||[]){
+      const count=(pool.songs||[]).filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty).length;
+      const key=getGenreBalanceKey(pool.name);
+      counts.set(key,(counts.get(key)||0)+count);
+    }
+    return counts;
+  };
+  const hasEverythingGenreCoverage=catalogs=>{
+    const counts=playableCountsByGenre(catalogs);
+    return everythingBalanceGenres.every(name=>(counts.get(name)||0)>=requiredPerEverythingGenre);
+  };
   let catalogs=await window.getCachedRoundSongCatalogs(genre);
-  if(playableCount(catalogs)>=required&&hasPlayablePool(catalogs))return catalogs;
+  const cachedCatalogsReady=playableCount(catalogs)>=required&&hasPlayablePool(catalogs);
+  if(cachedCatalogsReady&&(genre!=='Everything'||required<=minimumPerPool||hasEverythingGenreCoverage(catalogs)))return catalogs;
   if(genre.includes('|')){
     const selected=splitGenreSelection(genre).flatMap(expandGenrePools);
     const groups=new Map(catalogs.map(({name,songs})=>[name,songs||[]]));
@@ -686,14 +703,23 @@ window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficul
     return catalogs;
   }
   if(genre==='Everything'){
-    const groups=new Map(catalogs.filter(pool=>pool.name!=='Everything').map(pool=>[pool.name,pool.songs||[]]));
-    const genres=[...sourceGenres].sort(()=>Math.random()-.5).slice(0,3);
-    const perGenreRequired=Math.ceil(required/genres.length);
-    for(const sourceGenre of genres){
-      const target=expansionTarget(perGenreRequired,sourceGenre);
-      const songs=await loadQuickGenreCatalog(sourceGenre,target);
-      groups.set(sourceGenre,songs);
+    const groups=new Map(sourceGenres.map(name=>[name,[]]));
+    for(const pool of catalogs)if(pool.name!=='Everything')groups.set(pool.name,pool.songs||[]);
+    const cachedCounts=playableCountsByGenre(catalogs);
+    let genresToLoad;
+    if(required<=minimumPerPool){
+      // Start the first round quickly from a few pools; fill all selected genres in the background.
+      genresToLoad=[...sourceGenres].sort(()=>Math.random()-.5).slice(0,3);
+    }else{
+      const underfilledGenres=new Set(everythingBalanceGenres.filter(name=>(cachedCounts.get(name)||0)<requiredPerEverythingGenre));
+      genresToLoad=sourceGenres.filter(name=>underfilledGenres.has(getGenreBalanceKey(name)));
     }
+    const perGenreRequired=Math.ceil(required/everythingBalanceGenres.length);
+    const loadedPools=await Promise.all(genresToLoad.map(async sourceGenre=>{
+      const target=expansionTarget(perGenreRequired,sourceGenre);
+      return [sourceGenre,await loadQuickGenreCatalog(sourceGenre,target)];
+    }));
+    loadedPools.forEach(([name,songs])=>groups.set(name,songs));
     catalogs=[...groups].map(([name,songs])=>({name,songs}));
   }else if(genre==='Anime'){
     const target=expansionTarget(Math.ceil(required/2),'Anime openings');
