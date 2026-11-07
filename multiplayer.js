@@ -422,8 +422,16 @@
     const sourceUrl = new URL(source, location.href).href;
     if (!state.activeAudio || state.activeAudio.src !== sourceUrl) {
       if (state.activeAudio) state.activeAudio.pause();
-      state.activeAudio = new Audio(sourceUrl);
+      state.activeAudio = new Audio();
       state.activeAudio.preload = 'auto';
+      state.activeAudio.src = sourceUrl;
+      const thisAudio = state.activeAudio;
+      thisAudio.addEventListener('waiting', () => {
+        if (thisAudio === state.activeAudio) $('.round-feedback').textContent = 'Buffering song preview…';
+      });
+      thisAudio.addEventListener('error', () => {
+        if (thisAudio === state.activeAudio) $('.round-feedback').textContent = 'The preview could not load. Check your connection and try again.';
+      });
     }
     const audio = state.activeAudio;
     const operation = ++state.audioOperation;
@@ -462,8 +470,10 @@
       };
       cancelAnimationFrame(state.audioFrame);
       state.audioFrame = requestAnimationFrame(animate);
-    } catch {
-      $('.round-feedback').textContent = 'Your browser blocked audio. Press play to allow sound, then try again.';
+    } catch (error) {
+      $('.round-feedback').textContent = error?.name === 'NotAllowedError'
+        ? 'Playback was blocked. Tap Play again and check your browser sound settings.'
+        : 'Playback could not start. Check your connection and device volume, then try again.';
     }
   }
 
@@ -722,6 +732,7 @@
     clearRoomTimer();
     const answer = room.revealedSong;
     if (answer) {
+      $('.round-result-backdrop').dataset.previewUrl = answer.previewUrl || '';
       $('#round-result-title').textContent = answer.title;
       $('#round-result-subtitle').textContent = answer.subtitle || '';
       $('.result-artist').textContent = answer.artist;
@@ -733,10 +744,14 @@
     if (answer?.previewUrl && revealKey !== state.revealAudioKey) {
       stopSyncedAudio();
       state.revealAudioKey = revealKey;
-      state.activeAudio = new Audio(answer.previewUrl);
+      state.activeAudio = new Audio();
       state.activeAudio.preload = 'auto';
+      state.activeAudio.src = answer.previewUrl;
       state.activeAudio.volume = Number($('.game-view [aria-label="Volume"]')?.value || 65) / 100;
-      void state.activeAudio.play().catch(() => {});
+      void state.activeAudio.play().catch(() => {
+        const replayButton = $('.result-playback');
+        if (replayButton) replayButton.textContent = 'Tap to play answer preview';
+      });
     }
     const mine = room.players.find((player) => player.id === state.session?.playerId);
     const guessedCorrectly = mine?.status === 'correct';
