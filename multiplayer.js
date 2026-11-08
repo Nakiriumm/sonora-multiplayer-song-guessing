@@ -1191,9 +1191,22 @@
     const difficulty = settings.difficulty || 'medium';
     const genre = settings.genre || 'Everything';
     setRoomCatalogLoading(true);
-    const catalogs = window.getRoomStartupCatalogs
-      ? await window.getRoomStartupCatalogs(genre, 4, difficulty, 4, genre === 'Everything', settings.languages)
-      : await window.getCachedRoundSongCatalogs?.(genre) || await window.getRoundSongCatalogs?.(genre) || [{ name: genre, songs: activeCatalog }];
+    let catalogs;
+    if (window.getRoomStartupCatalogs) {
+      try {
+        // Song Bomb cycles through the prepared list, so prepare a substantial
+        // pool instead of accepting a tiny cache that repeats after a few turns.
+        catalogs = await window.getRoomStartupCatalogs(genre, 100, difficulty, 4, genre === 'Everything', settings.languages);
+      } catch {
+        // Keep a playable partial catalog if the full target is unavailable.
+        catalogs = await window.getCachedRoundSongCatalogs?.(genre) || [];
+        if (!catalogs.some((pool) => pool.songs?.length)) {
+          catalogs = await window.getRoundSongCatalogs?.(genre) || [{ name: genre, songs: activeCatalog }];
+        }
+      }
+    } else {
+      catalogs = await window.getCachedRoundSongCatalogs?.(genre) || await window.getRoundSongCatalogs?.(genre) || [{ name: genre, songs: activeCatalog }];
+    }
     const filteredCatalogs = genre === 'Everything' ? window.filterSongCatalogsByLanguages?.(catalogs, settings.languages) || catalogs : catalogs;
     activeCatalog = filteredCatalogs.flatMap(({ songs }) => songs || []);
     const candidates = [...new Map(filteredCatalogs.flatMap(({ songs }) => songs || [])
