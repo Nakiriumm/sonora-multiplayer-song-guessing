@@ -133,11 +133,12 @@
   function currentSettings(name) {
     const saved = getRoomState();
     const playersLabel = $('.player-stepper strong')?.textContent || `${DEFAULT_MAX_PLAYERS} players`;
+    const everythingOption = $('.genre-option[data-genre="Everything"]');
     const genreOptions = $$('.genre-option').filter((option) => option.dataset.genre !== 'Everything');
     const selectedGenres = genreOptions.filter((option) => option.classList.contains('selected')).map((option) => option.dataset.genre);
-    const genre = selectedGenres.length === genreOptions.length
+    const genre = everythingOption?.classList.contains('selected') || !selectedGenres.length
       ? 'Everything'
-      : selectedGenres.join('|') || saved.genre || 'Everything';
+      : selectedGenres.join('|');
     return {
       name,
       mode: window.getSelectedGameMode?.() || null,

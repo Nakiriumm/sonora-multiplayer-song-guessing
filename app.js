@@ -1352,10 +1352,7 @@ document.querySelectorAll('.room-setting').forEach((select) => {
           return;
         }
         const selected = new Set(categories.filter((item) => item.classList.contains('selected')).map((item) => item.dataset.genre));
-        if (selected.size === categories.length) {
-          selected.clear();
-          selected.add(genre.dataset.genre);
-        } else if (selected.has(genre.dataset.genre)) selected.delete(genre.dataset.genre);
+        if (selected.has(genre.dataset.genre)) selected.delete(genre.dataset.genre);
         else selected.add(genre.dataset.genre);
         window.selectSetupGenre?.(selected.size ? [...selected].join('|') : 'Everything');
       });
@@ -1818,17 +1815,16 @@ window.selectSetupGenre = (genreName = 'Everything') => {
   if (!genres.length) return;
   const requested = String(genreName || 'Everything');
   const selectedGenres = requested === 'Everything'
-    ? new Set(genres.map((choice) => choice.dataset.genre))
+    ? new Set()
     : new Set(requested.split('|').filter((genre) => genres.some((choice) => choice.dataset.genre === genre)));
-  if (!selectedGenres.size) genres.forEach((choice) => selectedGenres.add(choice.dataset.genre));
-  const allSelected = selectedGenres.size === genres.length;
+  const selectEverything = requested === 'Everything' || selectedGenres.size === 0;
   choices.forEach((choice) => {
-    const selected = !choice.disabled && (choice.dataset.genre === 'Everything' ? allSelected : selectedGenres.has(choice.dataset.genre));
+    const selected = !choice.disabled && (choice.dataset.genre === 'Everything' ? selectEverything : selectedGenres.has(choice.dataset.genre));
     choice.classList.toggle('selected', selected);
     choice.setAttribute('aria-pressed', String(selected));
   });
   const room = getRoomState();
-  room.genre = allSelected ? 'Everything' : [...selectedGenres].join('|');
+  room.genre = selectEverything ? 'Everything' : [...selectedGenres].join('|');
   saveRoomState(room);
   updateLaunchAvailability();
 };
