@@ -171,8 +171,8 @@
 .note-confetti-burst span{animation-duration:2.4s}.note-confetti-burst.winner-confetti span{animation-duration:4s}
 
 /* Give the joined player's room view enough width for its settings and roster. */
-.join-page:has(.joined-room-panel:not([hidden])){display:block;overflow-y:auto;padding:clamp(76px,8vh,104px) clamp(28px,7vw,112px) 48px}
-.join-page:has(.joined-room-panel:not([hidden])) .join-content{width:100%;max-width:1100px;margin:0 auto}
+.join-page:not([hidden]):has(.joined-room-panel:not([hidden])){display:block;overflow-y:auto;padding:clamp(76px,8vh,104px) clamp(28px,7vw,112px) 48px}
+.join-page:not([hidden]):has(.joined-room-panel:not([hidden])) .join-content{width:100%;max-width:1100px;margin:0 auto}
 .joined-room-panel{width:100%;box-sizing:border-box}
 .host-settings{width:100%;max-width:none;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr));gap:10px}
 .host-settings span{min-width:0}
@@ -180,5 +180,5 @@
 .joined-room-list{width:100%;max-width:none;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:10px}
 .joined-player>span:not(.joined-avatar){min-width:0;flex:1}
 .joined-player strong{overflow-wrap:anywhere;line-height:1.35}
-.join-page:has(.joined-room-panel:not([hidden])) .join-note{width:100%;max-width:1100px;margin:36px auto 0;justify-content:flex-start}
-@media(max-width:720px){.join-page:has(.joined-room-panel:not([hidden])){padding:72px 22px 36px}.host-settings{grid-template-columns:repeat(2,minmax(0,1fr))}.joined-room-list{grid-template-columns:1fr}}
+.join-page:not([hidden]):has(.joined-room-panel:not([hidden])) .join-note{width:100%;max-width:1100px;margin:36px auto 0;justify-content:flex-start}
+@media(max-width:720px){.join-page:not([hidden]):has(.joined-room-panel:not([hidden])){padding:72px 22px 36px}.host-settings{grid-template-columns:repeat(2,minmax(0,1fr))}.joined-room-list{grid-template-columns:1fr}}
