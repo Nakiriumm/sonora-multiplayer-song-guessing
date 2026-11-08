@@ -334,8 +334,8 @@ export class GameRoom extends DurableObject {
         .filter(matches)
         .sort((a, b) => Number(b === currentSong) - Number(a === currentSong)
           || Number(normalizeGuess(b.title).startsWith(query)) - Number(normalizeGuess(a.title).startsWith(query)))
-        .slice(0, 12)
-        .map(({ title, artist }) => ({ title, artist }));
+        .slice(0, 40)
+        .map((song) => ({ title: song.title, artist: song.artist, isAnswer: song === currentSong }));
       this.send(ws, { type: 'bomb-suggestions', requestId, suggestions });
       return;
     }

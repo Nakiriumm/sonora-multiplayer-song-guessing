@@ -838,7 +838,7 @@
         const results = (data.results || [])
           .filter((song) => song.trackName && song.artistName)
           .sort((a, b) => suggestionOrder.compare(a.trackName, b.trackName) || suggestionOrder.compare(a.artistName, b.artistName))
-          .slice(0, 12);
+          .slice(0, 40);
         const suggestions = await Promise.all(results.map(async (song) => ({ song, artist: await getEnglishBombArtist(song) })));
         if (request !== state.bombSearchRequest || value !== $('#bomb-song-input').value.trim()) return;
         state.bombExternalSuggestions = suggestions;
@@ -866,11 +866,18 @@
       return true;
     });
     const suggestionOrder = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
-    unique.sort((a, b) => {
+    const compareSuggestions = (a, b) => {
       const titleOrder = suggestionOrder.compare(a.song.title || a.song.trackName, b.song.title || b.song.trackName);
       return titleOrder || suggestionOrder.compare(a.artist, b.artist);
-    });
-    const visibleSuggestions = unique.slice(0, 12);
+    };
+    unique.sort(compareSuggestions);
+    const visibleSuggestions = unique.slice(0, 40);
+    const answerSuggestion = unique.find(({ song }) => song.isAnswer);
+    if (answerSuggestion && !visibleSuggestions.includes(answerSuggestion)) {
+      if (visibleSuggestions.length >= 40) visibleSuggestions[visibleSuggestions.length - 1] = answerSuggestion;
+      else visibleSuggestions.push(answerSuggestion);
+      visibleSuggestions.sort(compareSuggestions);
+    }
     list.innerHTML = visibleSuggestions.length ? visibleSuggestions.map(({ song, artist }) => {
       const title = song.title || song.trackName;
       return `<button class="bomb-suggestion" type="button" role="option" data-title="${escapeHtml(title)}" data-artist="${escapeHtml(artist)}"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(artist)}</small></button>`;
