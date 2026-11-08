@@ -28,9 +28,7 @@
     revealAudioKey: '',
     bombSearchRequest: 0,
     bombServerSuggestions: [],
-    bombExternalSuggestions: [],
     bombServerSearchComplete: false,
-    bombExternalSearchComplete: false,
     bombSearchTimer: 0,
     bombServerSearchTimeout: 0,
     bombSubmitting: false,
@@ -97,6 +95,9 @@
   $('.copy-status')?.after(roomCatalogLoadingIndicator);
   function setRoomCatalogLoading(isLoading) {
     roomCatalogLoadingIndicator.classList.toggle('is-visible', Boolean(isLoading));
+  }
+  function setRoomStartLoading(isLoading) {
+    $('.room-start-loading')?.classList.toggle('is-visible', Boolean(isLoading));
   }
 
   function setRoomCode(code) {
@@ -513,6 +514,7 @@
 
   function renderGame(room) {
     if (!room) return;
+    setRoomStartLoading(false);
     state.room = room;
     enterGame(room.mode || 'Classic');
     $('.game-layout').hidden = false;
@@ -588,6 +590,7 @@
 
   function renderSongBomb(room) {
     if (!room?.bomb) return;
+    setRoomStartLoading(false);
     state.room = room;
     enterGame('SongBomb');
     clearRoomTimer();
@@ -779,40 +782,6 @@
     updateBreakTimer(room);
   }
 
-  const bombArtistNameCache = new Map();
-
-  async function getEnglishBombArtist(song) {
-    const artistName = String(song.artistName || '');
-    if (!/[\u3040-\u30ff\u3400-\u9fff]/u.test(artistName)) return artistName;
-    const cacheKey = String(song.trackId || `${song.trackName}|${artistName}`);
-    if (bombArtistNameCache.has(cacheKey)) return bombArtistNameCache.get(cacheKey);
-    const lookup = (async () => {
-      const isEnglish = (value) => value && !/[\u3040-\u30ff\u3400-\u9fff]/u.test(value);
-      const titleKey = String(song.trackName || '').normalize('NFKC').toLocaleLowerCase();
-      try {
-        if (song.trackId) {
-          const response = await fetch(`https://itunes.apple.com/lookup?id=${encodeURIComponent(song.trackId)}&entity=song&country=US`, { signal: AbortSignal.timeout(5000) });
-          if (response.ok) {
-            const data = await response.json();
-            const match = (data.results || []).find((track) => track.trackId === song.trackId) || data.results?.[0];
-            if (isEnglish(match?.artistName)) return match.artistName;
-          }
-        }
-        const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(song.trackName)}&entity=song&country=US&limit=50`, { signal: AbortSignal.timeout(5000) });
-        if (response.ok) {
-          const data = await response.json();
-          const match = (data.results || []).find((track) => String(track.trackName || '').normalize('NFKC').toLocaleLowerCase() === titleKey && isEnglish(track.artistName));
-          if (match) return match.artistName;
-        }
-      } catch {}
-      return artistName;
-    })();
-    bombArtistNameCache.set(cacheKey, lookup);
-    const resolved = await lookup;
-    bombArtistNameCache.set(cacheKey, resolved);
-    return resolved;
-  }
-
   function searchBombSuggestions(query) {
     clearTimeout(state.bombSearchTimer);
     clearTimeout(state.bombServerSearchTimeout);
@@ -820,50 +789,26 @@
     const value = query.trim();
     const request = ++state.bombSearchRequest;
     state.bombServerSuggestions = [];
-    state.bombExternalSuggestions = [];
     state.bombServerSearchComplete = false;
-    state.bombExternalSearchComplete = false;
     if (value.length < (/[\u3040-\u30ff\u3400-\u9fff]/u.test(value) ? 1 : 2)) { list.replaceChildren(); return; }
     list.innerHTML = '<p class="bomb-suggestions-hint">Searching songs…</p>';
-    state.bombSearchTimer = setTimeout(async () => {
-      if (!send('bomb-search', { query: value, requestId: request })) state.bombServerSearchComplete = true;
+    state.bombSearchTimer = setTimeout(() => {
+      if (!send('bomb-search', { query: value, requestId: request })) {
+        state.bombServerSearchComplete = true;
+        renderBombSuggestionList(request);
+      }
       else state.bombServerSearchTimeout = setTimeout(() => {
         if (request !== state.bombSearchRequest || state.bombServerSearchComplete) return;
         state.bombServerSearchComplete = true;
         renderBombSuggestionList(request);
       }, 4500);
-      const genre = state.room?.genre || '';
-      const selectedLanguages = genre === 'Everything' ? window.normalizeSongLanguages?.(state.room?.languages || []) || [] : [];
-      const country = selectedLanguages.length === 1 ? ({ en: 'US', th: 'TH', ja: 'JP' }[selectedLanguages[0]] || 'US') : genre === 'Thai songs' ? 'TH' : genre === 'J-Pop' || genre === 'Vocaloid' || genre === 'Anime' || genre.startsWith('Anime ') ? 'JP' : 'US';
-      try {
-        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(value)}&entity=song&country=${country}&limit=50`;
-        const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-        const data = response.ok ? await response.json() : { results: [] };
-        if (request !== state.bombSearchRequest || value !== $('#bomb-song-input').value.trim()) return;
-        const suggestionOrder = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
-        const results = (data.results || [])
-          .filter((song) => song.trackName && song.artistName)
-          .sort((a, b) => suggestionOrder.compare(a.trackName, b.trackName) || suggestionOrder.compare(a.artistName, b.artistName))
-          .slice(0, 40);
-        const suggestions = await Promise.all(results.map(async (song) => ({ song, artist: await getEnglishBombArtist(song) })));
-        if (request !== state.bombSearchRequest || value !== $('#bomb-song-input').value.trim()) return;
-        state.bombExternalSuggestions = suggestions;
-        state.bombExternalSearchComplete = true;
-        renderBombSuggestionList(request);
-      } catch {
-        if (request === state.bombSearchRequest) {
-          state.bombExternalSuggestions = [];
-          state.bombExternalSearchComplete = true;
-          renderBombSuggestionList(request);
-        }
-      }
     }, 220);
   }
 
   function renderBombSuggestionList(request) {
     if (request !== state.bombSearchRequest) return;
     const list = $('.bomb-suggestions');
-    const combined = [...state.bombServerSuggestions.map((song) => ({ song, artist: song.artist })), ...state.bombExternalSuggestions];
+    const combined = state.bombServerSuggestions.map((song) => ({ song, artist: song.artist }));
     const seen = new Set();
     const unique = combined.filter(({ song, artist }) => {
       const key = `${String(song.title || song.trackName).toLocaleLowerCase()}|${String(artist).toLocaleLowerCase()}`;
@@ -878,16 +823,10 @@
     };
     unique.sort(compareSuggestions);
     const visibleSuggestions = unique.slice(0, 40);
-    const answerSuggestion = unique.find(({ song }) => song.isAnswer);
-    if (answerSuggestion && !visibleSuggestions.includes(answerSuggestion)) {
-      if (visibleSuggestions.length >= 40) visibleSuggestions[visibleSuggestions.length - 1] = answerSuggestion;
-      else visibleSuggestions.push(answerSuggestion);
-      visibleSuggestions.sort(compareSuggestions);
-    }
     list.innerHTML = visibleSuggestions.length ? visibleSuggestions.map(({ song, artist }) => {
       const title = song.title || song.trackName;
       return `<button class="bomb-suggestion" type="button" role="option" data-title="${escapeHtml(title)}" data-artist="${escapeHtml(artist)}"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(artist)}</small></button>`;
-    }).join('') : state.bombServerSearchComplete && state.bombExternalSearchComplete
+    }).join('') : state.bombServerSearchComplete
       ? '<p class="bomb-suggestions-hint">No matching songs found.</p>'
       : '<p class="bomb-suggestions-hint">Searching songs…</p>';
   }
@@ -1273,12 +1212,14 @@
       enterGame('Classic');
       $('.game-layout').hidden = false;
       $('.round-feedback').textContent = 'Starting the game…';
+      setRoomStartLoading(true);
       showingGameStart = true;
       if (!send('start', { rounds })) throw new Error('The room connection was lost before the match could start. Reconnect and try again.');
       clearTimeout(state.startTimer);
       state.startTimer = setTimeout(() => {
         state.startTimer = 0;
         if (state.room?.phase === 'game' || state.room?.phase === 'break') return;
+        setRoomStartLoading(false);
         $('.game-view').hidden = true;
         $('main').hidden = false;
         $('.site-footer').hidden = false;
@@ -1287,6 +1228,7 @@
         showNotice('The room did not confirm the match start. Check your connection and try again.', true);
       }, 12000);
     } catch (error) {
+      setRoomStartLoading(false);
       setRoomCatalogLoading(false);
       clearTimeout(state.startTimer);
       state.startTimer = 0;
@@ -1299,6 +1241,7 @@
       }
       showNotice(error.message, true);
     } finally {
+      if (!showingGameStart) setRoomStartLoading(false);
       setRoomCatalogLoading(false);
       button.disabled = false;
       button.innerHTML = window.getSelectedGameMode?.() === 'SongBomb' ? 'Start Song Bomb <span>&rarr;</span>' : 'Start Classic <span>&rarr;</span>';

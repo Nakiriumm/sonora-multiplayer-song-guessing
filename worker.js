@@ -343,13 +343,20 @@ export class GameRoom extends DurableObject {
           || compact(title).includes(compactQuery) || compact(artist).includes(compactQuery);
       };
       const hasJapanese = /[\u3040-\u30ff\u3400-\u9fff]/u.test(query);
-      const suggestions = (query.length < (hasJapanese ? 1 : 2)) ? [] : (room.bombSongs || [])
+      const matchingSongs = (query.length < (hasJapanese ? 1 : 2)) ? [] : (room.bombSongs || [])
         .filter(matches)
-        .sort((a, b) => Number(b === currentSong) - Number(a === currentSong)
-          || Number(normalizeGuess(b.title).startsWith(query)) - Number(normalizeGuess(a.title).startsWith(query)))
-        .slice(0, 40)
-        .map((song) => ({ title: song.title, artist: song.artist, isAnswer: song === currentSong }));
-      this.send(ws, { type: 'bomb-suggestions', requestId, suggestions });
+        .sort((a, b) => Number(normalizeGuess(b.title).startsWith(query)) - Number(normalizeGuess(a.title).startsWith(query))
+          || normalizeGuess(a.title).localeCompare(normalizeGuess(b.title))
+          || normalizeGuess(a.artist).localeCompare(normalizeGuess(b.artist)));
+      const suggestions = matchingSongs.slice(0, 40);
+      if (currentSong && matchingSongs.includes(currentSong) && !suggestions.includes(currentSong)) {
+        suggestions[39] = currentSong;
+        suggestions.sort((a, b) => Number(normalizeGuess(b.title).startsWith(query)) - Number(normalizeGuess(a.title).startsWith(query))
+          || normalizeGuess(a.title).localeCompare(normalizeGuess(b.title))
+          || normalizeGuess(a.artist).localeCompare(normalizeGuess(b.artist)));
+      }
+      const suggestionItems = suggestions.map((song) => ({ title: song.title, artist: song.artist }));
+      this.send(ws, { type: 'bomb-suggestions', requestId, suggestions: suggestionItems });
       return;
     }
 

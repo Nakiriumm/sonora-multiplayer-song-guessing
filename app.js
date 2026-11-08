@@ -89,6 +89,10 @@ const catalogLoadingIndicator=document.createElement('div');
 catalogLoadingIndicator.className='catalog-loading-indicator';
 catalogLoadingIndicator.innerHTML='<div class="catalog-loading-track" role="progressbar" aria-label="Loading song catalog"><i></i></div><small>First-time catalog loading may take a while.</small>';
 gameView.querySelector('.round-feedback').after(catalogLoadingIndicator);
+const roomStartLoadingIndicator=document.createElement('div');
+roomStartLoadingIndicator.className='catalog-loading-indicator room-start-loading';
+roomStartLoadingIndicator.innerHTML='<div class="catalog-loading-track" role="progressbar" aria-label="Loading room"><i></i></div><small>Room is loading…</small>';
+gameView.querySelector('.round-feedback').after(roomStartLoadingIndicator);
 const songBombView = document.createElement('section');
 songBombView.className = 'song-bomb-panel';
 songBombView.hidden = true;
@@ -2250,7 +2254,7 @@ const localizedSiteCopy = {
     nextRound: 'Next round in', continueRound: 'Continue', winnerEyebrow: 'GAME COMPLETE', winnerTitle: 'The winner', winnerBack: 'Back to room',
     bombHint: 'Name the song or artist before the bomb goes off.', bombPlaceholder: 'Type a song name or artist…',
     bombSkip: 'Skip turn', bombSubmit: 'Submit guess', bombEvents: 'Song Bomb events', bombSeconds: 'SECONDS', bombPreview: 'Song preview',
-    firstCatalogLoad: 'First-time catalog loading may take a while.'
+    firstCatalogLoad: 'First-time catalog loading may take a while.', roomLoading: 'Room is loading…'
   },
   TH: {
     pageTitle: 'SONORA | เกมทายเพลงหลายคน', pageDescription: 'ห้องทายเพลงสำหรับกลุ่มเพื่อนที่จำเพลงโปรดได้ตั้งแต่ท่อนแรก',
@@ -2296,6 +2300,8 @@ const localizedSiteCopy = {
     firstCatalogLoad: 'การโหลดคลังเพลงครั้งแรกอาจใช้เวลาสักครู่'
   }
 };
+
+localizedSiteCopy.TH.roomLoading = '\u0e01\u0e33\u0e25\u0e31\u0e07\u0e42\u0e2b\u0e25\u0e14\u0e2b\u0e49\u0e2d\u0e07\u2026';
 
 const thaiGenreNames = {
   'Everything': '\u0e17\u0e38\u0e01\u0e41\u0e19\u0e27\u0e40\u0e1e\u0e25\u0e07',
@@ -2552,7 +2558,8 @@ function applyLanguage(language) {
   document.querySelector('.copy-button')?.setAttribute('aria-label', ui.copyRoomLink);
   document.querySelector('.bomb-suggestions')?.setAttribute('aria-label', currentLanguage === 'TH' ? 'คำแนะนำเพลง' : 'Song suggestions');
   document.querySelector('.name-gate-code')?.setAttribute('aria-label', ui.roomCode);
-  document.querySelectorAll('.catalog-loading-indicator small').forEach((label) => { label.textContent = ui.firstCatalogLoad; });
+  document.querySelectorAll('.catalog-loading-indicator:not(.room-start-loading) small').forEach((label) => { label.textContent = ui.firstCatalogLoad; });
+  setText('.room-start-loading small', ui.roomLoading);
   const modeNames = { Quickfire: ui.modeClassic, SongBomb: ui.modeBomb, Solo: ui.modeSolo };
   modeChoices.querySelectorAll('.mode-choice').forEach((choice) => { choice.textContent = modeNames[choice.dataset.mode] || getAppModeName(choice.dataset.mode); });
   document.querySelectorAll('.mode-card').forEach((card) => {
