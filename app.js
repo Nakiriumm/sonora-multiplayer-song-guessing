@@ -205,7 +205,7 @@ const ANIME_CATALOG_SIZE=300;
 const ANIME_SOURCE_CATALOG_SIZE=ANIME_CATALOG_SIZE/2;
 const disabledGenres=new Set(['Vocaloid','Anime','Anime openings','Anime endings']);
 const getGenreCatalogTarget=(genre)=>genre==='Vocaloid'?1000:animeSeriesSearchTerms[genre]?ANIME_SOURCE_CATALOG_SIZE:GENRE_CATALOG_SIZE;
-const getGenreCatalogStorageKey=(genre)=>genre==='Vocaloid'?'sonora-song-catalog-vocaloid-v1':'sonora-song-catalog-v9-'+genre;
+const getGenreCatalogStorageKey=(genre)=>genre==='Vocaloid'?'sonora-song-catalog-vocaloid-v1':genre==='Thai songs'?'sonora-song-catalog-v10-'+genre:'sonora-song-catalog-v9-'+genre;
 const catalogVersionCue=/(?:\b(?:live(?:\s+(?:at|from|in|version|performance))?|demo(?:nstration)?|remaster(?:ed|ing)?|re[\s-]?master(?:ed)?|remix(?:es|ed)?|re[\s-]?record(?:ed|ing)?|alternate(?:\s+take)?|alternative(?:\s+take)?|acoustic|unplugged|radio\s+(?:edit|mix|version)|single\s+(?:edit|mix|version)|album\s+(?:edit|mix|version)|extended(?:\s+(?:version|mix))?|club\s+mix|12[ -]?inch(?:\s+mix)?|instrumental|off[\s-]?vocal|karaoke|cover(?:\s+version)?|tribute\s+(?:to|album|songs?)|made\s+famous\s+by|original\s+(?:artist|version|soundtrack|mix)|sped[\s-]?up|slowed(?:\s+down)?|nightcore|acapella|a[ -]?cappella|clean\s+version|explicit\s+version|full\s+version|music\s+box|piano\s+version|string\s+quartet|anniversary\s+edition|deluxe\s+edition|expanded\s+edition|special\s+edition|collector['\u2019]?s\s+edition|bonus\s+track|mono|stereo|taylor['\u2019]?s\s+version|(?:english|japanese|thai|korean|chinese)\s+version)\b|\u30e9\u30a4\u30d6|\u30ab\u30d0\u30fc|\u30ea\u30df\u30c3\u30af\u30b9|\u30a2\u30b3\u30fc\u30b9\u30c6\u30a3\u30c3\u30af|\u30ea\u30de\u30b9\u30bf\u30fc|\u30ab\u30e9\u30aa\u30b1|\u30a4\u30f3\u30b9\u30c8|\u4f34\u594f)/iu;
 const catalogVocaloidAlternateCue=/(?:\b(?:self[-\s]?cover|(?:vocaloid|vocal\s+synth)\s+(?:version|ver\.?|mix)|(?:short|long|alternate|alt)\s+version|alternate\s+mix)\b|\u30bb\u30eb\u30d5\u30ab\u30d0\u30fc|\u5225\u30d0\u30fc\u30b8\u30e7\u30f3)/iu;
 const catalogThaiVersionCue=/(?:\u0e04\u0e31\u0e1f\u0e40\u0e27\u0e2d\u0e23\u0e4c|\u0e23\u0e35\u0e21\u0e34\u0e01\u0e0b\u0e4c|\u0e04\u0e32\u0e23\u0e32\u0e42\u0e2d\u0e40\u0e01\u0e30|\u0e1a\u0e23\u0e23\u0e40\u0e25\u0e07|\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e0a\u0e31\u0e19|\u0e2d\u0e30\u0e04\u0e39\u0e2a\u0e15\u0e34\u0e01|\u0e23\u0e35\u0e21\u0e32\u0e2a\u0e40\u0e15\u0e2d\u0e23\u0e4c|\u30e9\u30a4\u30d6|\u30ab\u30d0\u30fc|\u30ea\u30df\u30c3\u30af\u30b9|\u30a2\u30b3\u30fc\u30b9\u30c6\u30a3\u30c3\u30af|\u30ea\u30de\u30b9\u30bf\u30fc|\u30ab\u30e9\u30aa\u30b1|\u30d0\u30fc\u30b8\u30e7\u30f3|\u30a4\u30f3\u30b9\u30c8|\u4f34\u594f)/iu;
@@ -217,6 +217,36 @@ const catalogNonTargetScriptCue=/(?:\p{Script=Hangul}|\p{Script=Cyrillic}|\p{Scr
 const catalogNonTargetTitleCue=/(?:\b(?:despacito|bailando|coraz[oó]n|mi\s+gente|la\s+tortura|chantaje|ojos\s+as[ií]|sale\s+el\s+sol|d[ií]a\s+de\s+enero)\b|[áéíóúñü¿¡ãõçàèìòùâêîôûäëïöß])/iu;
 function normalizeCatalogName(value){return String(value||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').trim();}
 for(const genre of Object.keys(genreArtistSeeds))genreArtistSeeds[genre]=[...new Map(genreArtistSeeds[genre].map((artist)=>[normalizeCatalogName(artist),artist])).values()];
+genreArtistSeeds['Thai songs'].push(
+  '4EVE','PiXXiE','BNK48','CGM48','PROXIE','BUS','LYKN','PERSES','ATLAS','DICE','bamm','Pretzelle','TRINITY',
+  'K-OTIC','Faye Fang Kaew','Neko Jump','Girly Berry','Atom Chanakan','Pop Pongkool','Num Kala','Singto Numchok',
+  'Ben Chalatit','Boyd Kosiyabong','Pause','Pru','Flure','Crescendo','ETC.','Jetseter','Sqweez Animal','Yokee Playboy',
+  'Tattoo Colour','The Richman Toy','P.O.P','B5','Loso','Kala','AB Normal','So Cool','Ebola','The Rube','Karamail',
+  'MILLI','SPRITE','YOUNGOHM','UrboyTJ','FIIXD','OG-ANIC','Maiyarap','Wonderframe','Jintara Poonlarp','Tai Orathai',
+  'Lamyai Haithongkham','Baitoey R Siam','Monkan Kankoon','TaitosmitH','D Gerrard','Mew Suppasit','Billkin','PP Krit',
+  'Nanon Korapat','Ploychompoo','Gam Wichayanee','The Mousses','Kong Saharat','Ruj Suparuj','Aof Pongsak','Lydia Sarunrat',
+  'New Jiew','Keng Tachaya','Pijika','Silly Fools','Paradox','Palmy','Zeal','Clash','Retrospect','Sweet Mullet','Musketeers'
+);
+genreArtistSeeds['Thai songs']=[...new Map(genreArtistSeeds['Thai songs'].map(artist=>[normalizeCatalogName(artist),artist])).values()];
+const THAI_CATALOG_ARTIST_CAP=6;
+const THAI_CATALOG_BREADTH_TARGET=18;
+function capCatalogSongsPerArtist(songs,genre,limit=THAI_CATALOG_ARTIST_CAP){
+  if(genre!=='Thai songs'||!Number.isFinite(limit))return songs;
+  const counts=new Map();
+  return songs.filter(song=>{
+    const artist=normalizeCatalogName(song?.[1]);
+    if(!artist)return true;
+    const count=counts.get(artist)||0;
+    if(count>=limit)return false;
+    counts.set(artist,count+1);
+    return true;
+  });
+}
+function hasThaiCatalogArtistBreadth(catalogs){
+  if(!Array.isArray(catalogs))return false;
+  const artists=new Set(catalogs.flatMap(pool=>pool.songs||[]).map(song=>normalizeCatalogName(song?.[1])).filter(Boolean));
+  return artists.size>=THAI_CATALOG_BREADTH_TARGET;
+}
 for(const genre of Object.keys(animeSeriesSearchTerms))animeSeriesSearchTerms[genre]=[...new Set(animeSeriesSearchTerms[genre])];
 function normalizeCatalogDedupPart(value){return String(value||'').normalize('NFKC').toLowerCase().normalize('NFD').replace(/(\p{Script=Latin})\p{M}+/gu,'$1').replace(/[^\p{L}\p{N}\p{M}]+/gu,' ').trim();}
 function getCatalogSongDedupeKeys(song,asset=null){
@@ -277,6 +307,13 @@ function getCatalogLanguageHint(song,genre){
   if(genre==='J-Pop'||genre==='Vocaloid'||genre.startsWith('Anime ')||song?.[6]||matchesCatalogSeedArtist(song?.[1],genreArtistSeeds['J-Pop']))return 'ja';
   return 'en';
 }
+function getSongCatalogLanguage(song,fallbackGenre=''){
+  const title=String(song?.[0]||'');
+  if(/\p{Script=Thai}/u.test(title))return 'th';
+  if(/[\u3040-\u30ff]/u.test(title))return 'ja';
+  return getCatalogLanguageHint(song,song?.[9]?.catalogGenre||fallbackGenre||'');
+}
+window.getSongCatalogLanguage=getSongCatalogLanguage;
 function isAllowedCatalogLanguage(song,genre,asset=null){
   const metadata=(asset&&typeof asset==='object'?asset:song?.[9])||{};
   const explicitLanguage=[metadata.language,metadata.languageCode,metadata.trackLanguage,metadata.primaryLanguage,metadata.attributes?.language,metadata.attributes?.languageCode]
@@ -387,8 +424,10 @@ async function loadSingleGenreCatalogInner(genre, requestedTarget=null) {
   const hasAnimeSource = Boolean(animeSeriesSearchTerms[genre]);
   const fullCatalogTarget=getGenreCatalogTarget(genre);
   const catalogTarget=requestedTarget!==null&&requestedTarget!==undefined&&Number.isFinite(Number(requestedTarget))?Math.max(4,Math.min(fullCatalogTarget,Math.round(Number(requestedTarget)))):fullCatalogTarget;
+  const thaiArtistLimit=genre==='Thai songs'?(requestedTarget?THAI_CATALOG_ARTIST_CAP:60):Number.POSITIVE_INFINITY;
   const storageKey = getGenreCatalogStorageKey(genre);
   const previousStorageKeys = [
+    ...(genre==='Thai songs'?['sonora-song-catalog-v9-'+genre]:[]),
     'sonora-song-catalog-v8-' + genre,
     'sonora-song-catalog-v7-' + genre,
     'sonora-song-catalog-v6-' + genre,
@@ -400,7 +439,7 @@ async function loadSingleGenreCatalogInner(genre, requestedTarget=null) {
   const savedRecord=await readCatalogStorage(storageKey);
   const savedSongs=Array.isArray(savedRecord)?savedRecord:(Array.isArray(savedRecord?.songs)?savedRecord.songs:[]);
   const savedComplete=Array.isArray(savedRecord)?savedSongs.length>=fullCatalogTarget:Boolean(savedRecord?.complete&&(genre!=='Vocaloid'||savedSongs.length>=fullCatalogTarget));
-  const cleanSaved=dedupeCatalogSongs(savedSongs.filter(song=>!isExcludedCatalogTrack(song,hasAnimeSource,null,genre))).slice(0,fullCatalogTarget);
+  const cleanSaved=capCatalogSongsPerArtist(dedupeCatalogSongs(savedSongs.filter(song=>!isExcludedCatalogTrack(song,hasAnimeSource,null,genre))),genre,thaiArtistLimit).slice(0,fullCatalogTarget);
   if(savedComplete&&cleanSaved.length>=4){
     for(const song of cleanSaved){
       song[9]={...((song[9]&&typeof song[9]==='object')?song[9]:{}),catalogGenre:song[9]?.catalogGenre||genre};
@@ -414,8 +453,11 @@ async function loadSingleGenreCatalogInner(genre, requestedTarget=null) {
 
   const catalog = [];
   const seen = new Set();
+  const artistCounts = new Map();
   const addSong = (song, asset) => {
     if (!song?.[0] || !song?.[1] || !song?.[3] || isExcludedCatalogTrack(song,hasAnimeSource,asset,genre)) return;
+    const artistKey=normalizeCatalogName(song[1]);
+    if(genre==='Thai songs'&&(artistCounts.get(artistKey)||0)>=thaiArtistLimit)return;
     song[9]={...((song[9]&&typeof song[9]==='object')?song[9]:{}),catalogGenre:song[9]?.catalogGenre||genre};
     const keys=getCatalogSongDedupeKeys(song,asset);
     if(!keys.length||keys.some((key)=>seen.has(key)))return;
@@ -425,6 +467,7 @@ async function loadSingleGenreCatalogInner(genre, requestedTarget=null) {
       releaseDate: song[4] || '', catalogRank: song[5] || 0
     }));
     catalog.push(song);
+    if(genre==='Thai songs')artistCounts.set(artistKey,(artistCounts.get(artistKey)||0)+1);
   };
 
   for(const song of cleanSaved)addSong(song);
@@ -542,7 +585,7 @@ async function loadCachedGenreSnapshot(genre){
     if(Array.isArray(record))songs.push(...record);
     else if(Array.isArray(record?.songs))songs.push(...record.songs);
   }
-  const clean=dedupeCatalogSongs(songs.filter(song=>!isExcludedCatalogTrack(song,hasAnimeSource,null,genre))).slice(0,getGenreCatalogTarget(genre));
+  const clean=capCatalogSongsPerArtist(dedupeCatalogSongs(songs.filter(song=>!isExcludedCatalogTrack(song,hasAnimeSource,null,genre))),genre).slice(0,getGenreCatalogTarget(genre));
   for(const song of clean){
     song[9]={...((song[9]&&typeof song[9]==='object')?song[9]:{}),catalogGenre:song[9]?.catalogGenre||genre};
     if(song[3])songAssetCache.set(`${song[0]}|${song[1]}`,Promise.resolve({trackName:song[0],artistName:song[1],artworkUrl100:song[2]||'',previewUrl:song[3],...(song[9]||{}),releaseDate:song[4]||'',catalogRank:song[5]||0}));
@@ -670,7 +713,7 @@ window.getCachedRoundSongCatalogs=async(genre='Everything')=>{
   catalogSnapshotByGenre.set(genre,songs);
   return [{name:genre,songs}];
 };
-window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficulty='medium',minimumChoiceCount=4)=>{
+window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficulty='medium',minimumChoiceCount=4,requireAllGenres=false)=>{
   genre=genreAliases[genre]||genre;
   if(disabledGenres.has(genre))genre='Everything';
   const required=Math.max(4,Math.min(500,Number(requiredCount)||40));
@@ -698,7 +741,11 @@ window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficul
   };
   let catalogs=await window.getCachedRoundSongCatalogs(genre);
   const cachedCatalogsReady=playableCount(catalogs)>=required&&hasPlayablePool(catalogs);
-  if(cachedCatalogsReady&&(genre!=='Everything'||required<=minimumPerPool||hasEverythingGenreCoverage(catalogs)))return catalogs;
+  const includesThaiSongs=genre==='Thai songs'||(genre.includes('|')&&splitGenreSelection(genre).includes('Thai songs'));
+  const thaiCatalogHasBreadth=!includesThaiSongs||hasThaiCatalogArtistBreadth(catalogs.filter(pool=>pool.name==='Thai songs'));
+  const hasAllSourceGenres=sourceGenres.every(name=>catalogs.some(pool=>pool.name===name));
+  const everythingCatalogReady=genre!=='Everything'||(requireAllGenres?hasAllSourceGenres:required<=minimumPerPool||hasEverythingGenreCoverage(catalogs));
+  if(cachedCatalogsReady&&thaiCatalogHasBreadth&&everythingCatalogReady)return catalogs;
   if(genre.includes('|')){
     const selected=splitGenreSelection(genre).flatMap(expandGenrePools);
     const groups=new Map(catalogs.map(({name,songs})=>[name,songs||[]]));
@@ -718,7 +765,7 @@ window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficul
     let genresToLoad;
     if(required<=minimumPerPool){
       // Start the first round quickly from a few pools; fill all selected genres in the background.
-      genresToLoad=[...sourceGenres].sort(()=>Math.random()-.5).slice(0,3);
+      genresToLoad=requireAllGenres?[...sourceGenres]:[...sourceGenres].sort(()=>Math.random()-.5).slice(0,3);
     }else{
       const underfilledGenres=new Set(everythingBalanceGenres.filter(name=>(cachedCounts.get(name)||0)<requiredPerEverythingGenre));
       genresToLoad=sourceGenres.filter(name=>underfilledGenres.has(getGenreBalanceKey(name)));
@@ -915,7 +962,7 @@ window.getSongDifficulty=getSongDifficulty;
 window.updateDifficultyMeter=updateDifficultyMeter;
 function applySongArtwork(element,asset){if(!element||!asset?.artworkUrl100)return;const imageUrl=asset.artworkUrl100.replace(/^http:/,'https:');const image=new Image();image.onload=()=>{element.style.backgroundImage=`url("${imageUrl}")`;element.style.backgroundSize='cover';element.style.backgroundPosition='center';element.classList.add('cover-loaded');};image.src=imageUrl;}
 function setChoiceSubtitle(choice,subtitle){const titleNode=choice.querySelector('.song-title');if(!titleNode)return;let node=choice.querySelector('.song-title-subtitle');if(!subtitle){node?.remove();return;}if(!node){node=document.createElement('small');node.className='song-title-subtitle';const origin=choice.querySelector('.song-origin');titleNode.insertBefore(node,origin);}if(node.textContent!==subtitle)node.textContent=subtitle;}
-const choiceArtworkObserver=new MutationObserver(()=>{const currentRound=roundNo;gameView.querySelectorAll('.song-choice').forEach(choice=>{const title=choice.querySelector('.song-title strong')?.textContent;const artist=choice.dataset.artist;const song=[...activeCatalog,...roundSongs].find(item=>item[0]===title&&(!artist||item[1]===artist));if(song){const subtitle=activeRoundGenre==='Vocaloid'?'':getJPopSubtitle(song,activeRoundGenre);setChoiceSubtitle(choice,subtitle);loadSongAsset(song).then(asset=>{if(currentRound===roundNo&&choice.isConnected)applySongArtwork(choice.querySelector('.cover-art'),asset);});}});});
+const choiceArtworkObserver=new MutationObserver(()=>{const currentRound=roundNo;gameView.querySelectorAll('.song-choice').forEach(choice=>{const title=choice.querySelector('.song-title strong')?.textContent;const artist=choice.dataset.artist;const song=[...activeCatalog,...roundSongs].find(item=>item[0]===title&&(!artist||item[1]===artist));if(song){const songGenre=song[9]?.catalogGenre||activeRoundGenre;const subtitle=songGenre==='Vocaloid'?'':getJPopSubtitle(song,songGenre);setChoiceSubtitle(choice,subtitle);loadSongAsset(song).then(asset=>{if(currentRound===roundNo&&choice.isConnected)applySongArtwork(choice.querySelector('.cover-art'),asset);});}});});
 choiceArtworkObserver.observe(gameView.querySelector('.song-choices'),{childList:true});
 const resultArtworkObserver=new MutationObserver(()=>{if(roundResult.hidden)return;const title=roundResult.querySelector('#round-result-title').textContent;const song=activeRoundSong||roundSongs.find(item=>item[0]===title);if(song)loadSongAsset(song).then(asset=>{if(!roundResult.hidden&&roundResult.querySelector('#round-result-title').textContent===title)applySongArtwork(roundResult.querySelector('.result-vinyl span'),asset);});});
 resultArtworkObserver.observe(roundResult,{attributes:true,attributeFilter:['hidden']});
@@ -926,7 +973,12 @@ async function pickPlayableChoices(allowVocaloidExpansionWait=true){
   const room=getRoomState();
   const difficulty=room.difficulty||'medium';
   const choiceCount=room.choiceCount||4;
-  const catalogs=await window.getRoundSongCatalogs?.(room.genre||'Everything')||[{name:room.genre||'Everything',songs:activeCatalog}];
+  const selectedGenre=genreAliases[room.genre]||room.genre||'Everything';
+  let catalogs=await window.getRoundSongCatalogs?.(selectedGenre)||[{name:selectedGenre,songs:activeCatalog}];
+  if(selectedGenre==='Everything'){
+    const songs=[...new Map(catalogs.flatMap(pool=>pool.songs||[]).map(song=>[`${song[0]}|${song[1]}`,song])).values()];
+    catalogs=[{name:'Everything',songs}];
+  }
   const eligiblePools=catalogs.map(({name,songs})=>({
     name,
     songs:songs.filter(song=>getSongDifficulty(song)===difficulty&&!usedRoundSongs.has(song)&&!unavailableSongs.has(`${song[0]}|${song[1]}`)).sort(()=>Math.random()-.5)
@@ -945,6 +997,32 @@ async function pickPlayableChoices(allowVocaloidExpansionWait=true){
     }
     return shuffled;
   };
+  if(selectedGenre==='Everything'){
+    const languagePools=new Map();
+    for(const song of eligiblePools.flatMap(pool=>pool.songs)){
+      const language=window.getSongCatalogLanguage?.(song,song[9]?.catalogGenre)||'en';
+      if(!languagePools.has(language))languagePools.set(language,[]);
+      languagePools.get(language).push(song);
+    }
+    const answerablePools=[...languagePools.values()].filter(songs=>songs.length>=choiceCount);
+    const answerableSongs=answerablePools.flat();
+    if(answerableSongs.length){
+      const anchor=answerableSongs[Math.floor(Math.random()*answerableSongs.length)];
+      const anchorLanguage=window.getSongCatalogLanguage?.(anchor,anchor[9]?.catalogGenre)||'en';
+      const sameLanguage=languagePools.get(anchorLanguage)||[];
+      const choices=shuffleRandom([anchor,...shuffleRandom(sameLanguage.filter(song=>song!==anchor)).slice(0,choiceCount-1)]);
+      choices.forEach(song=>usedRoundSongs.add(song));
+      activeRoundGenre='Everything';
+      return choices;
+    }
+    if(allowVocaloidExpansionWait&&catalogExpansionTasks.has('Everything')){
+      if(gameView.querySelector('.round-feedback'))gameView.querySelector('.round-feedback').textContent=window.getAppLanguage?.()==='TH'?'กำลังโหลดเพลงเพิ่มเพื่อให้ตัวเลือกเป็นภาษาเดียวกัน…':'Loading more songs to keep answer choices in one language…';
+      await catalogExpansionTasks.get('Everything');
+      return pickPlayableChoices(false);
+    }
+    activeRoundGenre='Everything';
+    return [];
+  }
   const pools=shuffleRandom([...poolsByGenre.values()]).flatMap(group=>shuffleRandom(group));
   const feedback=gameView.querySelector('.round-feedback');
   for(const pool of pools){
@@ -1102,8 +1180,9 @@ async function nextRound(){
   const answerIndex=Math.floor(Math.random()*choices.length);
   const song=choices[answerIndex];
   activeRoundSong=song;
-  const choiceSubtitles=choices.map(choice=>activeRoundGenre==='Vocaloid'?'':getJPopSubtitle(choice,activeRoundGenre));
-  activeRoundSongSubtitle=activeRoundGenre==='Vocaloid'?getVocaloidTitleSubtitle(song):choiceSubtitles[answerIndex]||'';
+const choiceSubtitles=choices.map(choice=>{const songGenre=choice[9]?.catalogGenre||activeRoundGenre;return songGenre==='Vocaloid'?'':getJPopSubtitle(choice,songGenre);});
+  const answerGenre=song[9]?.catalogGenre||activeRoundGenre;
+  activeRoundSongSubtitle=answerGenre==='Vocaloid'?getVocaloidTitleSubtitle(song):choiceSubtitles[answerIndex]||'';
   updateDifficultyMeter(getSongDifficulty(song));
   gameView.dataset.answer=song[0];
   const roundLabel=gameView.querySelector('.game-round');if(roundLabel)roundLabel.textContent=roundNo;

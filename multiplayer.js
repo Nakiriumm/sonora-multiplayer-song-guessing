@@ -833,7 +833,11 @@
         const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
         const data = response.ok ? await response.json() : { results: [] };
         if (request !== state.bombSearchRequest || value !== $('#bomb-song-input').value.trim()) return;
-        const results = (data.results || []).filter((song) => song.trackName && song.artistName).slice(0, 12);
+        const suggestionOrder = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+        const results = (data.results || [])
+          .filter((song) => song.trackName && song.artistName)
+          .sort((a, b) => suggestionOrder.compare(a.trackName, b.trackName) || suggestionOrder.compare(a.artistName, b.artistName))
+          .slice(0, 12);
         const suggestions = await Promise.all(results.map(async (song) => ({ song, artist: await getEnglishBombArtist(song) })));
         if (request !== state.bombSearchRequest || value !== $('#bomb-song-input').value.trim()) return;
         state.bombExternalSuggestions = suggestions;
@@ -859,8 +863,14 @@
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
-    }).slice(0, 12);
-    list.innerHTML = unique.length ? unique.map(({ song, artist }) => {
+    });
+    const suggestionOrder = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+    unique.sort((a, b) => {
+      const titleOrder = suggestionOrder.compare(a.song.title || a.song.trackName, b.song.title || b.song.trackName);
+      return titleOrder || suggestionOrder.compare(a.artist, b.artist);
+    });
+    const visibleSuggestions = unique.slice(0, 12);
+    list.innerHTML = visibleSuggestions.length ? visibleSuggestions.map(({ song, artist }) => {
       const title = song.title || song.trackName;
       return `<button class="bomb-suggestion" type="button" role="option" data-title="${escapeHtml(title)}" data-artist="${escapeHtml(artist)}"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(artist)}</small></button>`;
     }).join('') : state.bombServerSearchComplete && state.bombExternalSearchComplete
@@ -1058,15 +1068,29 @@
     const selectedGenre = room.genre || 'Everything';
     setRoomCatalogLoading(true);
     showNotice('Preparing playable songs…');
-    const catalogs = await window.getRoomStartupCatalogs?.(selectedGenre, roundCount * choiceCount, desiredDifficulty, choiceCount)
+    let catalogs = await window.getRoomStartupCatalogs?.(selectedGenre, roundCount * choiceCount, desiredDifficulty, choiceCount)
       || await window.getRoundSongCatalogs?.(selectedGenre)
       || [{ name: selectedGenre, songs: activeCatalog }];
+    if (selectedGenre === 'Everything') {
+      const songs = [...new Map(catalogs.flatMap((pool) => pool.songs || [])
+        .map((song) => [`${song[0]}|${song[1]}`, song])).values()];
+      catalogs = [{ name: 'Everything', songs }];
+    }
     activeCatalog = catalogs.flatMap((pool) => pool.songs || []);
-    const pools = catalogs.map(({ name, songs }) => ({
+    let pools = catalogs.map(({ name, songs }) => ({
       name,
       songs: [...new Map(songs.filter((song) => window.getSongDifficulty?.(song) === desiredDifficulty)
         .map((song) => [`${song[0]}|${song[1]}`, song])).values()].sort(() => Math.random() - 0.5),
     }));
+    if (selectedGenre === 'Everything') {
+      const poolsByLanguage = new Map();
+      for (const song of pools.flatMap((pool) => pool.songs)) {
+        const language = window.getSongCatalogLanguage?.(song, song[9]?.catalogGenre) || 'en';
+        if (!poolsByLanguage.has(language)) poolsByLanguage.set(language, []);
+        poolsByLanguage.get(language).push(song);
+      }
+      pools = [...poolsByLanguage].map(([language, songs]) => ({ name: 'Everything', language, songs }));
+    }
     const usedKeys = new Set();
     const rounds = [];
     const vocaloidAnswerEntries = [];
@@ -1076,18 +1100,33 @@
       const blocked = new Set();
       let selected = null;
       while (!selected) {
-        const eligible = pools.filter((pool) => !blocked.has(pool.name) && pool.songs.filter((song) => !usedKeys.has(`${song[0]}|${song[1]}`)).length >= choiceCount);
+        const eligible = pools.filter((pool) => !blocked.has(pool.language || pool.name) && pool.songs.filter((song) => !usedKeys.has(`${song[0]}|${song[1]}`)).length >= choiceCount);
         if (!eligible.length) break;
-        const getGenreBalanceKey = window.getGenreBalanceKey || ((name) => name);
-        const poolsByGenre = new Map();
-        for (const candidatePool of eligible) {
-          const balanceKey = getGenreBalanceKey(candidatePool.name);
-          if (!poolsByGenre.has(balanceKey)) poolsByGenre.set(balanceKey, []);
-          poolsByGenre.get(balanceKey).push(candidatePool);
+        let pool;
+        if (selectedGenre === 'Everything') {
+          const weightedPools = eligible.map((candidatePool) => ({
+            pool: candidatePool,
+            weight: candidatePool.songs.filter((song) => !usedKeys.has(`${song[0]}|${song[1]}`)).length,
+          }));
+          const totalWeight = weightedPools.reduce((sum, entry) => sum + entry.weight, 0);
+          let roll = Math.random() * totalWeight;
+          pool = weightedPools.at(-1)?.pool;
+          for (const entry of weightedPools) {
+            roll -= entry.weight;
+            if (roll < 0) { pool = entry.pool; break; }
+          }
+        } else {
+          const getGenreBalanceKey = window.getGenreBalanceKey || ((name) => name);
+          const poolsByGenre = new Map();
+          for (const candidatePool of eligible) {
+            const balanceKey = getGenreBalanceKey(candidatePool.name);
+            if (!poolsByGenre.has(balanceKey)) poolsByGenre.set(balanceKey, []);
+            poolsByGenre.get(balanceKey).push(candidatePool);
+          }
+          const genreGroups = [...poolsByGenre.values()];
+          const genreGroup = genreGroups[Math.floor(Math.random() * genreGroups.length)];
+          pool = genreGroup[Math.floor(Math.random() * genreGroup.length)];
         }
-        const genreGroups = [...poolsByGenre.values()];
-        const genreGroup = genreGroups[Math.floor(Math.random() * genreGroups.length)];
-        const pool = genreGroup[Math.floor(Math.random() * genreGroup.length)];
         const collected = [];
         const candidates = pool.songs.filter((song) => !usedKeys.has(`${song[0]}|${song[1]}`));
         for (let offset = 0; offset < candidates.length && collected.length < choiceCount; offset += 8) {
@@ -1102,15 +1141,16 @@
           }
           showNotice(`Preparing round ${roundIndex + 1} of ${roundCount} · ${pool.name}`);
         }
-        if (collected.length < choiceCount) { blocked.add(pool.name); continue; }
+        if (collected.length < choiceCount) { blocked.add(pool.language || pool.name); continue; }
         const entries = collected.slice(0, choiceCount);
         entries.forEach(({ song }) => usedKeys.add(`${song[0]}|${song[1]}`));
-        selected = { genre: pool.name, entries };
+        selected = { genre: selectedGenre === 'Everything' ? 'Everything' : pool.name, entries };
       }
       if (!selected) throw new Error(`Could not find ${choiceCount} playable ${desiredDifficulty} songs from one genre for round ${roundIndex + 1}. Try another difficulty or genre.`);
       const { genre, entries } = selected;
       const choiceRecords = entries.map(({ song, asset }) => {
-        const choice = { title: song[0], artwork: asset.artworkUrl100 || song[2] || '', anime: song[6] || '', subtitle: genre === 'Vocaloid' ? '' : (window.getJPopSubtitle?.(song, genre) || '') };
+        const songGenre = song[9]?.catalogGenre || genre;
+        const choice = { title: song[0], artwork: asset.artworkUrl100 || song[2] || '', anime: song[6] || '', subtitle: songGenre === 'Vocaloid' ? '' : (window.getJPopSubtitle?.(song, songGenre) || '') };
         return choice;
       });
       const answerIndex = Math.floor(Math.random() * entries.length);
@@ -1137,7 +1177,7 @@
     const genre = settings.genre || 'Everything';
     setRoomCatalogLoading(true);
     const catalogs = window.getRoomStartupCatalogs
-      ? await window.getRoomStartupCatalogs(genre, 4, difficulty)
+      ? await window.getRoomStartupCatalogs(genre, 4, difficulty, 4, genre === 'Everything')
       : await window.getCachedRoundSongCatalogs?.(genre) || await window.getRoundSongCatalogs?.(genre) || [{ name: genre, songs: activeCatalog }];
     activeCatalog = catalogs.flatMap(({ songs }) => songs || []);
     const candidates = [...new Map(catalogs.flatMap(({ songs }) => songs || [])
