@@ -172,10 +172,10 @@ function loadSongAsset(song){
 }
 const genreArtistSeeds={
   'Everything':['Taylor Swift','The Weeknd','Dua Lipa','Bruno Mars','Beyonce','Rihanna','Drake','Kendrick Lamar','Ariana Grande','Lady Gaga','Coldplay','The Beatles','Queen','Michael Jackson','ABBA','Arctic Monkeys','Radiohead','Ed Sheeran','Adele','YOASOBI','Bodyslam','Jeff Satur'],
-  'Pop anthems':['Taylor Swift','Dua Lipa','The Weeknd','Ariana Grande','Bruno Mars','Mark Ronson','Daft Punk','Lady Gaga','Katy Perry','Rihanna','Beyonce','Ed Sheeran','Justin Bieber','Miley Cyrus','Adele','Harry Styles','Olivia Rodrigo','Sabrina Carpenter','Chappell Roan','Billie Eilish','Maroon 5','Kesha','P!nk','Shawn Mendes','Lizzo','Kylie Minogue','Kelly Clarkson','Britney Spears','Christina Aguilera','Demi Lovato','Selena Gomez','Camila Cabello','Sam Smith','Ellie Goulding','One Direction','Niall Horan','Jonas Brothers','The Chainsmokers','Calvin Harris','David Guetta','Avicii','Sia','Jason Derulo','Ne-Yo','Rita Ora','Alicia Keys','Carly Rae Jepsen','The Pussycat Dolls','Destiny’s Child','Fifth Harmony','Tove Lo','Anne-Marie','Ava Max','Tate McRae','Reneé Rapp','Charlie Puth','Khalid','RAYE','Tori Kelly','Pharrell Williams'],
+  'Pop anthems':['Taylor Swift','Dua Lipa','The Weeknd','Ariana Grande','Bruno Mars','Mark Ronson','Daft Punk','Lady Gaga','Katy Perry','Rihanna','Beyonce','Ed Sheeran','Justin Bieber','Miley Cyrus','Adele','Harry Styles','Olivia Rodrigo','Sabrina Carpenter','Chappell Roan','Billie Eilish','Maroon 5','Kesha','P!nk','Shawn Mendes','Lizzo','Kylie Minogue','Kelly Clarkson','Britney Spears','Christina Aguilera','Demi Lovato','Selena Gomez','Camila Cabello','Sam Smith','Ellie Goulding','One Direction','Niall Horan','Jonas Brothers','The Chainsmokers','Calvin Harris','David Guetta','Avicii','Sia','Jason Derulo','Rita Ora','Carly Rae Jepsen','The Pussycat Dolls','Destiny’s Child','Fifth Harmony','Tove Lo','Anne-Marie','Ava Max','Tate McRae','Reneé Rapp','Charlie Puth','Khalid','RAYE','Tori Kelly','Pharrell Williams'],
   'Indie & alternative':['Arctic Monkeys','Radiohead','The Strokes','The Killers','Coldplay','Imagine Dragons','Tame Impala','The 1975','Florence + The Machine','Lorde','Twenty One Pilots','Paramore','Nirvana','Oasis','The Cure','Muse','Foo Fighters','Green Day','Weezer','Vampire Weekend','Cage the Elephant','Lana Del Rey','The Cranberries','Blur','Arcade Fire','The National','The Shins','Yeah Yeah Yeahs','The White Stripes','The Black Keys','Kings of Leon','The Lumineers','Of Monsters and Men','Mumford & Sons','Bastille','The xx','MGMT','Foster the People','The Neighbourhood','Hozier','Bon Iver','Sufjan Stevens','Modest Mouse','The Smiths','The War on Drugs','The Kooks','Franz Ferdinand','Placebo','Snow Patrol','Keane','The Script','Garbage','No Doubt','The Smashing Pumpkins','Pixies','Fall Out Boy','Panic! At The Disco','My Chemical Romance','Evanescence','Royal Blood','Nothing But Thieves','The Verve','The B-52s','Blondie'],
-  'Hip-hop & R&B':['Drake','Kendrick Lamar','Eminem','SZA','The Weeknd','Beyonce','Rihanna','TLC','Usher','Alicia Keys','Outkast','Jay-Z','Missy Elliott','Tupac','Notorious B.I.G.','Lauryn Hill','Chris Brown','Doja Cat','Post Malone','Travis Scott','Childish Gambino','Mary J. Blige','Bruno Mars','50 Cent','Nas','Lil Wayne','J. Cole','Future','T.I.','Nelly','LL Cool J','Run-DMC','Wu-Tang Clan','A Tribe Called Quest','De La Soul','Beastie Boys','The Roots','Nicki Minaj','Cardi B','Megan Thee Stallion','Ice Cube','Dr. Dre','Snoop Dogg','Wiz Khalifa','Tyler, The Creator','A$AP Rocky','Lil Uzi Vert','Lil Baby','21 Savage','Ludacris','Busta Rhymes','T-Pain','Flo Rida','Frank Ocean','Miguel','John Legend','Ne-Yo','Jhené Aiko','H.E.R.','Brandy','Monica','Erykah Badu','D’Angelo','Maxwell','Boyz II Men'],
-  'Throwback classics':['The Beatles','Queen','Michael Jackson','ABBA','Whitney Houston','Elton John','Madonna','Prince','Stevie Wonder','Earth, Wind & Fire','Fleetwood Mac','David Bowie','The Rolling Stones','Bee Gees','Cyndi Lauper','Bon Jovi','a-ha','Toto','Journey','Gloria Gaynor','Eurythmics','Aretha Franklin','The Supremes','Elvis Presley','The Beach Boys','The Kinks','The Who','The Doors','Creedence Clearwater Revival','Simon & Garfunkel','The Carpenters','The Police','The Clash','The Pretenders','The Monkees','The Jackson 5','The Temptations','The Four Tops','Diana Ross','Marvin Gaye','James Brown','Ray Charles','Chuck Berry','The B-52s','Blondie','Tears for Fears','Duran Duran','Culture Club','Def Leppard','Wham!','Hall & Oates','Foreigner','Chicago','Boston','Heart','The Eagles','The Doobie Brothers','The Mamas & the Papas','KISS','Aerosmith','The Velvet Underground','The Meters','The Pointer Sisters','The Bangles','The Go-Go’s'],
+  'Hip-hop & Rap':['Drake','Kendrick Lamar','Eminem','Outkast','Jay-Z','Missy Elliott','Tupac','Notorious B.I.G.','Lauryn Hill','Doja Cat','Post Malone','Travis Scott','Childish Gambino','50 Cent','Nas','Lil Wayne','J. Cole','Future','T.I.','Nelly','LL Cool J','Run-DMC','Wu-Tang Clan','A Tribe Called Quest','De La Soul','Beastie Boys','The Roots','Nicki Minaj','Cardi B','Megan Thee Stallion','Ice Cube','Dr. Dre','Snoop Dogg','Wiz Khalifa','Tyler, The Creator','A$AP Rocky','Lil Uzi Vert','Lil Baby','21 Savage','Ludacris','Busta Rhymes','Flo Rida','Kanye West','Lil Durk','Young Thug','Gunna','Pop Smoke','Juice WRLD','XXXTentacion','Jack Harlow','Ice Spice','JID','Denzel Curry','Pusha T','Joey Bada$$','A$AP Ferg','2 Chainz','Big Sean','Logic','Mac Miller','Kid Cudi','Chance the Rapper','Tech N9ne','Common','Rakim','DMX','Big Pun','Queen Latifah','MF DOOM','Run the Jewels','G-Eazy','Central Cee','Dave','Stormzy','Skepta'],
+  'Throwback classics':['The Beatles','Queen','Michael Jackson','ABBA','Whitney Houston','Elton John','Madonna','Prince','Stevie Wonder','Earth, Wind & Fire','Fleetwood Mac','David Bowie','The Rolling Stones','Bee Gees','Cyndi Lauper','Bon Jovi','a-ha','Toto','Journey','Gloria Gaynor','Eurythmics','Aretha Franklin','The Supremes','Elvis Presley','The Beach Boys','The Kinks','The Who','The Doors','Creedence Clearwater Revival','Simon & Garfunkel','The Carpenters','The Police','The Clash','The Pretenders','The Monkees','The Jackson 5','The Temptations','The Four Tops','Diana Ross','Marvin Gaye','James Brown','Ray Charles','Chuck Berry','The B-52s','Blondie','Tears for Fears','Duran Duran','Culture Club','Def Leppard','Wham!','Hall & Oates','Foreigner','Chicago','Boston','Heart','The Eagles','The Doobie Brothers','The Mamas & the Papas','KISS','Aerosmith','The Velvet Underground','The Meters','The Pointer Sisters','The Bangles','The Go-Go’s','SZA','The Weeknd','Beyonce','Rihanna','Frank Ocean','Miguel','TLC','Usher','Alicia Keys','Mary J. Blige','Chris Brown','T-Pain','John Legend','Ne-Yo','Brandy','Monica','Erykah Badu',"D'Angelo",'Maxwell','Boyz II Men'],
   'Thai songs':['Bodyslam','Palmy','Bird Thongchai McIntyre','Slot Machine','Getsunova','Lula','Da Endorphine','Lipta','Three Man Down','Tilly Birds','Only Monday','Ink Waruntorn','Polycat','Scrubb','Potato','Big Ass','Labanoon','Cocktail','Pang Nakarin','Klear','Joey Phuwasit','Jeff Satur','Nont Tanont','Bowkylion','Asanee-Wasan','Carabao','Sek Loso','Pongsit Kamphee','Tata Young','Christina Aguilar','Mai Charoenpura','Thaitanium','F.HERO','Joey Boy','Clash','Retrospect','Sweet Mullet','Musketeers','25hours','Zeal','The Yers','Safeplanet','Desktop Error','Mild','Season Five','Room39','The Parkinson','Violette Wautier','Stamp Apiwat','Tor Saksit','Klear','Lomosonic','Silly Fools','Paradox','Modern Dog','Calories Blah Blah','Bie Sukrit','Kamikaze','Four-Mod','Tata Young','Da Endorphine','The Toys','Max Jenmana','WANYAi','MEAN','SERIOUS BACON','Zom Marie','Three Man Down'],
   'J-Pop':['YOASOBI','Ado','Official HIGE DANdism','Mrs. GREEN APPLE','King Gnu','Kenshi Yonezu','LiSA','Aimyon','Hikaru Utada','AKB48','Perfume','Arashi','Snow Man','back number','Vaundy','Eve','Aimer','RADWIMPS','BUMP OF CHICKEN','Sakanaction','Yorushika','Sukima Switch','Nogizaka46','ONE OK ROCK','UVERworld','Ai Otsuka','Spitz','Mr.Children','B’z','Southern All Stars','YUI','Kana Nishino','milet','Gen Hoshino','Ringo Sheena','Tokyo Jihen','Kyary Pamyu Pamyu','GReeeeN','Koda Kumi','Eir Aoi','Kalafina','UNISON SQUARE GARDEN','ASIAN KUNG-FU GENERATION','The Oral Cigarettes','Miki Matsubara','TM NETWORK','globe','L’Arc-en-Ciel','GLAY','LUNA SEA','Miyavi','NiziU','King & Prince','KAT-TUN','Hey! Say! JUMP','Yuzu','Ikimono-gakari','Superfly','MONGOL800','Every Little Thing','SPEED','ZONE','Mika Nakashima','Mai Kuraki','Misia','Aqua Timez','Fujii Kaze','MONGOL800','Salyu','Chara','JUJU','Kana-Boon','Mrs. GREEN APPLE'],
   'Anime openings':[],
@@ -206,6 +206,7 @@ const ANIME_SOURCE_CATALOG_SIZE=ANIME_CATALOG_SIZE/2;
 const disabledGenres=new Set(['Vocaloid','Anime','Anime openings','Anime endings']);
 const getGenreCatalogTarget=(genre)=>genre==='Vocaloid'?1000:animeSeriesSearchTerms[genre]?ANIME_SOURCE_CATALOG_SIZE:GENRE_CATALOG_SIZE;
 const getGenreCatalogStorageKey=(genre)=>genre==='Vocaloid'?'sonora-song-catalog-vocaloid-v1':genre==='Thai songs'?'sonora-song-catalog-v10-'+genre:'sonora-song-catalog-v9-'+genre;
+const legacyRapCatalogStorageKeys=['sonora-song-catalog-v9-Hip-hop & R&B','sonora-song-catalog-v8-Hip-hop & R&B','sonora-song-catalog-v7-Hip-hop & R&B','sonora-song-catalog-v6-Hip-hop & R&B','sonora-song-catalog-v5-Hip-hop & R&B','sonora-song-catalog-v3-Hip-hop & R&B','sonora-song-catalog-v2-Hip-hop & R&B','sonora-song-catalog-v1-Hip-hop & R&B'];
 const catalogVersionCue=/(?:\b(?:live(?:\s+(?:at|from|in|version|performance))?|demo(?:nstration)?|remaster(?:ed|ing)?|re[\s-]?master(?:ed)?|remix(?:es|ed)?|re[\s-]?record(?:ed|ing)?|alternate(?:\s+take)?|alternative(?:\s+take)?|acoustic|unplugged|radio\s+(?:edit|mix|version)|single\s+(?:edit|mix|version)|album\s+(?:edit|mix|version)|extended(?:\s+(?:version|mix))?|club\s+mix|12[ -]?inch(?:\s+mix)?|instrumental|off[\s-]?vocal|karaoke|cover(?:\s+version)?|tribute\s+(?:to|album|songs?)|made\s+famous\s+by|original\s+(?:artist|version|soundtrack|mix)|sped[\s-]?up|slowed(?:\s+down)?|nightcore|acapella|a[ -]?cappella|clean\s+version|explicit\s+version|full\s+version|music\s+box|piano\s+version|string\s+quartet|anniversary\s+edition|deluxe\s+edition|expanded\s+edition|special\s+edition|collector['\u2019]?s\s+edition|bonus\s+track|mono|stereo|taylor['\u2019]?s\s+version|(?:english|japanese|thai|korean|chinese)\s+version)\b|\u30e9\u30a4\u30d6|\u30ab\u30d0\u30fc|\u30ea\u30df\u30c3\u30af\u30b9|\u30a2\u30b3\u30fc\u30b9\u30c6\u30a3\u30c3\u30af|\u30ea\u30de\u30b9\u30bf\u30fc|\u30ab\u30e9\u30aa\u30b1|\u30a4\u30f3\u30b9\u30c8|\u4f34\u594f)/iu;
 const catalogVocaloidAlternateCue=/(?:\b(?:self[-\s]?cover|(?:vocaloid|vocal\s+synth)\s+(?:version|ver\.?|mix)|(?:short|long|alternate|alt)\s+version|alternate\s+mix)\b|\u30bb\u30eb\u30d5\u30ab\u30d0\u30fc|\u5225\u30d0\u30fc\u30b8\u30e7\u30f3)/iu;
 const catalogThaiVersionCue=/(?:\u0e04\u0e31\u0e1f\u0e40\u0e27\u0e2d\u0e23\u0e4c|\u0e23\u0e35\u0e21\u0e34\u0e01\u0e0b\u0e4c|\u0e04\u0e32\u0e23\u0e32\u0e42\u0e2d\u0e40\u0e01\u0e30|\u0e1a\u0e23\u0e23\u0e40\u0e25\u0e07|\u0e40\u0e27\u0e2d\u0e23\u0e4c\u0e0a\u0e31\u0e19|\u0e2d\u0e30\u0e04\u0e39\u0e2a\u0e15\u0e34\u0e01|\u0e23\u0e35\u0e21\u0e32\u0e2a\u0e40\u0e15\u0e2d\u0e23\u0e4c|\u30e9\u30a4\u30d6|\u30ab\u30d0\u30fc|\u30ea\u30df\u30c3\u30af\u30b9|\u30a2\u30b3\u30fc\u30b9\u30c6\u30a3\u30c3\u30af|\u30ea\u30de\u30b9\u30bf\u30fc|\u30ab\u30e9\u30aa\u30b1|\u30d0\u30fc\u30b8\u30e7\u30f3|\u30a4\u30f3\u30b9\u30c8|\u4f34\u594f)/iu;
@@ -314,6 +315,14 @@ function getSongCatalogLanguage(song,fallbackGenre=''){
   return getCatalogLanguageHint(song,song?.[9]?.catalogGenre||fallbackGenre||'');
 }
 window.getSongCatalogLanguage=getSongCatalogLanguage;
+const normalizeSongLanguages=value=>{const selected=[...new Set((Array.isArray(value)?value:[]).map(language=>({en:'en',th:'th',ja:'ja',jp:'ja'}[String(language||'').trim().toLowerCase()])).filter(Boolean))];return selected.length?selected:['en'];};
+function filterSongCatalogsByLanguages(catalogs,languages=[]){
+  const selected=new Set(normalizeSongLanguages(languages));
+  if(!selected.size)return catalogs||[];
+  return (catalogs||[]).map(pool=>({...pool,songs:(pool.songs||[]).filter(song=>selected.has(getSongCatalogLanguage(song,song?.[9]?.catalogGenre||pool.name||'')))})).filter(pool=>pool.songs.length);
+}
+window.normalizeSongLanguages=normalizeSongLanguages;
+window.filterSongCatalogsByLanguages=filterSongCatalogsByLanguages;
 function isAllowedCatalogLanguage(song,genre,asset=null){
   const metadata=(asset&&typeof asset==='object'?asset:song?.[9])||{};
   const explicitLanguage=[metadata.language,metadata.languageCode,metadata.trackLanguage,metadata.primaryLanguage,metadata.attributes?.language,metadata.attributes?.languageCode]
@@ -361,7 +370,7 @@ const genreCatalogCache=new Map();
 const genreCatalogLoadTasks=new Map();
 const everythingGenreCatalogs=new Map();
 let activeCatalog=roundSongs;
-const genreAliases={'เพลงป๊อป':'Pop anthems','อินดี้และอัลเทอร์เนทีฟ':'Indie & alternative','ฮิปฮอปและอาร์แอนด์บี':'Hip-hop & R&B','เพลงคลาสสิกย้อนยุค':'Throwback classics','เพลงไทย':'Thai songs','เจป๊อป':'J-Pop'};
+const genreAliases={'Hip-hop & R&B':'Hip-hop & Rap','\u0e2e\u0e34\u0e1b\u0e2e\u0e2d\u0e1b\u0e41\u0e25\u0e30\u0e41\u0e23\u0e47\u0e1b':'Hip-hop & Rap','เพลงป๊อป':'Pop anthems','อินดี้และอัลเทอร์เนทีฟ':'Indie & alternative','ฮิปฮอปและอาร์แอนด์บี':'Hip-hop & Rap','เพลงคลาสสิกย้อนยุค':'Throwback classics','เพลงไทย':'Thai songs','เจป๊อป':'J-Pop'};
 const catalogDatabasePromise=(()=>{
   if(!('indexedDB' in window))return Promise.resolve(null);
   return new Promise(resolve=>{
@@ -428,6 +437,7 @@ async function loadSingleGenreCatalogInner(genre, requestedTarget=null) {
   const storageKey = getGenreCatalogStorageKey(genre);
   const previousStorageKeys = [
     ...(genre==='Thai songs'?['sonora-song-catalog-v9-'+genre]:[]),
+    ...(genre==='Hip-hop & Rap'?legacyRapCatalogStorageKeys:[]),
     'sonora-song-catalog-v8-' + genre,
     'sonora-song-catalog-v7-' + genre,
     'sonora-song-catalog-v6-' + genre,
@@ -476,7 +486,12 @@ async function loadSingleGenreCatalogInner(genre, requestedTarget=null) {
     if(Array.isArray(previous))for(const song of previous)addSong(song);
   }
   if(catalog.length>catalogTarget)catalog.length=catalogTarget;
-  if(requestedTarget&&catalog.length>=catalogTarget){catalogSnapshotByGenre.set(genre,catalog);return catalog;}
+  if(requestedTarget&&catalog.length>=catalogTarget){
+    catalogSnapshotByGenre.set(genre,catalog);
+    const stored=await writeCatalogStorage(storageKey,{complete:false,songs:catalog});
+    if(stored)for(const previousStorageKey of previousStorageKeys)await removeCatalogStorage(previousStorageKey);
+    return catalog;
+  }
 
   let searchesComplete=true;
   for (let offset = 0; offset < searchTerms.length && catalog.length < catalogTarget; offset += 8) {
@@ -557,7 +572,7 @@ async function loadQuickGenreCatalog(genre,target){
   quickCatalogLoadTasks.set(key,task);
   try{return await task;}finally{if(quickCatalogLoadTasks.get(key)===task)quickCatalogLoadTasks.delete(key);}
 }
-const sourceGenres=['Pop anthems','Indie & alternative','Hip-hop & R&B','Throwback classics','Thai songs','J-Pop'];
+const sourceGenres=['Pop anthems','Indie & alternative','Hip-hop & Rap','Throwback classics','Thai songs','J-Pop'];
 const getGenreBalanceKey=genre=>String(genre||'Everything').startsWith('Anime ')?'Anime':String(genre||'Everything');
 window.getGenreBalanceKey=getGenreBalanceKey;
 const combinedGenres=['Everything',...sourceGenres];
@@ -579,6 +594,7 @@ async function loadCachedGenreSnapshot(genre){
     'sonora-song-catalog-'+(hasAnimeSource?'v4-':'v3-')+genre,
     'sonora-song-catalog-v2-'+genre,'sonora-song-catalog-v1-'+genre
   ];
+  if(genre==='Hip-hop & Rap')keys.push(...legacyRapCatalogStorageKeys);
   const records=await Promise.all(keys.map(readCatalogStorage));
   const songs=[];
   for(const record of records){
@@ -633,29 +649,24 @@ async function loadGenreCatalog(genre) {
   }
   if(genre!=='Everything')return loadSingleGenreCatalog(genre);
   if(genreCatalogCache.has('Everything')&&everythingGenreCatalogs.size)return genreCatalogCache.get('Everything');
-  const cacheKey='sonora-song-catalog-v9-Everything';
+  const cacheKey='sonora-song-catalog-v10-Everything';
   let cachedSongs=[];
-  for(const key of [cacheKey,'sonora-song-catalog-v8-Everything','sonora-song-catalog-v7-Everything','sonora-song-catalog-v6-Everything','sonora-song-catalog-v5-Everything']){
+  for(const key of [cacheKey]){
     const cached=await readCatalogStorage(key);
     const complete=cached?.counts&&combinedGenres.every((name)=>cached.counts[name]>=getGenreCatalogTarget(name));
     if(complete&&Array.isArray(cached.songs)){cachedSongs=cached.songs;break;}
   }
-  const existing=[];
-  for(const key of ['sonora-song-catalog-v4-Everything','sonora-song-catalog-v3-Everything','sonora-song-catalog-v2-Everything','sonora-song-catalog-v1-Everything']){
-    const saved=await readCatalogStorage(key);
-    if(Array.isArray(saved))existing.push(...saved);
-  }
   const catalogs=await Promise.all(sourceGenres.map(loadSingleGenreCatalog));
   everythingGenreCatalogs.clear();
   sourceGenres.forEach((name,index)=>everythingGenreCatalogs.set(name,catalogs[index]));
-  const merged=mergeCatalogEntries([...roundSongs,...existing,...cachedSongs,...catalogs.flat()]);
+  const merged=mergeCatalogEntries([...roundSongs,...cachedSongs,...catalogs.flat()]);
   genreCatalogCache.set('Everything',merged);
   const counts=Object.fromEntries(sourceGenres.map((name,index)=>[name,catalogs[index].length]));
   counts.Everything=merged.length;
   if(combinedGenres.every((name)=>counts[name]>=getGenreCatalogTarget(name))){
     await writeCatalogStorage(cacheKey,{counts,songs:merged});
   } else await removeCatalogStorage(cacheKey);
-  for(const key of ['sonora-song-catalog-v8-Everything','sonora-song-catalog-v7-Everything','sonora-song-catalog-v6-Everything','sonora-song-catalog-v5-Everything','sonora-song-catalog-v4-Everything','sonora-song-catalog-v3-Everything','sonora-song-catalog-v2-Everything','sonora-song-catalog-v1-Everything'])await removeCatalogStorage(key);
+  for(const key of ['sonora-song-catalog-v9-Everything','sonora-song-catalog-v8-Everything','sonora-song-catalog-v7-Everything','sonora-song-catalog-v6-Everything','sonora-song-catalog-v5-Everything','sonora-song-catalog-v4-Everything','sonora-song-catalog-v3-Everything','sonora-song-catalog-v2-Everything','sonora-song-catalog-v1-Everything'])await removeCatalogStorage(key);
   return merged;
 }
 window.getRoundSongCatalogs=async(genre='Everything')=>{
@@ -713,23 +724,35 @@ window.getCachedRoundSongCatalogs=async(genre='Everything')=>{
   catalogSnapshotByGenre.set(genre,songs);
   return [{name:genre,songs}];
 };
-window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficulty='medium',minimumChoiceCount=4,requireAllGenres=false)=>{
+window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficulty='medium',minimumChoiceCount=4,requireAllGenres=false,languages=[])=>{
   genre=genreAliases[genre]||genre;
   if(disabledGenres.has(genre))genre='Everything';
+  const selectedLanguages=new Set(genre==='Everything'?normalizeSongLanguages(languages):[]);
+  const matchesLanguage=(song,pool)=>!selectedLanguages.size||selectedLanguages.has(getSongCatalogLanguage(song,song?.[9]?.catalogGenre||pool?.name||''));
   const required=Math.max(4,Math.min(500,Number(requiredCount)||40));
   const minimumPerPool=Math.max(4,Math.min(8,Number(minimumChoiceCount)||4));
   const difficultyMultiplier={easy:2,medium:4,hard:8,extreme:12}[difficulty]||4;
   const rankCoverageTarget={easy:64,medium:144,hard:304,extreme:480}[difficulty]||144;
   const expansionTarget=(count,sourceGenre)=>Math.min(getGenreCatalogTarget(sourceGenre),Math.max(count+4,count*difficultyMultiplier+4,rankCoverageTarget));
-  const playableCount=catalogs=>(catalogs||[]).reduce((sum,pool)=>sum+(pool.songs||[]).filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty).length,0);
-  const hasPlayablePool=catalogs=>(catalogs||[]).some(pool=>(pool.songs||[]).filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty).length>=minimumPerPool);
+  const playableCount=catalogs=>(catalogs||[]).reduce((sum,pool)=>sum+(pool.songs||[]).filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty&&matchesLanguage(song,pool)).length,0);
+  const hasPlayablePool=catalogs=>{
+    if(genre==='Everything'){
+      const counts=new Map();
+      for(const pool of catalogs||[])for(const song of pool.songs||[])if(song?.[3]&&getSongDifficulty(song)===difficulty&&matchesLanguage(song,pool)){
+        const language=getSongCatalogLanguage(song,song?.[9]?.catalogGenre||pool.name||'');
+        counts.set(language,(counts.get(language)||0)+1);
+      }
+      return [...counts.values()].some(count=>count>=minimumPerPool);
+    }
+    return (catalogs||[]).some(pool=>(pool.songs||[]).filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty&&matchesLanguage(song,pool)).length>=minimumPerPool);
+  };
   const everythingBalanceGenres=[...new Set(sourceGenres.map(getGenreBalanceKey))];
   const requiredRounds=Math.ceil(required/minimumPerPool);
   const requiredPerEverythingGenre=Math.max(minimumPerPool,Math.ceil(requiredRounds/everythingBalanceGenres.length)*minimumPerPool);
   const playableCountsByGenre=catalogs=>{
     const counts=new Map();
     for(const pool of catalogs||[]){
-      const count=(pool.songs||[]).filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty).length;
+      const count=(pool.songs||[]).filter(song=>song?.[3]&&getSongDifficulty(song)===difficulty&&matchesLanguage(song,pool)).length;
       const key=getGenreBalanceKey(pool.name);
       counts.set(key,(counts.get(key)||0)+count);
     }
@@ -744,7 +767,7 @@ window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficul
   const includesThaiSongs=genre==='Thai songs'||(genre.includes('|')&&splitGenreSelection(genre).includes('Thai songs'));
   const thaiCatalogHasBreadth=!includesThaiSongs||hasThaiCatalogArtistBreadth(catalogs.filter(pool=>pool.name==='Thai songs'));
   const hasAllSourceGenres=sourceGenres.every(name=>catalogs.some(pool=>pool.name===name));
-  const everythingCatalogReady=genre!=='Everything'||(requireAllGenres?hasAllSourceGenres:required<=minimumPerPool||hasEverythingGenreCoverage(catalogs));
+  const everythingCatalogReady=genre!=='Everything'||(requireAllGenres||selectedLanguages.size?hasAllSourceGenres:required<=minimumPerPool||hasEverythingGenreCoverage(catalogs));
   if(cachedCatalogsReady&&thaiCatalogHasBreadth&&everythingCatalogReady)return catalogs;
   if(genre.includes('|')){
     const selected=splitGenreSelection(genre).flatMap(expandGenrePools);
@@ -765,7 +788,7 @@ window.getRoomStartupCatalogs=async(genre='Everything',requiredCount=40,difficul
     let genresToLoad;
     if(required<=minimumPerPool){
       // Start the first round quickly from a few pools; fill all selected genres in the background.
-      genresToLoad=requireAllGenres?[...sourceGenres]:[...sourceGenres].sort(()=>Math.random()-.5).slice(0,3);
+      genresToLoad=requireAllGenres||selectedLanguages.size?[...sourceGenres]:[...sourceGenres].sort(()=>Math.random()-.5).slice(0,3);
     }else{
       const underfilledGenres=new Set(everythingBalanceGenres.filter(name=>(cachedCounts.get(name)||0)<requiredPerEverythingGenre));
       genresToLoad=sourceGenres.filter(name=>underfilledGenres.has(getGenreBalanceKey(name)));
@@ -975,14 +998,20 @@ async function pickPlayableChoices(allowVocaloidExpansionWait=true){
   const choiceCount=room.choiceCount||4;
   const selectedGenre=genreAliases[room.genre]||room.genre||'Everything';
   let catalogs=await window.getRoundSongCatalogs?.(selectedGenre)||[{name:selectedGenre,songs:activeCatalog}];
+  if(selectedGenre==='Everything')catalogs=filterSongCatalogsByLanguages(catalogs,room.languages);
   if(selectedGenre==='Everything'){
     const songs=[...new Map(catalogs.flatMap(pool=>pool.songs||[]).map(song=>[`${song[0]}|${song[1]}`,song])).values()];
     catalogs=[{name:'Everything',songs}];
   }
-  const eligiblePools=catalogs.map(({name,songs})=>({
+  let eligiblePools=catalogs.map(({name,songs})=>({
     name,
     songs:songs.filter(song=>getSongDifficulty(song)===difficulty&&!usedRoundSongs.has(song)&&!unavailableSongs.has(`${song[0]}|${song[1]}`)).sort(()=>Math.random()-.5)
   })).filter(pool=>pool.songs.length>=choiceCount);
+  if(selectedGenre!=='Everything')eligiblePools=eligiblePools.flatMap(pool=>{
+    const byLanguage=new Map();
+    for(const song of pool.songs){const language=window.getSongCatalogLanguage?.(song,song[9]?.catalogGenre)||'en';if(!byLanguage.has(language))byLanguage.set(language,[]);byLanguage.get(language).push(song);}
+    return [...byLanguage].map(([language,songs])=>({...pool,language,songs}));
+  }).filter(pool=>pool.songs.length>=choiceCount);
   const poolsByGenre=new Map();
   for(const pool of eligiblePools){
     const balanceKey=getGenreBalanceKey(pool.name);
@@ -1089,7 +1118,7 @@ async function launchGame(){
     const difficulty=r.difficulty||'medium';
     if(window.getRoomStartupCatalogs){
       feedback.textContent='Finding playable songs for the first round…';
-      const startupCatalogs=await window.getRoomStartupCatalogs(selectedGenre,choiceCount,difficulty,choiceCount);
+      const startupCatalogs=await window.getRoomStartupCatalogs(selectedGenre,choiceCount,difficulty,choiceCount,selectedGenre==='Everything',r.languages);
       activeCatalog=startupCatalogs.flatMap(pool=>pool.songs||[]);
       for(const {name,songs} of startupCatalogs){
         catalogSnapshotByGenre.set(name,songs||[]);
@@ -1105,9 +1134,11 @@ async function launchGame(){
       if(!catalogExpansionTasks.has(deferredExpansionGenre)){
         const selectedGenre=deferredExpansionGenre;
         const target=Math.min(500,((Number(r.roundCount)||ROUND_COUNT)+1)*choiceCount);
-        const task=(window.getRoomStartupCatalogs
-          ? window.getRoomStartupCatalogs(selectedGenre,target,difficulty,choiceCount)
-          : loadGenreCatalog(selectedGenre).then(catalog=>[{name:selectedGenre,songs:catalog}])).then(catalogs=>{
+        const task=(selectedGenre==='Everything'
+          ? loadGenreCatalog('Everything').then(()=>sourceGenres.map(name=>({name,songs:everythingGenreCatalogs.get(name)||[]})))
+          : window.getRoomStartupCatalogs
+            ? window.getRoomStartupCatalogs(selectedGenre,target,difficulty,choiceCount,false,r.languages)
+            : loadGenreCatalog(selectedGenre).then(catalog=>[{name:selectedGenre,songs:catalog}])).then(catalogs=>{
           activeCatalog=catalogs.flatMap(pool=>pool.songs||[]);
           for(const {name,songs} of catalogs){
             catalogSnapshotByGenre.set(name,songs||[]);
@@ -1332,11 +1363,31 @@ document.querySelectorAll('.room-setting').forEach((select) => {
     const genreGrid = document.createElement('div');
     genreGrid.className = 'genre-grid';
     Array.from(select.options).forEach((option) => {
+      const genreName = option.value || option.text;
+      const everythingControl = genreName === 'Everything' ? document.createElement('div') : null;
+      if (everythingControl) everythingControl.className = 'everything-genre-control';
       const genre = document.createElement('button');
       genre.type = 'button';
-      genre.className = 'genre-option';
-      genre.dataset.genre = option.value || option.text;
+      genre.className = `genre-option${everythingControl ? ' everything-genre-button' : ''}`;
+      genre.dataset.genre = genreName;
       genre.textContent = option.text;
+      if (everythingControl) {
+        const languageOptions = document.createElement('div');
+        languageOptions.className = 'everything-language-options';
+        languageOptions.setAttribute('role', 'group');
+        languageOptions.setAttribute('aria-label', 'Song languages');
+        languageOptions.innerHTML = '<button type="button" class="language-option" data-language="en" aria-label="English songs" aria-pressed="false">EN</button><button type="button" class="language-option" data-language="th" aria-label="Thai songs" aria-pressed="false">TH</button><button type="button" class="language-option" data-language="ja" aria-label="Japanese songs" aria-pressed="false">JP</button>';
+        languageOptions.querySelectorAll('.language-option').forEach((languageOption) => {
+          languageOption.addEventListener('click', () => {
+            const selected = new Set([...languageOptions.querySelectorAll('.language-option.selected')].map((item) => item.dataset.language));
+            if (selected.has(languageOption.dataset.language)) selected.delete(languageOption.dataset.language);
+            else selected.add(languageOption.dataset.language);
+            window.selectSetupGenre?.('Everything');
+            window.selectSetupLanguages?.([...selected]);
+          });
+        });
+        everythingControl.append(genre, languageOptions);
+      }
       if(disabledGenres.has(genre.dataset.genre)){
         genre.disabled = true;
         genre.title = 'Temporarily unavailable';
@@ -1356,7 +1407,7 @@ document.querySelectorAll('.room-setting').forEach((select) => {
         else selected.add(genre.dataset.genre);
         window.selectSetupGenre?.(selected.size ? [...selected].join('|') : 'Everything');
       });
-      genreGrid.appendChild(genre);
+      genreGrid.appendChild(everythingControl || genre);
     });
     select.replaceWith(genreGrid);
     return;
@@ -1401,7 +1452,7 @@ document.querySelector('.setup-modal').appendChild(joinedPanel);
 const roomStateKey = 'sonora-room-state';
 const profileNameKey = 'sonora-profile-name';
 const setupNameKey = 'sonora-room-setup-name';
-const defaultRoomState = { hostName: '', maxPlayers: 8, mode: 'Quickfire', genre: '', difficulty: 'medium', choiceCount: 4, roundCount: 10, duration: 30, time: '30 seconds', active: true, players: [{ name: '', role: 'Host' }] };
+const defaultRoomState = { hostName: '', maxPlayers: 8, mode: 'Quickfire', genre: '', languages: ['en'], difficulty: 'medium', choiceCount: 4, roundCount: 10, duration: 30, time: '30 seconds', active: true, players: [{ name: '', role: 'Host' }] };
 
 function getRoomState() {
   try {
@@ -1410,6 +1461,7 @@ function getRoomState() {
       const availableGenres=splitGenreSelection(room.genre).filter(genre=>!disabledGenres.has(genre));
       room.genre=availableGenres.length?availableGenres.join('|'):'Everything';
     }
+    room.languages=normalizeSongLanguages(room.languages);
     if (!availableModes.has(room.mode)) room.mode = 'Quickfire';
     if (!['easy', 'medium', 'hard', 'extreme'].includes(room.difficulty)) room.difficulty = 'medium';
     if (![4, 5, 6, 7, 8].includes(Number(room.choiceCount))) room.choiceCount = 4;
@@ -1544,7 +1596,8 @@ function renderRoomRosters() {
   if (hostSettings.length >= 7) {
     hostSettings[0].textContent = getAppModeName(room.mode);
     hostSettings[1].textContent = `${room.maxPlayers} max`;
-    hostSettings[2].textContent = String(room.genre || 'Everything').replaceAll('|', ', ');
+    const languageSummary = (room.genre || 'Everything') === 'Everything' && room.languages?.length ? ` · ${room.languages.map((language) => ({ en: 'EN', th: 'TH', ja: 'JP' }[language] || language.toUpperCase())).join('+')}` : '';
+    hostSettings[2].textContent = String(room.genre || 'Everything').replaceAll('|', ', ') + languageSummary;
     hostSettings[3].textContent = room.time.replace(' seconds', ' sec');
     hostSettings[4].textContent = (room.difficulty || 'medium').replace(/^./, (letter) => letter.toUpperCase());
     hostSettings[5].textContent = `${room.choiceCount || 4} choices`;
@@ -1794,6 +1847,7 @@ function openModal(requireName = false) {
     choice.setAttribute('aria-pressed', String(choice.classList.contains('selected')));
   });
   window.selectSetupGenre?.(room.genre || 'Everything');
+  window.selectSetupLanguages?.(room.languages || []);
   modal.hidden = false;
   modal.classList.toggle('solo-setup', selectedMode === 'Solo');
   document.querySelector('.setup-header .eyebrow').textContent = selectedMode === 'Solo' ? 'Solo game setup' : 'Room setup';
@@ -1823,8 +1877,22 @@ window.selectSetupGenre = (genreName = 'Everything') => {
     choice.classList.toggle('selected', selected);
     choice.setAttribute('aria-pressed', String(selected));
   });
+  document.querySelector('.everything-genre-control')?.classList.toggle('is-inactive', !selectEverything);
   const room = getRoomState();
   room.genre = selectEverything ? 'Everything' : [...selectedGenres].join('|');
+  saveRoomState(room);
+  updateLaunchAvailability();
+};
+
+window.selectSetupLanguages = (languages = []) => {
+  const selectedLanguages = new Set(normalizeSongLanguages(languages));
+  document.querySelectorAll('.language-option').forEach((choice) => {
+    const selected = selectedLanguages.has(choice.dataset.language);
+    choice.classList.toggle('selected', selected);
+    choice.setAttribute('aria-pressed', String(selected));
+  });
+  const room = getRoomState();
+  room.languages = [...selectedLanguages];
   saveRoomState(room);
   updateLaunchAvailability();
 };
@@ -2122,7 +2190,7 @@ const languageCopy = {
     navModes: 'Game modes', navHow: 'How it works', warmup: 'The room is warming up',
     heroTitle: 'Hear it.<br /><em>Know it.</em><br />Name it.', heroDescription: 'A fast, friendly music guessing game for the people who can identify a song from the first three seconds.',
     create: '＋ Create a room', join: 'Join with a code', pick: 'Pick your poison', choose: 'Choose a mode',
-    modes: [['Classic', '10 songs - 30 seconds'], ['Solo Play', 'Play on your own']], genres: ['Pop anthems', 'Indie & alternative', 'Hip-hop & R&B', 'Throwback classics', 'Thai songs', 'J-Pop'],
+    modes: [['Classic', '10 songs - 30 seconds'], ['Solo Play', 'Play on your own']], genres: ['Pop anthems', 'Indie & alternative', 'Hip-hop & Rap', 'Throwback classics', 'Thai songs', 'J-Pop'],
     zero: 'ZERO FRICTION', howTitle: 'Built for the<br /><em>perfect chorus.</em>', howText: 'Make a room, send the code, and let the music do the talking. No accounts. No setup. Just your people and a playlist.',
     profile: 'Your profile', display: 'Display name', save: 'Save name', saved: 'Name saved', setup: 'Room setup', make: 'Make it <em>yours.</em>',
     gameMode: 'Game mode', modeHint: 'Set by the mode you picked', max: 'Max players', maxHint: 'Everyone gets a turn to guess', genre: 'Song genre', genreHint: 'Keep the playlist unpredictable', time: 'Time per song', timeHint: 'How long players have to lock in', invite: 'Invite your people', sendCode: 'Send them<br /><em>the code.</em>', inviteHint: 'Players can join from any device using the room code.', copy: 'Copy room code', private: 'Cloudflare room', start: 'Start the room', room: 'The room', who: 'Who is <em>in?</em>', roomHint: 'Share the code above and watch your crew appear here.', host: 'Room host', joined: 'Joined just now', waiting: 'Waiting for players', waitingHint: 'Send the invite code to your crew',
@@ -2230,9 +2298,13 @@ const localizedSiteCopy = {
 };
 
 const thaiGenreNames = {
-  'Everything': 'ทุกแนวเพลง', 'Pop anthems': 'เพลงป๊อป', 'Indie & alternative': 'อินดี้และอัลเทอร์เนทีฟ',
-  'Hip-hop & R&B': 'ฮิปฮอปและอาร์แอนด์บี', 'Throwback classics': 'เพลงคลาสสิกย้อนยุค',
-  'Thai songs': 'เพลงไทย', 'J-Pop': 'เจป๊อป'
+  'Everything': '\u0e17\u0e38\u0e01\u0e41\u0e19\u0e27\u0e40\u0e1e\u0e25\u0e07',
+  'Pop anthems': '\u0e40\u0e1e\u0e25\u0e07\u0e1b\u0e4a\u0e2d\u0e1b',
+  'Indie & alternative': '\u0e2d\u0e34\u0e19\u0e14\u0e35\u0e49\u0e41\u0e25\u0e30\u0e2d\u0e31\u0e25\u0e40\u0e17\u0e2d\u0e23\u0e4c\u0e40\u0e19\u0e17\u0e35\u0e1f',
+  'Hip-hop & Rap': '\u0e2e\u0e34\u0e1b\u0e2e\u0e2d\u0e1b\u0e41\u0e25\u0e30\u0e41\u0e23\u0e47\u0e1b',
+  'Throwback classics': '\u0e40\u0e1e\u0e25\u0e07\u0e04\u0e25\u0e32\u0e2a\u0e2a\u0e34\u0e01\u0e22\u0e49\u0e2d\u0e19\u0e22\u0e38\u0e04',
+  'Thai songs': '\u0e40\u0e1e\u0e25\u0e07\u0e44\u0e17\u0e22',
+  'J-Pop': '\u0e40\u0e08\u0e1b\u0e4a\u0e2d\u0e1b'
 };
 const thaiStatusCopy = {
   'Choose quickly for the highest score.': 'รีบเลือกคำตอบเพื่อรับคะแนนสูงสุด',
@@ -2371,13 +2443,15 @@ function applyLanguage(language) {
   document.querySelectorAll('.mode-card').forEach((card) => { const modeCopy = card.dataset.mode === 'Quickfire' ? copy.modes[0] : card.dataset.mode === 'Solo' ? copy.modes[1] : ['Song Bomb', `3 lives \u00b7 Last player standing`]; setTextFor(card, '.mode-name', modeCopy[0]); setTextFor(card, '.mode-detail', modeCopy[1]); });
   modeChoices.querySelectorAll('.mode-choice').forEach((choice) => { choice.textContent = getAppModeName(choice.dataset.mode); });
   document.querySelectorAll('.genre-option').forEach((choice, index) => {
-    choice.textContent = index === 0 ? (language === 'TH' ? 'ทุกแนว' : 'Everything') : language === 'TH' && choice.dataset.genre === 'J-Pop' ? 'J-Pop' : (copy.genres[index - 1] || choice.textContent);
+    choice.textContent = index === 0 ? (language === 'TH' ? 'ทุกแนว' : 'Everything') : language === 'TH' && choice.dataset.genre === 'Hip-hop & Rap' ? '\u0e2e\u0e34\u0e1b\u0e2e\u0e2d\u0e1b\u0e41\u0e25\u0e30\u0e41\u0e23\u0e47\u0e1b' : language === 'TH' && choice.dataset.genre === 'J-Pop' ? 'J-Pop' : (copy.genres[index - 1] || choice.textContent);
   });
   setText('.selected-mode-label', selectedMode ? getAppModeName(selectedMode) : (currentLanguage === 'TH' ? 'เลือกโหมดเกม' : 'Select a mode'));
   setText('.profile-panel .eyebrow', copy.profile); setText('.profile-panel label', copy.display); setText('.profile-save', copy.save);
   setText('.setup-header .eyebrow', selectedMode === 'Solo' ? (language === 'TH' ? '\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\u0e40\u0e25\u0e48\u0e19\u0e04\u0e19\u0e40\u0e14\u0e35\u0e22\u0e27' : 'Solo game setup') : copy.setup); setHtml('.setup-header h2', copy.make); setText('.setup-fields .setup-field:nth-child(1)>span', copy.yourName); setText('.setup-fields .setup-field:nth-child(2)>span', copy.gameMode); setText('.setup-fields .setup-field:nth-child(2) small', copy.modeHint); setText('.setup-fields .player-setting-field>span', copy.max); setText('.setup-fields .player-setting-field small', copy.maxHint); setText('.setup-fields .genre-setting-field>span', copy.genre); setText('.setup-fields .genre-setting-field small', copy.genreHint);
   setText('.setup-fields .setup-field:nth-child(2) small', selectedMode ? getModeSummary() : copy.modeHint);
   const thaiSetup = currentLanguage === 'TH';
+  document.querySelector('.everything-language-options')?.setAttribute('aria-label', thaiSetup ? '\u0e20\u0e32\u0e29\u0e32\u0e40\u0e1e\u0e25\u0e07' : 'Song languages');
+  document.querySelectorAll('.language-option').forEach((choice) => choice.setAttribute('aria-label', thaiSetup ? ({ en: '\u0e40\u0e1e\u0e25\u0e07\u0e20\u0e32\u0e29\u0e32\u0e2d\u0e31\u0e07\u0e01\u0e24\u0e29', th: '\u0e40\u0e1e\u0e25\u0e07\u0e20\u0e32\u0e29\u0e32\u0e44\u0e17\u0e22', ja: '\u0e40\u0e1e\u0e25\u0e07\u0e20\u0e32\u0e29\u0e32\u0e0d\u0e35\u0e48\u0e1b\u0e38\u0e48\u0e19' }[choice.dataset.language] || choice.textContent) : ({ en: 'English songs', th: 'Thai songs', ja: 'Japanese songs' }[choice.dataset.language] || choice.textContent)));
   setText('.time-setting-field>span', selectedMode === 'SongBomb' ? (thaiSetup ? '\u0e23\u0e30\u0e22\u0e30\u0e40\u0e27\u0e25\u0e32\u0e15\u0e48\u0e2d\u0e40\u0e17\u0e34\u0e23\u0e4c\u0e19' : 'Turn length') : thaiSetup ? '\u0e23\u0e30\u0e22\u0e30\u0e40\u0e27\u0e25\u0e32\u0e15\u0e48\u0e2d\u0e23\u0e2d\u0e1a' : 'Round length');
   setText('.time-setting-field small', selectedMode === 'SongBomb' ? 'How long each player has to answer' : thaiSetup ? '\u0e01\u0e33\u0e2b\u0e19\u0e14\u0e04\u0e07\u0e17\u0e35\u0e48\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e42\u0e2b\u0e21\u0e14 Classic' : 'Fixed for the Classic game');
   setText('.choice-count-field>span', thaiSetup ? '\u0e08\u0e33\u0e19\u0e27\u0e19\u0e15\u0e31\u0e27\u0e40\u0e25\u0e37\u0e2d\u0e01' : 'Answer choices');

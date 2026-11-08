@@ -9,8 +9,19 @@ const isDisabledGenre = (value) => {
   return genre === 'vocaloid' || genre === 'anime' || genre.startsWith('anime ');
 };
 const normalizeGenre = (value) => {
-  const genres = String(value || 'Everything').split('|').map((genre) => genre.trim()).filter((genre) => genre && !isDisabledGenre(genre));
+  const genres = String(value || 'Everything').split('|').map((genre) => {
+    const normalized = genre.trim();
+    const lower = normalized.toLocaleLowerCase();
+    if (lower === 'hip-hop & r&b' || normalized === '\u0e2e\u0e34\u0e1b\u0e2e\u0e2d\u0e1b\u0e41\u0e25\u0e30\u0e2d\u0e32\u0e23\u0e4c\u0e41\u0e2d\u0e19\u0e14\u0e4c\u0e1a\u0e35' || normalized === '\u0e2e\u0e34\u0e1b\u0e2e\u0e2d\u0e1b\u0e41\u0e25\u0e30\u0e41\u0e23\u0e47\u0e1b') return 'Hip-hop & Rap';
+    return normalized;
+  }).filter((genre) => genre && !isDisabledGenre(genre));
   return genres.length ? genres.join('|') : 'Everything';
+};
+const normalizeLanguages = (value) => {
+  const selected = [...new Set((Array.isArray(value) ? value : [])
+  .map((language) => ({ en: 'en', th: 'th', ja: 'ja', jp: 'ja' })[String(language || '').trim().toLowerCase()])
+  .filter(Boolean))];
+  return selected.length ? selected : ['en'];
 };
 const STAGES = [0.1, 0.5, 2, 8, 15];
 const STAGE_STARTS = [0, ...STAGES.slice(0, -1)];
@@ -109,7 +120,7 @@ export default {
       return stub.fetch('https://room.internal/create', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ code, name: body.name.trim(), mode: body.mode, maxPlayers: body.maxPlayers, genre: body.genre, difficulty: body.difficulty, choiceCount: body.choiceCount, roundCount: body.roundCount, durationSeconds: body.durationSeconds }),
+        body: JSON.stringify({ code, name: body.name.trim(), mode: body.mode, maxPlayers: body.maxPlayers, genre: body.genre, languages: body.languages, difficulty: body.difficulty, choiceCount: body.choiceCount, roundCount: body.roundCount, durationSeconds: body.durationSeconds }),
       });
     }
 
@@ -166,6 +177,7 @@ export class GameRoom extends DurableObject {
       winner: room.winner || null,
       maxPlayers: room.maxPlayers,
       genre: room.genre,
+      languages: normalizeLanguages(room.languages),
       difficulty: ['easy', 'medium', 'hard', 'extreme'].includes(room.difficulty) ? room.difficulty : 'medium',
       choiceCount: Math.max(4, Math.min(8, Number(room.choiceCount) || 4)),
       roundCount: Math.max(1, Math.min(50, Math.round(Number(room.roundCount) || ROUND_COUNT))),
@@ -238,6 +250,7 @@ export class GameRoom extends DurableObject {
         mode: body.mode === 'SongBomb' ? 'SongBomb' : 'Quickfire',
         maxPlayers: Math.max(2, Math.min(20, Number(body.maxPlayers) || 8)),
         genre: normalizeGenre(body.genre).slice(0, 180),
+        languages: normalizeLanguages(body.languages),
         difficulty: ['easy', 'medium', 'hard', 'extreme'].includes(body.difficulty) ? body.difficulty : 'medium',
         choiceCount: Math.max(4, Math.min(8, Number(body.choiceCount) || 4)),
         roundCount: Math.max(1, Math.min(50, Math.round(Number(body.roundCount) || ROUND_COUNT))),
@@ -389,16 +402,18 @@ export class GameRoom extends DurableObject {
         ? Math.max(room.players.length, Math.min(20, Math.max(2, Number(action.maxPlayers))))
         : room.maxPlayers;
       const genre = typeof action.genre === 'string' ? normalizeGenre(action.genre).slice(0, 180) : room.genre;
+      const languages = action.languages === undefined ? normalizeLanguages(room.languages) : normalizeLanguages(action.languages);
       const mode = action.mode === 'SongBomb' || action.mode === 'Quickfire' ? action.mode : (room.mode || 'Quickfire');
       const difficulty = ['easy', 'medium', 'hard', 'extreme'].includes(action.difficulty) ? action.difficulty : (room.difficulty || 'medium');
       const choiceCount = Math.max(4, Math.min(8, Number(action.choiceCount) || Number(room.choiceCount) || 4));
       const roundCount = Math.max(1, Math.min(50, Math.round(Number(action.roundCount) || Number(room.roundCount) || ROUND_COUNT)));
       const durationSeconds = [30, 45, 60].includes(Number(action.durationSeconds)) ? Number(action.durationSeconds) : room.durationSeconds;
-      if (name === player.name && maxPlayers === room.maxPlayers && genre === room.genre && mode === (room.mode || 'Quickfire') && difficulty === (room.difficulty || 'medium') && choiceCount === (room.choiceCount || 4) && roundCount === (room.roundCount || ROUND_COUNT) && durationSeconds === room.durationSeconds) return;
+      if (name === player.name && maxPlayers === room.maxPlayers && genre === room.genre && JSON.stringify(languages) === JSON.stringify(normalizeLanguages(room.languages)) && mode === (room.mode || 'Quickfire') && difficulty === (room.difficulty || 'medium') && choiceCount === (room.choiceCount || 4) && roundCount === (room.roundCount || ROUND_COUNT) && durationSeconds === room.durationSeconds) return;
       player.name = name;
       room.players[0].name = name;
       room.maxPlayers = maxPlayers;
       room.genre = genre;
+      room.languages = languages;
       room.mode = mode;
       room.difficulty = difficulty;
       room.choiceCount = choiceCount;

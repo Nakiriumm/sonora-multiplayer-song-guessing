@@ -118,6 +118,7 @@
     const modal = $('.modal-backdrop');
     const hostName = $('.host-name-input');
     const nameGate = $('.name-gate');
+    window.selectSetupLanguages?.(getRoomState().languages || []);
     if (hostName) {
       hostName.value = name;
       hostName.dispatchEvent(new Event('input', { bubbles: true }));
@@ -139,11 +140,13 @@
     const genre = everythingOption?.classList.contains('selected') || !selectedGenres.length
       ? 'Everything'
       : selectedGenres.join('|');
+    const languages = $$('.language-option.selected').map((option) => option.dataset.language);
     return {
       name,
       mode: window.getSelectedGameMode?.() || null,
       maxPlayers: Number.parseInt(playersLabel, 10) || DEFAULT_MAX_PLAYERS,
       genre,
+      languages,
       difficulty: $('.difficulty-option.selected')?.dataset.difficulty || saved.difficulty || 'medium',
       choiceCount: Number.parseInt($('.choice-stepper strong')?.textContent, 10) || saved.choiceCount || 4,
       roundCount: Number.parseInt($('.rounds-stepper strong')?.textContent, 10) || saved.roundCount || 10,
@@ -309,10 +312,12 @@
     const hostSettings = $$('.host-settings strong');
     if (hostSettings.length >= 7) {
       const difficultyNames = thai ? { easy: 'ง่าย', medium: 'ปานกลาง', hard: 'ยาก', extreme: 'ยากมาก' } : { easy: 'Easy', medium: 'Medium', hard: 'Hard', extreme: 'Extreme' };
-      const genreName = (genre) => thai ? ({ 'Everything': 'ทุกแนวเพลง', 'Pop anthems': 'เพลงป๊อป', 'Indie & alternative': 'อินดี้และอัลเทอร์เนทีฟ', 'Hip-hop & R&B': 'ฮิปฮอปและอาร์แอนด์บี', 'Throwback classics': 'เพลงคลาสสิกย้อนยุค', 'Thai songs': 'เพลงไทย', 'J-Pop': 'เจป๊อป' }[genre] || genre) : genre;
+      const genreName = (genre) => thai ? ({ 'Everything': 'ทุกแนวเพลง', 'Pop anthems': 'เพลงป๊อป', 'Indie & alternative': 'อินดี้และอัลเทอร์เนทีฟ', 'Hip-hop & Rap': '\u0e2e\u0e34\u0e1b\u0e2e\u0e2d\u0e1b\u0e41\u0e25\u0e30\u0e41\u0e23\u0e47\u0e1b', 'Throwback classics': 'เพลงคลาสสิกย้อนยุค', 'Thai songs': 'เพลงไทย', 'J-Pop': 'เจป๊อป' }[genre] || genre) : genre;
       hostSettings[0].textContent = window.getAppModeName?.(room.mode === 'SongBomb' ? 'SongBomb' : 'Quickfire') || (room.mode === 'SongBomb' ? 'Song Bomb' : 'Classic');
       hostSettings[1].textContent = thai ? `${room.maxPlayers} คน` : `${room.maxPlayers} max`;
-      hostSettings[2].textContent = String(room.genre || 'Everything').split('|').map(genreName).join(thai ? '، ' : ', ');
+      const languages = window.normalizeSongLanguages?.(room.languages || []) || [];
+      const languageSummary = (room.genre || 'Everything') === 'Everything' && languages.length ? ` · ${languages.map((language) => ({ en: 'EN', th: 'TH', ja: 'JP' }[language] || language.toUpperCase())).join('+')}` : '';
+      hostSettings[2].textContent = String(room.genre || 'Everything').split('|').map(genreName).join(thai ? '، ' : ', ') + languageSummary;
       hostSettings[3].textContent = thai ? `${room.durationSeconds || 30} วินาที` : `${room.durationSeconds || 30} sec`;
       hostSettings[4].textContent = difficultyNames[room.difficulty || 'medium'] || (room.difficulty || 'medium');
       hostSettings[5].textContent = thai ? `${room.choiceCount || 4} ตัวเลือก` : `${room.choiceCount || 4} choices`;
@@ -356,7 +361,7 @@
     if (state.session?.host && room.phase === 'lobby') {
       const settings = currentSettings($('.host-name-input')?.value.trim());
       const host = players.find((player) => player.id === state.session.playerId);
-      if (host && (settings.name !== host.name || settings.mode !== room.mode || settings.maxPlayers !== room.maxPlayers || settings.genre !== room.genre || settings.difficulty !== (room.difficulty || 'medium') || settings.choiceCount !== (room.choiceCount || 4) || settings.roundCount !== (room.roundCount || 10) || settings.durationSeconds !== room.durationSeconds)) send('configure', settings);
+      if (host && (settings.name !== host.name || settings.mode !== room.mode || settings.maxPlayers !== room.maxPlayers || settings.genre !== room.genre || JSON.stringify(settings.languages) !== JSON.stringify(window.normalizeSongLanguages?.(room.languages || [])) || settings.difficulty !== (room.difficulty || 'medium') || settings.choiceCount !== (room.choiceCount || 4) || settings.roundCount !== (room.roundCount || 10) || settings.durationSeconds !== room.durationSeconds)) send('configure', settings);
     }
     window.refreshSetupLanguage?.();
   }
@@ -828,7 +833,8 @@
         renderBombSuggestionList(request);
       }, 4500);
       const genre = state.room?.genre || '';
-      const country = genre === 'Thai songs' ? 'TH' : genre === 'J-Pop' || genre === 'Vocaloid' || genre === 'Anime' || genre.startsWith('Anime ') ? 'JP' : 'US';
+      const selectedLanguages = genre === 'Everything' ? window.normalizeSongLanguages?.(state.room?.languages || []) || [] : [];
+      const country = selectedLanguages.length === 1 ? ({ en: 'US', th: 'TH', ja: 'JP' }[selectedLanguages[0]] || 'US') : genre === 'Thai songs' ? 'TH' : genre === 'J-Pop' || genre === 'Vocaloid' || genre === 'Anime' || genre.startsWith('Anime ') ? 'JP' : 'US';
       try {
         const url = `https://itunes.apple.com/search?term=${encodeURIComponent(value)}&entity=song&country=${country}&limit=50`;
         const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
@@ -1076,9 +1082,10 @@
     const selectedGenre = room.genre || 'Everything';
     setRoomCatalogLoading(true);
     showNotice('Preparing playable songs…');
-    let catalogs = await window.getRoomStartupCatalogs?.(selectedGenre, roundCount * choiceCount, desiredDifficulty, choiceCount)
+    let catalogs = await window.getRoomStartupCatalogs?.(selectedGenre, roundCount * choiceCount, desiredDifficulty, choiceCount, false, room.languages)
       || await window.getRoundSongCatalogs?.(selectedGenre)
       || [{ name: selectedGenre, songs: activeCatalog }];
+    if (selectedGenre === 'Everything') catalogs = window.filterSongCatalogsByLanguages?.(catalogs, room.languages) || catalogs;
     if (selectedGenre === 'Everything') {
       const songs = [...new Map(catalogs.flatMap((pool) => pool.songs || [])
         .map((song) => [`${song[0]}|${song[1]}`, song])).values()];
@@ -1090,15 +1097,15 @@
       songs: [...new Map(songs.filter((song) => window.getSongDifficulty?.(song) === desiredDifficulty)
         .map((song) => [`${song[0]}|${song[1]}`, song])).values()].sort(() => Math.random() - 0.5),
     }));
-    if (selectedGenre === 'Everything') {
+    pools = pools.flatMap((pool) => {
       const poolsByLanguage = new Map();
-      for (const song of pools.flatMap((pool) => pool.songs)) {
-        const language = window.getSongCatalogLanguage?.(song, song[9]?.catalogGenre) || 'en';
+      for (const song of pool.songs) {
+        const language = window.getSongCatalogLanguage?.(song, song[9]?.catalogGenre || pool.name) || 'en';
         if (!poolsByLanguage.has(language)) poolsByLanguage.set(language, []);
         poolsByLanguage.get(language).push(song);
       }
-      pools = [...poolsByLanguage].map(([language, songs]) => ({ name: 'Everything', language, songs }));
-    }
+      return [...poolsByLanguage].map(([language, songs]) => ({ name: selectedGenre === 'Everything' ? 'Everything' : pool.name, language, songs }));
+    });
     const usedKeys = new Set();
     const rounds = [];
     const vocaloidAnswerEntries = [];
@@ -1185,10 +1192,11 @@
     const genre = settings.genre || 'Everything';
     setRoomCatalogLoading(true);
     const catalogs = window.getRoomStartupCatalogs
-      ? await window.getRoomStartupCatalogs(genre, 4, difficulty, 4, genre === 'Everything')
+      ? await window.getRoomStartupCatalogs(genre, 4, difficulty, 4, genre === 'Everything', settings.languages)
       : await window.getCachedRoundSongCatalogs?.(genre) || await window.getRoundSongCatalogs?.(genre) || [{ name: genre, songs: activeCatalog }];
-    activeCatalog = catalogs.flatMap(({ songs }) => songs || []);
-    const candidates = [...new Map(catalogs.flatMap(({ songs }) => songs || [])
+    const filteredCatalogs = genre === 'Everything' ? window.filterSongCatalogsByLanguages?.(catalogs, settings.languages) || catalogs : catalogs;
+    activeCatalog = filteredCatalogs.flatMap(({ songs }) => songs || []);
+    const candidates = [...new Map(filteredCatalogs.flatMap(({ songs }) => songs || [])
       .filter((song) => song?.[3] && window.getSongDifficulty?.(song) === difficulty)
       .map((song) => [`${song[0]}|${song[1]}`, song])).values()].sort(() => Math.random() - 0.5);
     const songs = [];
@@ -1626,7 +1634,7 @@
   });
 
   document.addEventListener('click', (event) => {
-    if (event.target.closest('.genre-option') || event.target.closest('.stepper-arrow') || event.target.closest('.difficulty-option') || event.target.closest('.mode-choice')) configureFromForm();
+    if (event.target.closest('.genre-option') || event.target.closest('.language-option') || event.target.closest('.stepper-arrow') || event.target.closest('.difficulty-option') || event.target.closest('.mode-choice')) configureFromForm();
   });
 
   document.addEventListener('change', (event) => {
